@@ -5,7 +5,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -43,7 +43,6 @@ model User {
   role          Role      @default(USER)
   createdAt     DateTime  @default(now())
 
-  // Relations
   channel  Channel?
   comments Comment[]
   likes    Like[]
@@ -75,6 +74,7 @@ model Video {
 
   comments Comment[]
   likes    Like[]
+
   likesCount Int @default(0)
 
   createdAt DateTime @default(now())
