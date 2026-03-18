@@ -36,7 +36,14 @@ export async function GET() {
   const totalComments = videos.reduce((acc, v) => acc + v._count.comments, 0);
 
   return NextResponse.json({
-    channel: { id: user.channel.id, name: user.channel.name, description: user.channel.description, avatar: user.channel.avatar },
+    channel: {
+      id: user.channel.id,
+      name: user.channel.name,
+      description: user.channel.description,
+      avatar: user.channel.avatar,
+      // New Creator Studio fields (may be null if not set yet).
+      ...(user.channel as any),
+    },
     analytics: {
       totalVideos: videos.length,
       totalLikes,

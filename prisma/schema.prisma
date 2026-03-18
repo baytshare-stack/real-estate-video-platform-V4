@@ -24,6 +24,7 @@ model User {
   channel       Channel?
   comments      Comment[]
   likes         Like[]
+  subscriptions Subscription[]
 }
 
 model Channel {
@@ -31,10 +32,41 @@ model Channel {
   name        String
   description String?
   avatar      String?
+  // Newer branding/contact fields for Creator Studio.
+  // Keep `avatar` for backward compatibility; `profileImage` can supersede it.
+  profileImage String?
+  // Some parts of the UI/backend refer to `banner` (cover image).
+  // Keep `bannerImage` for backward compatibility.
+  bannerImage  String?
+  banner        String?
+  country       String?
+  phone         String?
+  whatsapp      String?
+  whatsappUrl   String?
+  facebookUrl   String?
+  instagramUrl  String?
+  telegramUrl   String?
+  youtubeUrl    String?
+  websiteUrl    String?
   subscribersCount Int @default(0)
   ownerId     String  @unique
   owner       User    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   videos      Video[]
+  subscriptions Subscription[]
+}
+
+model Subscription {
+  id String @id @default(cuid())
+
+  subscriberId String
+  channelId String
+
+  subscriber User @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([subscriberId, channelId])
 }
 
 model Video {

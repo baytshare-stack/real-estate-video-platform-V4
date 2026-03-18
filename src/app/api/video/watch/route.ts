@@ -18,6 +18,7 @@ export async function GET(req: Request) {
         property: true,
         channel: {
           select: {
+            id: true,
             name: true,
             avatar: true,
             owner: {
@@ -67,10 +68,12 @@ export async function GET(req: Request) {
       viewsCount: 0, // removed
       likesCount: video.likesCount,
       channel: {
+        id: video.channel.id,
         channelName: video.channel.name,
         avatarUrl: video.channel.avatar,
         followersCount: 0, // removed
       },
+      channelId: video.channel.id,
       contact: contactInfo
     };
 

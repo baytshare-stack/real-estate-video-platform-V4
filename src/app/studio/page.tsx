@@ -10,10 +10,27 @@ import {
 import StatCard from '@/components/studio/StatCard';
 import VideoRow, { type VideoRowData } from '@/components/studio/VideoRow';
 import CrmLeadCard, { type CrmInteractor } from '@/components/studio/CrmLeadCard';
+import ChannelSettingsTab from '@/components/studio/ChannelSettingsTab';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface OverviewData {
-  channel: { id: string; name: string; description: string | null; avatar: string | null };
+  channel: {
+    id: string;
+    name: string;
+    description: string | null;
+    avatar: string | null;
+    profileImage?: string | null;
+    bannerImage?: string | null;
+    country?: string | null;
+    phone?: string | null;
+    whatsapp?: string | null;
+    whatsappUrl?: string | null;
+    facebookUrl?: string | null;
+    instagramUrl?: string | null;
+    telegramUrl?: string | null;
+    youtubeUrl?: string | null;
+    websiteUrl?: string | null;
+  };
   analytics: { totalVideos: number; totalLikes: number; totalComments: number; totalSubscribers: number };
   videos: VideoRowData[];
 }
@@ -153,8 +170,8 @@ export default function StudioPage() {
         <div className="p-5 border-b border-white/[0.07]">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-xl overflow-hidden bg-gradient-to-br from-blue-600 to-purple-700 flex items-center justify-center text-white font-bold text-lg flex-shrink-0 shadow-lg">
-              {channel.avatar
-                ? <img src={channel.avatar} alt={channel.name} className="w-full h-full object-cover" />
+              {channel.profileImage ?? channel.avatar
+                ? <img src={channel.profileImage ?? channel.avatar ?? ''} alt={channel.name} className="w-full h-full object-cover" />
                 : channel.name.charAt(0).toUpperCase()}
             </div>
             <div className="overflow-hidden">
@@ -433,65 +450,7 @@ export default function StudioPage() {
         {/* ════ TAB: SETTINGS ════ */}
         {activeTab === 'settings' && (
           <div className="max-w-2xl mx-auto space-y-6">
-            <h1 className="text-2xl font-black text-white">Channel Settings</h1>
-
-            {/* Channel info */}
-            <div className="bg-gray-900/80 border border-white/[0.07] rounded-2xl p-6 shadow-xl space-y-5">
-              <h2 className="font-bold text-base text-white border-b border-white/[0.07] pb-3">Identity</h2>
-              <div>
-                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Channel Name</label>
-                <input
-                  type="text"
-                  defaultValue={channel.name}
-                  className="w-full bg-gray-800/60 border border-white/[0.08] focus:border-blue-500/50 rounded-xl px-4 py-3 text-white text-sm outline-none transition-colors"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Description</label>
-                <textarea
-                  defaultValue={channel.description ?? ''}
-                  rows={4}
-                  className="w-full bg-gray-800/60 border border-white/[0.08] focus:border-blue-500/50 rounded-xl px-4 py-3 text-white text-sm outline-none transition-colors resize-none"
-                />
-              </div>
-
-              {/* Avatar */}
-              <div>
-                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Channel Avatar</label>
-                <div className="flex items-center gap-5 p-4 border border-dashed border-white/10 rounded-xl hover:border-white/20 transition-colors">
-                  <div className="w-16 h-16 rounded-full overflow-hidden bg-gradient-to-br from-blue-600 to-purple-700 flex items-center justify-center text-white font-bold text-2xl flex-shrink-0">
-                    {channel.avatar ? <img src={channel.avatar} alt={channel.name} className="w-full h-full object-cover" /> : channel.name.charAt(0)}
-                  </div>
-                  <div>
-                    <p className="text-white text-sm font-medium mb-0.5">Profile Image</p>
-                    <p className="text-gray-500 text-xs mb-2">Recommended: 800×800 px</p>
-                    <button className="text-blue-400 hover:text-blue-300 text-xs font-bold transition-colors">Change Photo</button>
-                  </div>
-                </div>
-              </div>
-
-              <button className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-6 rounded-xl text-sm transition-colors">
-                Save Changes
-              </button>
-            </div>
-
-            {/* Contact info */}
-            <div className="bg-gray-900/80 border border-white/[0.07] rounded-2xl p-6 shadow-xl space-y-5">
-              <h2 className="font-bold text-base text-white border-b border-white/[0.07] pb-3 flex items-center gap-2">
-                <User className="w-4 h-4 text-gray-400" /> Contact Information
-              </h2>
-              <div>
-                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Phone Number</label>
-                <input type="tel" className="w-full bg-gray-800/60 border border-white/[0.08] rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-blue-500/50 transition-colors" placeholder="+1 555-0100" />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">WhatsApp Number</label>
-                <input type="tel" className="w-full bg-gray-800/60 border border-white/[0.08] rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-blue-500/50 transition-colors" placeholder="+1 555-0100" />
-              </div>
-              <button className="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2.5 px-6 rounded-xl text-sm transition-colors">
-                Update Contact
-              </button>
-            </div>
+            <ChannelSettingsTab channel={channel as any} onSaved={fetchOverview} />
 
             {/* Danger zone */}
             <div className="bg-gray-900/80 border border-red-500/15 rounded-2xl p-6 shadow-xl space-y-4">

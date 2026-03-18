@@ -9,6 +9,7 @@ interface VideoCardProps {
   location: string;
   channelName: string;
   channelAvatarUrl?: string;
+  channelId?: string;
   viewsCount: number;
   createdAt: Date;
   isShort?: boolean;
@@ -21,7 +22,7 @@ interface VideoCardProps {
 }
 
 export default function VideoCard({ 
-  id, title, thumbnailUrl, price, location, channelName, channelAvatarUrl, viewsCount, createdAt, isShort = false,
+  id, title, thumbnailUrl, price, location, channelName, channelAvatarUrl, channelId, viewsCount, createdAt, isShort = false,
   bedrooms, bathrooms, sizeSqm, status
 }: VideoCardProps) {
 
@@ -82,7 +83,7 @@ export default function VideoCard({
       {/* Info Details */}
       <div className="flex gap-3 px-1">
         {/* Avatar */}
-        <Link href={`/channel/demo`}>
+        <Link href={`/channel/${channelId ?? "demo"}`}>
           <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-800 border border-gray-700 flex-shrink-0 mt-1">
              <img src={channelAvatarUrl || `https://ui-avatars.com/api/?name=${channelName}&background=random`} alt={channelName} className="w-full h-full object-cover" />
           </div>
@@ -119,7 +120,7 @@ export default function VideoCard({
              )}
           </div>
           
-          <Link href={`/channel/demo`}>
+          <Link href={`/channel/${channelId ?? "demo"}`}>
             <div className="text-gray-400 text-xs mt-2 hover:text-white transition-colors flex items-center gap-1">
               {channelName}
               <svg className="w-3 h-3 text-blue-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"></path></svg>
