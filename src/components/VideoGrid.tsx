@@ -41,7 +41,12 @@ function normalise(v: VideoItem) {
     price: v.property?.price ? Number(v.property.price) : (v.price ?? 0),
     bedrooms: v.property?.bedrooms ?? v.bedrooms,
     bathrooms: v.property?.bathrooms ?? v.bathrooms,
-    sizeSqm: v.property?.sizeSqm ?? v.sizeSqm,
+    sizeSqm:
+      v.property?.sizeSqm !== null && v.property?.sizeSqm !== undefined
+        ? Number(v.property.sizeSqm)
+        : v.sizeSqm !== null && v.sizeSqm !== undefined
+          ? Number(v.sizeSqm)
+          : undefined,
     status: (v.property?.status ?? v.status) as 'FOR_SALE' | 'FOR_RENT' | undefined,
     channelName: v.channelName ?? v.channel?.name ?? 'Unknown',
     channelAvatarUrl: v.channelAvatarUrl ?? v.channel?.avatar ?? undefined,

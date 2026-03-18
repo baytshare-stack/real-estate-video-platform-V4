@@ -17,6 +17,9 @@ model User {
   phoneCode     String?
   phoneNumber   String?
   role          Role      @default(USER)
+  isBlocked     Boolean   @default(false)
+  crmStatus     CrmStatus @default(LEAD)
+  crmNotes      String?
   createdAt     DateTime  @default(now())
   channel       Channel?
   comments      Comment[]
@@ -28,6 +31,7 @@ model Channel {
   name        String
   description String?
   avatar      String?
+  subscribersCount Int @default(0)
   ownerId     String  @unique
   owner       User    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   videos      Video[]
@@ -41,11 +45,47 @@ model Video {
   thumbnail   String?
   channelId   String
   likesCount  Int       @default(0)
+  viewsCount  Int       @default(0)
+  isShort     Boolean   @default(false)
+  moderationStatus ModerationStatus @default(PENDING)
   createdAt   DateTime  @default(now())
   comments    Comment[]
   likes       Like[]
   property    Property?
+  adPlacements AdPlacement[]
   channel     Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
+}
+
+model AdCampaign {
+  id          String   @id @default(cuid())
+  name        String
+  status      AdCampaignStatus @default(DRAFT)
+  createdAt   DateTime @default(now())
+  creatives   AdCreative[]
+  placements  AdPlacement[]
+}
+
+model AdCreative {
+  id          String   @id @default(cuid())
+  campaignId  String
+  campaign    AdCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  type        AdCreativeType
+  mediaUrl    String
+  clickUrl    String?
+  createdAt   DateTime @default(now())
+  impressions Int      @default(0)
+  clicks      Int      @default(0)
+}
+
+model AdPlacement {
+  id          String   @id @default(cuid())
+  campaignId  String
+  campaign    AdCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  videoId     String
+  video       Video     @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+
+  @@unique([campaignId, videoId])
 }
 
 model Property {
@@ -105,4 +145,30 @@ enum PropertyType {
 enum PropertyStatus {
   FOR_SALE
   FOR_RENT
+}
+
+enum CrmStatus {
+  LEAD
+  ACTIVE
+  INACTIVE
+}
+
+// CRM fields are stored on the User for now to keep the admin system simple.
+// Contact history is still mocked in the UI as requested.
+
+enum ModerationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum AdCampaignStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+}
+
+enum AdCreativeType {
+  IMAGE
+  VIDEO
 }

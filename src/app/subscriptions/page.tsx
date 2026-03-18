@@ -45,7 +45,7 @@ export default async function SubscriptionsPage() {
   return (
     <div className="p-4 md:p-6 max-w-[2000px] mx-auto min-h-screen">
       <PageHeader
-        icon={BookMarked}
+        iconName="BookMarked"
         iconColor="text-purple-500"
         title="Subscriptions"
         subtitle={`Discover ${channels.length} channel${channels.length !== 1 ? 's' : ''} on the platform`}

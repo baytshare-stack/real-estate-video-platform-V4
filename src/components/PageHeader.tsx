@@ -1,6 +1,6 @@
 "use client";
 
-import { type LucideIcon } from 'lucide-react';
+import { BookMarked, Clapperboard, Compass, Flame, TrendingUp, Users } from 'lucide-react';
 
 interface FilterChip {
   label: string;
@@ -8,7 +8,7 @@ interface FilterChip {
 }
 
 interface PageHeaderProps {
-  icon?: LucideIcon;
+  iconName?: keyof typeof ICONS;
   iconColor?: string;
   title: string;
   subtitle?: string;
@@ -17,8 +17,17 @@ interface PageHeaderProps {
   onFilterChange?: (value: string) => void;
 }
 
+const ICONS = {
+  Flame,
+  Clapperboard,
+  Compass,
+  TrendingUp,
+  Users,
+  BookMarked,
+} as const;
+
 export default function PageHeader({
-  icon: Icon,
+  iconName,
   iconColor = 'text-blue-500',
   title,
   subtitle,
@@ -26,6 +35,8 @@ export default function PageHeader({
   activeFilter,
   onFilterChange,
 }: PageHeaderProps) {
+  const Icon = iconName ? ICONS[iconName] : undefined;
+
   return (
     <div className="mb-6">
       <div className="flex items-center gap-3 mb-1">

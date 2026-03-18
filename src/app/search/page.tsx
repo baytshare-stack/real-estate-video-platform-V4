@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import SearchClient from './SearchClient';
+import { serializeVideosForClient } from '@/lib/serializePrismaVideos';
 
 const prisma = new PrismaClient();
 
@@ -28,7 +29,9 @@ export default async function SearchAndMapPage({ searchParams }: { searchParams:
     take: 30
   });
 
+  const serializedVideos = serializeVideosForClient(searchResults);
+
   return (
-    <SearchClient initialVideos={searchResults} initialQuery={query} />
+    <SearchClient initialVideos={serializedVideos} initialQuery={query} />
   );
 }

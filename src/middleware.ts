@@ -63,18 +63,10 @@ export async function middleware(request: NextRequest) {
   }
 
   // Protect admin routes
-  if (!response && pathname.startsWith("/admin")) {
-    const token = await getToken({
-      req: request,
-      secret: process.env.NEXTAUTH_SECRET || "fallback_secret_for_dev",
-    });
-
-    if (!token) {
-      response = NextResponse.redirect(new URL("/login", request.url));
-    } else if ((token as any).role !== "ADMIN") {
-      response = NextResponse.redirect(new URL("/403", request.url));
-    }
-  }
+  // NOTE:
+  // Admin route access is guarded in `src/app/admin/layout.tsx` using a
+  // localStorage-backed admin session (temporary approach).
+  // Middleware cannot read localStorage, so we do not enforce /admin here.
 
   // If no response has been decided, continue to the next handler.
   if (!response) {

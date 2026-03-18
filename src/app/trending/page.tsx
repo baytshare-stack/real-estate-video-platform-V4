@@ -1,7 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import VideoGrid from '@/components/VideoGrid';
 import PageHeader from '@/components/PageHeader';
-import { TrendingUp } from 'lucide-react';
+import { serializeVideosForClient } from '@/lib/serializePrismaVideos';
 
 const prisma = new PrismaClient();
 export const dynamic = 'force-dynamic';
@@ -17,12 +17,13 @@ export default async function TrendingPage() {
     take: 24,
   });
 
-  const display = videos.length > 0 ? videos : MOCK_TRENDING;
+  const serializedVideos = serializeVideosForClient(videos);
+  const display = serializedVideos.length > 0 ? serializedVideos : MOCK_TRENDING;
 
   return (
     <div className="p-4 md:p-6 max-w-[2000px] mx-auto min-h-screen">
       <PageHeader
-        icon={TrendingUp}
+        iconName="TrendingUp"
         iconColor="text-orange-500"
         title="Trending"
         subtitle="Most-watched real estate tours globally right now"

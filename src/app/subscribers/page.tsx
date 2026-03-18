@@ -5,6 +5,7 @@ import { Users } from 'lucide-react';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import Link from 'next/link';
+import { serializeVideosForClient } from '@/lib/serializePrismaVideos';
 
 const prisma = new PrismaClient();
 
@@ -36,10 +37,12 @@ export default async function SubscribersPage() {
     take: 20,
   });
 
+  const serializedVideos = serializeVideosForClient(videos);
+
   return (
     <div className="p-4 md:p-6 max-w-[2000px] mx-auto min-h-screen">
       <PageHeader
-        icon={Users}
+        iconName="Users"
         iconColor="text-blue-500"
         title="Subscribers"
         subtitle="Latest updates from channels you follow"
@@ -55,7 +58,7 @@ export default async function SubscribersPage() {
         </div>
       </div>
 
-      <VideoGrid videos={videos as any} emptyMessage="No videos found from your subscriptions." />
+      <VideoGrid videos={serializedVideos as any} emptyMessage="No videos found from your subscriptions." />
     </div>
   );
 }

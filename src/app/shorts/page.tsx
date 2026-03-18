@@ -1,7 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import VideoGrid from '@/components/VideoGrid';
 import PageHeader from '@/components/PageHeader';
-import { Clapperboard } from 'lucide-react';
+import { serializeVideosForClient } from '@/lib/serializePrismaVideos';
 
 const prisma = new PrismaClient();
 export const dynamic = 'force-dynamic';
@@ -20,12 +20,18 @@ export default async function ShortsPage() {
     take: 8,
   });
 
-  const display = dbVideos.length > 0 ? [...dbVideos.map(v => ({ ...v, isShort: true })), ...MOCK_SHORTS] : MOCK_SHORTS;
+  const serializedDbVideos = serializeVideosForClient(dbVideos).map((v) => ({
+    ...v,
+    isShort: true,
+  }));
+
+  const display =
+    serializedDbVideos.length > 0 ? [...serializedDbVideos, ...MOCK_SHORTS] : MOCK_SHORTS;
 
   return (
     <div className="p-4 md:p-6 max-w-[2000px] mx-auto min-h-screen">
       <PageHeader
-        icon={Clapperboard}
+        iconName="Clapperboard"
         iconColor="text-red-500"
         title="Shorts"
         subtitle="Bite-sized real-estate tours under 60 seconds"

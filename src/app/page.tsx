@@ -23,7 +23,6 @@ export default async function Home() {
 
   const shorts = await prisma.video.findMany({
     orderBy: { createdAt: 'desc' },
-    skip: 16,
     include: {
       channel: { select: { name: true, avatar: true } },
       property: true
@@ -31,15 +30,14 @@ export default async function Home() {
     take: 10
   });
 
-  // Fallback mock for visual continuity
+  // Since we might not have DB entries right away, fallback mock for visual continuity
   const displayVideos = videos.length > 0 ? videos : MOCK_VIDEOS;
   const displayShorts = shorts.length > 0 ? shorts : MOCK_SHORTS;
 
   return (
     <div className="p-4 md:p-6 max-w-[2000px] mx-auto min-h-screen">
       <h1 className="text-2xl font-bold mb-4 text-white">{t('home', 'feedTitle')}</h1>
-
-      {/* Filters Strip */}
+      {/* Filters Strip (Optional, similar to YouTube's top pills) */}
       <div className="flex gap-3 overflow-x-auto hide-scrollbar pb-4 mb-2">
         {['All', 'Mansions', 'Apartments', 'Commercial', 'New York', 'Dubai', 'For Rent', 'Under $1M'].map(filter => (
           <button key={filter} className="whitespace-nowrap px-4 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-medium transition-colors">
@@ -57,7 +55,7 @@ export default async function Home() {
             price={video.property?.price ? Number(video.property.price) : video.price}
             bedrooms={video.property?.bedrooms || video.bedrooms}
             bathrooms={video.property?.bathrooms || video.bathrooms}
-            sizeSqm={video.property?.sizeSqm || video.sizeSqm}
+              sizeSqm={video.property?.sizeSqm != null ? Number(video.property.sizeSqm) : video.sizeSqm != null ? Number(video.sizeSqm) : undefined}
             status={video.property?.status || video.status}
             channelName={video.channelName || video.channel?.name}
             channelAvatarUrl={video.channelAvatarUrl || video.channel?.avatar}
@@ -81,7 +79,7 @@ export default async function Home() {
                price={short.property?.price ? Number(short.property.price) : short.price}
                bedrooms={short.property?.bedrooms || short.bedrooms}
                bathrooms={short.property?.bathrooms || short.bathrooms}
-               sizeSqm={short.property?.sizeSqm || short.sizeSqm}
+              sizeSqm={short.property?.sizeSqm != null ? Number(short.property.sizeSqm) : short.sizeSqm != null ? Number(short.sizeSqm) : undefined}
                status={short.property?.status || short.status}
                channelName={short.channelName || short.channel?.name}
                channelAvatarUrl={short.channelAvatarUrl || short.channel?.avatar}
@@ -100,7 +98,7 @@ export default async function Home() {
               price={video.property?.price ? Number(video.property.price) : video.price}
               bedrooms={video.property?.bedrooms || video.bedrooms}
               bathrooms={video.property?.bathrooms || video.bathrooms}
-              sizeSqm={video.property?.sizeSqm || video.sizeSqm}
+              sizeSqm={video.property?.sizeSqm != null ? Number(video.property.sizeSqm) : video.sizeSqm != null ? Number(video.sizeSqm) : undefined}
               status={video.property?.status || video.status}
               channelName={video.channelName || video.channel?.name}
               channelAvatarUrl={video.channelAvatarUrl || video.channel?.avatar}
@@ -114,7 +112,7 @@ export default async function Home() {
   );
 }
 
-// Mock videos for fallback
+// Keep mocks at bottom so the UI continues to render perfectly while the DB is empty
 const MOCK_VIDEOS = Array(12).fill(0).map((_, i) => ({
   id: `video-${i}`,
   title: `Luxury Modern Villa in Beverly Hills - Cinematic Tour ${i + 1}`,

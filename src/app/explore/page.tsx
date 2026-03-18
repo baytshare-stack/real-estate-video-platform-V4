@@ -1,14 +1,14 @@
 import { PrismaClient } from '@prisma/client';
 import VideoGrid from '@/components/VideoGrid';
 import PageHeader from '@/components/PageHeader';
-import { Compass } from 'lucide-react';
+import { serializeVideosForClient } from '@/lib/serializePrismaVideos';
 
 const prisma = new PrismaClient();
 export const dynamic = 'force-dynamic';
 
 export default async function ExplorePage() {
   // Mix of most-liked + recent to give a "discovery" feel
-  const [popular, recent] = await Promise.all([
+  const [popularRaw, recentRaw] = await Promise.all([
     prisma.video.findMany({
       orderBy: { likesCount: 'desc' },
       include: {
@@ -30,11 +30,21 @@ export default async function ExplorePage() {
 
   // Interleave the two lists for variety
   const seen = new Set<string>();
-  const mixed: typeof popular = [];
+  const popular = serializeVideosForClient(popularRaw);
+  const recent = serializeVideosForClient(recentRaw);
+  const mixed: any[] = [];
   const max = Math.max(popular.length, recent.length);
   for (let i = 0; i < max; i++) {
-    if (popular[i] && !seen.has(popular[i].id)) { mixed.push(popular[i]); seen.add(popular[i].id); }
-    if (recent[i]  && !seen.has(recent[i].id))  { mixed.push(recent[i]);  seen.add(recent[i].id);  }
+    const p = popular[i];
+    const r = recent[i];
+    if (p && !seen.has(p.id)) {
+      mixed.push(p);
+      seen.add(p.id);
+    }
+    if (r && !seen.has(r.id)) {
+      mixed.push(r);
+      seen.add(r.id);
+    }
   }
 
   const display = mixed.length > 0 ? mixed : MOCK_EXPLORE;
@@ -42,7 +52,7 @@ export default async function ExplorePage() {
   return (
     <div className="p-4 md:p-6 max-w-[2000px] mx-auto min-h-screen">
       <PageHeader
-        icon={Compass}
+        iconName="Compass"
         iconColor="text-cyan-500"
         title="Explore"
         subtitle="Discover properties you haven't seen yet"
