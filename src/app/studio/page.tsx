@@ -31,6 +31,11 @@ interface OverviewData {
     youtubeUrl?: string | null;
     websiteUrl?: string | null;
   };
+  ownerDefaults?: {
+    country?: string | null;
+    phone?: string | null;
+    whatsapp?: string | null;
+  };
   analytics: { totalVideos: number; totalLikes: number; totalComments: number; totalSubscribers: number };
   videos: VideoRowData[];
 }
@@ -158,7 +163,7 @@ export default function StudioPage() {
     );
   }
 
-  const { analytics, channel } = overview!;
+  const { analytics, channel, ownerDefaults } = overview!;
 
   // ─── Main Dashboard Layout ──────────────────────────────────────────────────
   return (
@@ -450,7 +455,7 @@ export default function StudioPage() {
         {/* ════ TAB: SETTINGS ════ */}
         {activeTab === 'settings' && (
           <div className="max-w-2xl mx-auto space-y-6">
-            <ChannelSettingsTab channel={channel as any} onSaved={fetchOverview} />
+            <ChannelSettingsTab channel={channel as any} ownerDefaults={ownerDefaults} onSaved={fetchOverview} />
 
             {/* Danger zone */}
             <div className="bg-gray-900/80 border border-red-500/15 rounded-2xl p-6 shadow-xl space-y-4">

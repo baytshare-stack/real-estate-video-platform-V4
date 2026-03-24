@@ -32,6 +32,16 @@ interface PropertyDetailsSectionProps {
 export default function PropertyDetailsSection({ formData, onChange }: PropertyDetailsSectionProps) {
   const { t, locale } = useTranslation();
   const isRTL = locale === 'ar';
+  const videoPropertyTypes = ["APARTMENT", "VILLA", "TOWNHOUSE", "STUDIO", "DUPLEX", "LAND", "OTHER"] as const;
+
+  const videoPropertyTypeLabel = (type: (typeof videoPropertyTypes)[number]) => {
+    const translationKey = `upload.types.${type}`;
+    const translated = t("upload", `types.${type}`);
+    // If key doesn't exist, fallback returns the full path (e.g. "upload.types.TOWNHOUSE")
+    if (!translated || translated === translationKey) return type.charAt(0) + type.slice(1).toLowerCase();
+    if (translated === `types.${type}`) return type.charAt(0) + type.slice(1).toLowerCase();
+    return translated;
+  };
 
   return (
     <div className={`space-y-8 bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm ${isRTL ? 'text-right' : 'text-left'}`} dir={isRTL ? 'rtl' : 'ltr'}>
@@ -94,8 +104,10 @@ export default function PropertyDetailsSection({ formData, onChange }: PropertyD
             onChange={onChange}
             className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all appearance-none cursor-pointer"
           >
-            {['APARTMENT', 'VILLA', 'HOUSE', 'OFFICE', 'SHOP', 'COMMERCIAL', 'LAND'].map(type => (
-              <option key={type} value={type}>{t('upload', `types.${type}`)}</option>
+            {videoPropertyTypes.map((type) => (
+              <option key={type} value={type}>
+                {videoPropertyTypeLabel(type)}
+              </option>
             ))}
           </select>
         </div>

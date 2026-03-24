@@ -79,8 +79,8 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
   const channel = videoData.channel || {};
   const contact = videoData.contact || {};
 
-  const formattedPrice = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(video.price || 0);
-  const locationString = `${video.city}, ${video.country}`;
+  const formattedPrice = `${new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(video.price || 0)} ${video.currency || 'USD'}`;
+  const locationString = video.location || `${video.city || ''}, ${video.country || ''}`.replace(/^,\s*|\s*,$/g, '');
 
   return (
     <>
@@ -90,7 +90,14 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
       <div className="flex flex-col gap-4 w-full overflow-hidden">
         
         {/* The Video Player Area */}
-        <div className="w-full aspect-video bg-black rounded-2xl overflow-hidden border border-gray-800 shadow-2xl relative flex items-center justify-center">
+        <div
+          className={[
+            "bg-black rounded-2xl overflow-hidden border border-gray-800 shadow-2xl relative flex items-center justify-center",
+            video.isShort
+              ? "aspect-[9/16] w-full max-w-[400px] mx-auto"
+              : "w-full aspect-video",
+          ].join(" ")}
+        >
             {video.videoUrl ? (
                 <video src={video.videoUrl} controls className="w-full h-full object-contain" poster={video.thumbnailUrl} />
             ) : (

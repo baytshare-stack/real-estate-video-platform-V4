@@ -1,20 +1,25 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { PrismaClient } from '@prisma/client';
+import prisma from '@/lib/prisma';
+import { safeFindMany, safeFindUnique } from '@/lib/safePrisma';
+import type { Prisma } from '@prisma/client';
 
-const prisma = new PrismaClient();
+type UserWithChannel = Prisma.UserGetPayload<{ include: { channel: true } }>;
 
 export async function GET() {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.email) {
+  const email = session?.user?.email;
+  if (!email) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const user = await prisma.user.findUnique({
-    where: { email: session.user.email },
-    include: { channel: true },
-  });
+  const user = (await safeFindUnique(() =>
+    prisma.user.findUnique({
+      where: { email },
+      include: { channel: true },
+    })
+  )) as UserWithChannel | null;
 
   if (!user?.channel) {
     return NextResponse.json({ error: 'No channel found' }, { status: 404 });
@@ -22,18 +27,25 @@ export async function GET() {
 
   const channelId = user.channel.id;
 
-  // Fetch all videos with comments/likes counts
-  const videos = await prisma.video.findMany({
-    where: { channelId },
-    include: {
-      property: true,
-      _count: { select: { comments: true, likes: true } },
-    },
-    orderBy: { createdAt: 'desc' },
-  });
+  const videos = await safeFindMany(() =>
+    prisma.video.findMany({
+      where: { channelId },
+      include: {
+        property: true,
+        _count: { select: { comments: true, videoReactions: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    })
+  );
 
   const totalLikes = videos.reduce((acc, v) => acc + (v.likesCount ?? 0), 0);
   const totalComments = videos.reduce((acc, v) => acc + v._count.comments, 0);
+
+  const digitsToPlus = (d: string | null | undefined) => {
+    if (!d) return null;
+    const x = d.replace(/\D/g, "");
+    return x ? `+${x}` : null;
+  };
 
   return NextResponse.json({
     channel: {
@@ -41,14 +53,17 @@ export async function GET() {
       name: user.channel.name,
       description: user.channel.description,
       avatar: user.channel.avatar,
-      // New Creator Studio fields (may be null if not set yet).
       ...(user.channel as any),
+    },
+    ownerDefaults: {
+      country: user.country,
+      phone: user.fullPhoneNumber || digitsToPlus(user.phone),
+      whatsapp: digitsToPlus(user.whatsapp),
     },
     analytics: {
       totalVideos: videos.length,
       totalLikes,
       totalComments,
-      // Subscriber count not in schema yet — return 0 as placeholder
       totalSubscribers: 0,
     },
     videos: videos.map(v => ({
@@ -56,7 +71,9 @@ export async function GET() {
       title: v.title,
       description: v.description,
       thumbnail: v.thumbnail,
+      thumbnailUrl: v.thumbnail,
       videoUrl: v.videoUrl,
+      isShort: v.isShort,
       likesCount: v.likesCount,
       commentsCount: v._count.comments,
       createdAt: v.createdAt,

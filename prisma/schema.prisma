@@ -9,22 +9,87 @@ datasource db {
 
 model User {
   id            String    @id @default(cuid())
-  fullName      String
+  username      String?   @unique
+  fullName      String    @default("User")
+  name          String?
+  /// Unique login identifier (admin login uses this + passwordHash)
   email         String    @unique
   emailVerified DateTime?
+  /// Bcrypt hash of password (never store plaintext). Admin auth uses this field.
   passwordHash  String?
+  image         String?
   country       String?
+  city          String?
+  /// Discovery: featured agents/agencies sort first
+  isFeatured    Boolean   @default(false)
+  /// Discovery: “verified only” filter + trust badge
+  isVerified    Boolean   @default(false)
+  /// Average rating (0–5), optional
+  rating        Float?
   phoneCode     String?
   phoneNumber   String?
+  phone         String?
+  whatsapp      String?
+  fullPhoneNumber String?
+  phoneVerified Boolean   @default(true)
+  otpCode       String?
+  otpExpiresAt  DateTime?
+  phoneLoginToken           String?
+  phoneLoginTokenExpiresAt  DateTime?
+  /// Platform roles; admin panel requires Role.ADMIN (see admin JWT + /api/admin/auth)
   role          Role      @default(USER)
   isBlocked     Boolean   @default(false)
   crmStatus     CrmStatus @default(LEAD)
   crmNotes      String?
   createdAt     DateTime  @default(now())
+  /// Agent → agency company user (role AGENCY)
+  employerId    String?
+  employer      User?     @relation("AgencyEmployer", fields: [employerId], references: [id], onDelete: SetNull)
+  agencyAgents  User[]    @relation("AgencyEmployer")
   channel       Channel?
-  comments      Comment[]
-  likes         Like[]
-  subscriptions Subscription[]
+  comments          Comment[]
+  videoReactions    VideoReaction[]
+  commentReactions  CommentReaction[]
+  subscriptions     Subscription[]
+  accounts          Account[]
+  profile           Profile?
+  videoShares       VideoShare[]
+  crmEvents         CrmEvent[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Profile {
+  id           String  @id @default(cuid())
+  userId       String  @unique
+  name         String?
+  bio          String?
+  location     String?
+  avatar       String?
+  facebook     String?
+  instagram    String?
+  linkedin     String?
+  website      String?
+  contactEmail String?
+  contactPhone String?
+  user         User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Channel {
@@ -32,11 +97,7 @@ model Channel {
   name        String
   description String?
   avatar      String?
-  // Newer branding/contact fields for Creator Studio.
-  // Keep `avatar` for backward compatibility; `profileImage` can supersede it.
   profileImage String?
-  // Some parts of the UI/backend refer to `banner` (cover image).
-  // Keep `bannerImage` for backward compatibility.
   bannerImage  String?
   banner        String?
   country       String?
@@ -52,6 +113,7 @@ model Channel {
   ownerId     String  @unique
   owner       User    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   videos      Video[]
+  playlists   Playlist[]
   subscriptions Subscription[]
 }
 
@@ -75,14 +137,22 @@ model Video {
   description String?
   videoUrl    String?
   thumbnail   String?
+  isDemo      Boolean   @default(false)
   channelId   String
   likesCount  Int       @default(0)
+  dislikesCount Int     @default(0)
+  sharesCount Int       @default(0)
+  commentsCount Int     @default(0)
   viewsCount  Int       @default(0)
   isShort     Boolean   @default(false)
   moderationStatus ModerationStatus @default(PENDING)
+  /// Denormalized field used for auto-generated property playlists.
+  /// Optional for backwards compatibility with older videos.
+  propertyType VideoPropertyType?
   createdAt   DateTime  @default(now())
   comments    Comment[]
-  likes       Like[]
+  videoReactions VideoReaction[]
+  shares      VideoShare[]
   property    Property?
   adPlacements AdPlacement[]
   channel     Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
@@ -105,8 +175,8 @@ model AdCreative {
   mediaUrl    String
   clickUrl    String?
   createdAt   DateTime @default(now())
-  impressions Int      @default(0)
-  clicks      Int      @default(0)
+  impressions Int       @default(0)
+  clicks      Int       @default(0)
 }
 
 model AdPlacement {
@@ -126,42 +196,108 @@ model Property {
   propertyType PropertyType
   status       PropertyStatus
   price        Decimal?
+  currency     String         @default("USD")
   bedrooms     Int?
   bathrooms    Float?
   sizeSqm      Float?
   country      String
   city         String
   address      String?
+  latitude     Float?
+  longitude    Float?
   createdAt    DateTime       @default(now())
   video        Video          @relation(fields: [videoId], references: [id], onDelete: Cascade)
 }
 
 model Comment {
-  id        String   @id @default(cuid())
-  content   String
-  userId    String
-  videoId   String
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  video     Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  id              String   @id @default(cuid())
+  content         String
+  userId          String
+  videoId         String
+  parentCommentId String?
+  likesCount      Int      @default(0)
+  dislikesCount   Int      @default(0)
+  createdAt       DateTime @default(now())
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  video           Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  parent          Comment? @relation("CommentReplies", fields: [parentCommentId], references: [id], onDelete: Cascade)
+  replies         Comment[] @relation("CommentReplies")
+  reactions       CommentReaction[]
+
+  @@index([videoId])
+  @@index([parentCommentId])
 }
 
-model Like {
-  id        String   @id @default(cuid())
+/// One reaction per user per video (LIKE or DISLIKE)
+model VideoReaction {
+  id        String       @id @default(cuid())
   userId    String
   videoId   String
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  video     Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  type      ReactionType @default(LIKE)
+  createdAt DateTime     @default(now())
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  video     Video        @relation(fields: [videoId], references: [id], onDelete: Cascade)
 
   @@unique([userId, videoId])
+  @@map("VideoReaction")
 }
 
+model CommentReaction {
+  id        String       @id @default(cuid())
+  userId    String
+  commentId String
+  type      ReactionType
+  createdAt DateTime     @default(now())
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comment   Comment      @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, commentId])
+}
+
+model VideoShare {
+  id        String   @id @default(cuid())
+  userId    String?
+  videoId   String
+  platform  String
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  video     Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@index([videoId])
+}
+
+model Playlist {
+  id        String   @id @default(cuid())
+  name      String
+  channelId String
+  createdAt DateTime @default(now())
+
+  channel   Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@index([channelId])
+}
+
+model CrmEvent {
+  id        String   @id @default(cuid())
+  type      String
+  userId    String?
+  videoId   String?
+  channelId String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([type])
+  @@index([videoId])
+}
+
+/// Includes real-estate-specific roles; admin authentication uses ADMIN only (separate from NextAuth).
 enum Role {
   USER
   AGENT
   AGENCY
   ADMIN
+  SUPER_ADMIN
 }
 
 enum PropertyType {
@@ -185,13 +321,26 @@ enum CrmStatus {
   INACTIVE
 }
 
-// CRM fields are stored on the User for now to keep the admin system simple.
-// Contact history is still mocked in the UI as requested.
-
 enum ModerationStatus {
   PENDING
   APPROVED
   REJECTED
+}
+
+enum ReactionType {
+  LIKE
+  DISLIKE
+}
+
+/// Property categories used to auto-generate playlists on channel pages.
+enum VideoPropertyType {
+  APARTMENT
+  VILLA
+  TOWNHOUSE
+  STUDIO
+  DUPLEX
+  LAND
+  OTHER
 }
 
 enum AdCampaignStatus {

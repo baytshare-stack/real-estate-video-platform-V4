@@ -6,11 +6,42 @@
     "dashboard": "Dashboard",
     "login": "Login",
     "logout": "Logout",
-    "createChannel": "Create Channel"
+    "createChannel": "Create Channel",
+    "studio": "Studio"
+  },
+  "sidebar": {
+    "shorts": "Shorts",
+    "subscribers": "Subscribers",
+    "subscriptions": "Subscriptions",
+    "explore": "Explore",
+    "trending": "Trending",
+    "agents": "Agents",
+    "agencies": "Agencies",
+    "collapse": "Collapse",
+    "settings": "Settings"
+  },
+  "header": {
+    "signOutTitle": "Sign out",
+    "mobileSearchHint": "Press enter to search for real estate videos..."
+  },
+  "language": {
+    "switchTitle": "Change language",
+    "selectLabel": "Select language"
   },
   "home": {
     "feedTitle": "Explore Properties",
-    "loading": "Loading feed..."
+    "loading": "Loading feed...",
+    "shortsShelf": "Shorts",
+    "filters": {
+      "all": "All",
+      "mansions": "Mansions",
+      "apartments": "Apartments",
+      "commercial": "Commercial",
+      "newYork": "New York",
+      "dubai": "Dubai",
+      "forRent": "For Rent",
+      "under1m": "Under $1M"
+    }
   },
   "search": {
     "title": "Search Properties",
@@ -34,6 +65,7 @@
   },
   "upload": {
     "title": "Upload Property Video",
+    "propertyDescription": "Provide essential information about the property.",
     "videoStep": "Video & Thumbnail",
     "propertyStep": "Property Details",
     "locationStep": "Location Details",
@@ -75,12 +107,115 @@
     "uploading": "Uploading...",
     "dragDrop": "Drag and drop or click to upload"
   },
+  "uploadPage": {
+    "heroTitle": "Upload Property Video",
+    "heroSubtitle": "Create a clean, complete listing with video, property details, and exact location.",
+    "accessDenied": "Access Denied",
+    "accessDeniedBody": "Only Real Estate Agents and Agencies can upload property videos.",
+    "returnHome": "Return Home",
+    "sectionVideo": "Video",
+    "sectionProperty": "Property Details",
+    "sectionLocation": "Location",
+    "titleLabel": "Title",
+    "titlePlaceholder": "Modern 3BR apartment with marina view",
+    "descriptionLabel": "Description",
+    "descriptionPlaceholder": "Highlight rooms, amenities, and neighborhood value.",
+    "videoType": "Video Type",
+    "long": "Long",
+    "short": "Short",
+    "uploadVideoTitle": "Upload Video",
+    "uploadVideoHelp": "MP4 — uploads when you publish",
+    "youtubeLabel": "YouTube URL",
+    "youtubePlaceholder": "https://www.youtube.com/watch?v=...",
+    "thumbnailTitle": "Thumbnail",
+    "thumbnailHelp": "Optional — JPG or PNG",
+    "replace": "Replace",
+    "uploadingMedia": "Uploading media…",
+    "publish": "Publish Video",
+    "publishing": "Publishing...",
+    "uploading": "Uploading...",
+    "waitProcessing": "Please wait for current processing to finish.",
+    "fillRequired": "Please fill required fields: title, video, location, and price.",
+    "noVideoUrl": "Upload finished but the server did not return a video URL.",
+    "noThumbUrl": "Upload finished but the server did not return a thumbnail URL.",
+    "noVideoAfterUpload": "Could not determine video URL after upload.",
+    "successPublish": "Video published successfully.",
+    "networkError": "Network error while publishing video",
+    "uploadComplete": "Upload complete",
+    "areaUnit": "Area Unit",
+    "currency": "Currency",
+    "listingType": "Listing Type",
+    "propertyListing": "Property Type",
+    "areaAddress": "Area / Address",
+    "addressPlaceholder": "Business Bay, Downtown, etc.",
+    "searchLocation": "Search Location",
+    "searchPlaceholder": "Search by place, district, or address",
+    "find": "Find",
+    "coordsHint": "Click on the map to drop a marker and capture coordinates.",
+    "coordsSelected": "Selected Coordinates:",
+    "clickToUpload": "Click to upload",
+    "preparingUpload": "Preparing upload..."
+  },
   "channel": {
-    "videos": "Videos"
+    "videos": "Videos",
+    "longVideos": "Long videos",
+    "shorts": "Shorts",
+    "noVideos": "No property video tours uploaded yet.",
+    "welcomeDefault": "Welcome to our channel! Explore our property video tours.",
+    "agency": "Real Estate Agency",
+    "agent": "Real Estate Agent",
+    "subscriber": "subscriber",
+    "subscribers": "subscribers",
+    "phone": "Phone:",
+    "whatsapp": "WhatsApp"
+  },
+  "social": {
+    "facebook": "Facebook",
+    "instagram": "Instagram",
+    "telegram": "Telegram",
+    "youtube": "YouTube",
+    "website": "Website"
   },
   "dashboard": {
     "title": "Creator Dashboard",
     "totalViews": "Total Views",
     "totalLikes": "Total Likes"
+  },
+  "dashboardVideos": {
+    "title": "Your Videos",
+    "createChannelFirst": "Create your channel first to manage uploads.",
+    "createChannel": "Create Channel",
+    "uploadNew": "Upload New Video",
+    "empty": "No videos uploaded yet.",
+    "uploadFirst": "Upload your first video",
+    "colTitle": "Title",
+    "colThumbnail": "Thumbnail",
+    "colType": "Type",
+    "colStatus": "Status",
+    "colLocation": "Location",
+    "colCreated": "Created",
+    "typeShort": "short",
+    "typeLong": "long"
+  },
+  "admin": {
+    "panelLabel": "Admin",
+    "brand": "BytakTube",
+    "logout": "Logout",
+    "navAria": "Admin navigation",
+    "nav": {
+      "dashboard": "Dashboard",
+      "users": "Users",
+      "videos": "Videos",
+      "channels": "Channels",
+      "ads": "Ads",
+      "crm": "CRM",
+      "analytics": "Analytics",
+      "settings": "Settings"
+    },
+    "accessDenied": "Access Denied",
+    "accessDeniedBody": "You are signed in, but your account does not have admin access."
+  },
+  "common": {
+    "loading": "Loading..."
   }
 }

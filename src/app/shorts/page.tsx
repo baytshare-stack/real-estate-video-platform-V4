@@ -1,62 +1,94 @@
-import { PrismaClient } from '@prisma/client';
-import VideoGrid from '@/components/VideoGrid';
-import PageHeader from '@/components/PageHeader';
-import { serializeVideosForClient } from '@/lib/serializePrismaVideos';
+import { headers } from "next/headers";
+import { getServerSession } from "next-auth";
+import ShortsFeed from "@/components/shorts/ShortsFeed";
+import type { ShortVideoPayload } from "@/components/shorts/types";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import prisma from "@/lib/prisma";
+import { safeFindMany } from "@/lib/safePrisma";
 
-const prisma = new PrismaClient();
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 export default async function ShortsPage() {
-  // The current schema doesn't have an isShort flag, so we serve the
-  // most-recent short-format mock videos alongside real ones from the DB.
-  // When the schema is extended with `isShort Boolean @default(false)`,
-  // swap the query below to:  where: { isShort: true }
-  const dbVideos = await prisma.video.findMany({
-    orderBy: { createdAt: 'desc' },
-    include: {
-      channel: { select: { name: true, avatar: true } },
-      property: true,
-    },
-    take: 8,
-  });
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
+  const proto = h.get("x-forwarded-proto") === "https" ? "https" : "http";
+  const origin = `${proto}://${host}`;
 
-  const serializedDbVideos = serializeVideosForClient(dbVideos).map((v) => ({
-    ...v,
-    isShort: true,
+  const session = await getServerSession(authOptions);
+  const userId = session?.user?.id as string | undefined;
+
+  const dbVideos = await safeFindMany(() =>
+    prisma.video.findMany({
+      where: {
+        isShort: true,
+        moderationStatus: { in: ["APPROVED", "PENDING"] },
+      },
+      orderBy: { createdAt: "desc" },
+      include: {
+        channel: { select: { id: true, name: true, avatar: true, subscribersCount: true } },
+      },
+      take: 40,
+    })
+  );
+
+  const ids = dbVideos.map((v) => v.id);
+  const channelIds = [...new Set(dbVideos.map((v) => v.channelId))];
+
+  const [reactionRows, subRows] = await Promise.all([
+    userId && ids.length
+      ? safeFindMany(() =>
+          prisma.videoReaction.findMany({
+            where: { userId, videoId: { in: ids } },
+            select: { videoId: true, type: true },
+          })
+        )
+      : Promise.resolve([] as { videoId: string; type: "LIKE" | "DISLIKE" }[]),
+    userId && channelIds.length
+      ? safeFindMany(() =>
+          prisma.subscription.findMany({
+            where: { subscriberId: userId, channelId: { in: channelIds } },
+            select: { channelId: true },
+          })
+        )
+      : Promise.resolve([] as { channelId: string }[]),
+  ]);
+
+  const reactionMap = Object.fromEntries(reactionRows.map((r) => [r.videoId, r.type])) as Record<
+    string,
+    "LIKE" | "DISLIKE"
+  >;
+  const subSet = new Set(subRows.map((s) => s.channelId));
+
+  const videos: ShortVideoPayload[] = dbVideos.map((v) => ({
+    id: v.id,
+    title: v.title,
+    videoUrl: v.videoUrl,
+    thumbnail: v.thumbnail,
+    channelId: v.channelId,
+    channelName: v.channel.name,
+    channelAvatar: v.channel.avatar,
+    viewsCount: v.viewsCount,
+    likesCount: v.likesCount,
+    dislikesCount: v.dislikesCount,
+    commentsCount: v.commentsCount,
+    sharesCount: v.sharesCount,
+    createdAt: v.createdAt.toISOString(),
+    userReaction: (reactionMap[v.id] as "LIKE" | "DISLIKE" | undefined) ?? null,
+    subscribed: subSet.has(v.channelId),
   }));
 
-  const display =
-    serializedDbVideos.length > 0 ? [...serializedDbVideos, ...MOCK_SHORTS] : MOCK_SHORTS;
+  if (videos.length === 0) {
+    return (
+      <div className="flex min-h-[calc(100vh-64px)] flex-col items-center justify-center p-6 pb-24 text-center xl:pb-6">
+        <p className="text-lg font-medium text-white/70">No Shorts yet</p>
+        <p className="mt-2 text-sm text-white/40">Upload vertical tours to see them here.</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="p-4 md:p-6 max-w-[2000px] mx-auto min-h-screen">
-      <PageHeader
-        iconName="Clapperboard"
-        iconColor="text-red-500"
-        title="Shorts"
-        subtitle="Bite-sized real-estate tours under 60 seconds"
-      />
-
-      <VideoGrid videos={display as any} shortsMode={true} emptyMessage="No Shorts available yet" />
+    <div className="pb-16 xl:pb-0">
+      <ShortsFeed videos={videos} origin={origin} />
     </div>
   );
 }
-
-const MOCK_SHORTS = Array(12)
-  .fill(0)
-  .map((_, i) => ({
-    id: `short-${i}`,
-    title: `🏙️ Insane $${(i + 1) * 5}M Penthouse Tour #${i + 1}`,
-    thumbnailUrl: `https://images.unsplash.com/photo-${1512917774080 + i * 100}-9991f1c4c750?auto=format&fit=crop&q=80&w=400&h=700`,
-    price: (i + 1) * 5_000_000,
-    city: ['New York', 'Dubai', 'Paris', 'London'][i % 4],
-    country: ['USA', 'UAE', 'France', 'UK'][i % 4],
-    channelName: 'Luxury Shorts',
-    viewsCount: 2_100_000 + i * 500_000,
-    createdAt: new Date(Date.now() - i * 86_400_000),
-    bedrooms: 3 + (i % 3),
-    bathrooms: 2 + (i % 2),
-    sizeSqm: 200 + i * 30,
-    status: i % 2 === 0 ? ('FOR_SALE' as const) : ('FOR_RENT' as const),
-    isShort: true,
-  }));

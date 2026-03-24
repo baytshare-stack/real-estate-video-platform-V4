@@ -5,6 +5,7 @@ import VideoCard from '@/components/VideoCard';
 import { Search, MapPin, SlidersHorizontal } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useTranslation } from '@/i18n/LanguageProvider';
+import PropertyMap from '@/components/PropertyMap';
 
 export default function SearchClient({ initialVideos, initialQuery }: { initialVideos: any[], initialQuery: string }) {
   const [isMapVisible, setIsMapVisible] = useState(true);
@@ -91,10 +92,12 @@ export default function SearchClient({ initialVideos, initialQuery }: { initialV
                       key={video.id} 
                       {...video} 
                       price={video.property?.price ? Number(video.property.price) : video.price}
+                      currency={video.property?.currency || video.currency || "USD"}
                       bedrooms={video.property?.bedrooms || video.bedrooms}
                       bathrooms={video.property?.bathrooms || video.bathrooms}
                       sizeSqm={video.property?.sizeSqm || video.sizeSqm}
                       status={video.property?.status || video.status}
+                      videoUrl={video.videoUrl}
                       channelName={video.channelName || video.channel?.name || "Unknown Channel"}
                       channelAvatarUrl={video.channelAvatarUrl || video.channel?.avatar}
                       location={`${video.property?.city || video.city}, ${video.property?.country || video.country || 'Unknown'}`}
@@ -111,25 +114,18 @@ export default function SearchClient({ initialVideos, initialQuery }: { initialV
         {/* Interactive Map Area (Right Side) */}
         {isMapVisible && (
           <div className="hidden lg:block flex-1 bg-gray-950 border-l border-white/10 relative">
-             {/* Map Placeholder */}
-             <div className="absolute inset-0 bg-map-pattern opacity-10"></div>
-             <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-500">
-                <MapPin className="w-16 h-16 text-blue-500/50 mb-4" />
-                <p className="text-xl font-medium text-gray-400">Interactive Map Component</p>
-                <p className="text-sm mt-2 text-center max-w-sm">Pins are dynamically rendered here based on the property latitude/longitude fetched from `/api/map/properties`.</p>
-                
-                {/* Demo Map Pin Overlay */}
-                <div className="absolute top-1/3 left-1/4 transform -translate-x-1/2 -translate-y-1/2">
-                   <div className="bg-black/80 backdrop-blur text-white px-3 py-1.5 rounded-full font-bold shadow-[0_0_15px_rgba(59,130,246,0.5)] border border-blue-500/30 cursor-pointer transform hover:scale-110 transition-transform">
-                     $3.2M
-                   </div>
-                </div>
-                <div className="absolute bottom-1/3 right-1/4 transform -translate-x-1/2 -translate-y-1/2">
-                   <div className="bg-black/80 backdrop-blur text-white px-3 py-1.5 rounded-full font-bold shadow-[0_0_15px_rgba(59,130,246,0.5)] border border-blue-500/30 cursor-pointer transform hover:scale-110 transition-transform">
-                     $5.2M
-                   </div>
-                </div>
-             </div>
+             <PropertyMap
+               className="absolute inset-0"
+               videos={initialVideos.map((video) => ({
+                 id: video.id,
+                 title: video.title,
+                 price: video.property?.price ? Number(video.property.price) : video.price,
+                 currency: video.property?.currency || video.currency || "USD",
+                 thumbnailUrl: video.thumbnailUrl || video.thumbnail,
+                 latitude: video.property?.latitude ?? video.latitude,
+                 longitude: video.property?.longitude ?? video.longitude,
+               }))}
+             />
           </div>
         )}
 

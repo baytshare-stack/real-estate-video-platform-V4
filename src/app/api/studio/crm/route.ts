@@ -1,20 +1,25 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { PrismaClient } from '@prisma/client';
+import prisma from '@/lib/prisma';
+import { safeFindMany, safeFindUnique } from '@/lib/safePrisma';
+import type { Prisma } from '@prisma/client';
 
-const prisma = new PrismaClient();
+type UserWithChannel = Prisma.UserGetPayload<{ include: { channel: true } }>;
 
 export async function GET() {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.email) {
+  const email = session?.user?.email;
+  if (!email) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const user = await prisma.user.findUnique({
-    where: { email: session.user.email },
-    include: { channel: true },
-  });
+  const user = (await safeFindUnique(() =>
+    prisma.user.findUnique({
+      where: { email },
+      include: { channel: true },
+    })
+  )) as UserWithChannel | null;
 
   if (!user?.channel) {
     return NextResponse.json({ error: 'No channel found' }, { status: 404 });
@@ -22,27 +27,28 @@ export async function GET() {
 
   const channelId = user.channel.id;
 
-  // Get unique users who liked a video on this channel
-  const likers = await prisma.like.findMany({
-    where: { video: { channelId } },
-    include: {
-      user: { select: { id: true, fullName: true, email: true, country: true, phoneNumber: true, phoneCode: true, role: true } },
-      video: { select: { id: true, title: true } },
-    },
-    orderBy: { createdAt: 'desc' },
-  });
+  const likers = await safeFindMany(() =>
+    prisma.videoReaction.findMany({
+      where: { video: { channelId }, type: "LIKE" },
+      include: {
+        user: { select: { id: true, fullName: true, email: true, country: true, phoneNumber: true, phoneCode: true, role: true } },
+        video: { select: { id: true, title: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    })
+  );
 
-  // Get unique users who commented on a video on this channel
-  const commenters = await prisma.comment.findMany({
-    where: { video: { channelId } },
-    include: {
-      user: { select: { id: true, fullName: true, email: true, country: true, phoneNumber: true, phoneCode: true, role: true } },
-      video: { select: { id: true, title: true } },
-    },
-    orderBy: { createdAt: 'desc' },
-  });
+  const commenters = await safeFindMany(() =>
+    prisma.comment.findMany({
+      where: { video: { channelId } },
+      include: {
+        user: { select: { id: true, fullName: true, email: true, country: true, phoneNumber: true, phoneCode: true, role: true } },
+        video: { select: { id: true, title: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    })
+  );
 
-  // Merge and deduplicate by userId — aggregate interaction details
   const interactorMap = new Map<string, {
     user: { id: string; fullName: string; email: string; country: string | null; phoneNumber: string | null; phoneCode: string | null; role: string };
     likes: { videoTitle: string }[];
@@ -72,7 +78,6 @@ export async function GET() {
     totalInteractions: entry.likes.length + entry.comments.length,
   }));
 
-  // Sort by most interactions first
   interactors.sort((a, b) => b.totalInteractions - a.totalInteractions);
 
   return NextResponse.json({ interactors });

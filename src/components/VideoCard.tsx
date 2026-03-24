@@ -1,11 +1,16 @@
+ "use client";
+
 import Link from 'next/link';
+import { useRef, useState } from 'react';
 import { Bed, Bath, Maximize } from 'lucide-react';
 
 interface VideoCardProps {
   id: string;
   title: string;
-  thumbnailUrl: string; 
+  thumbnailUrl?: string | null;
+  videoUrl?: string | null;
   price: number;
+  currency?: string;
   location: string;
   channelName: string;
   channelAvatarUrl?: string;
@@ -22,12 +27,17 @@ interface VideoCardProps {
 }
 
 export default function VideoCard({ 
-  id, title, thumbnailUrl, price, location, channelName, channelAvatarUrl, channelId, viewsCount, createdAt, isShort = false,
+  id, title, thumbnailUrl, videoUrl, price, currency = "USD", location, channelName, channelAvatarUrl, channelId, viewsCount, createdAt, isShort = false,
   bedrooms, bathrooms, sizeSqm, status
 }: VideoCardProps) {
+  const fallbackShortThumbnail = "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&q=80&w=400&h=700";
+  const fallbackLongThumbnail = "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&q=80&w=800&h=450";
+  const resolvedThumbnail = thumbnailUrl ?? (isShort ? fallbackShortThumbnail : fallbackLongThumbnail);
+  const previewVideoRef = useRef<HTMLVideoElement | null>(null);
+  const [isPreviewing, setIsPreviewing] = useState(false);
 
   // Formatter
-  const formattedPrice = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(price);
+  const formattedPrice = `${new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(price)} ${currency}`;
   const formattedViews = Intl.NumberFormat('en-US', { notation: "compact", maximumFractionDigits: 1 }).format(viewsCount);
   
   // Calculate relative time
@@ -35,15 +45,49 @@ export default function VideoCard({
   const diffDays = Math.ceil(timeDiff / (1000 * 3600 * 24));
   const timeAgo = diffDays > 30 ? Math.floor(diffDays/30) + ' months ago' : diffDays + ' days ago';
 
+  const startPreview = async () => {
+    if (!videoUrl || !previewVideoRef.current) return;
+    try {
+      previewVideoRef.current.currentTime = 0;
+      await previewVideoRef.current.play();
+      setIsPreviewing(true);
+    } catch {
+      setIsPreviewing(false);
+    }
+  };
+
+  const stopPreview = () => {
+    if (!previewVideoRef.current) return;
+    previewVideoRef.current.pause();
+    previewVideoRef.current.currentTime = 0;
+    setIsPreviewing(false);
+  };
+
   if (isShort) {
     return (
       <Link href={`/watch/${id}`} className="block group w-[220px] flex-shrink-0">
-        <div className="relative aspect-[9/16] rounded-xl overflow-hidden mb-2 bg-gray-900 border border-gray-800">
+        <div
+          className="relative aspect-[9/16] rounded-xl overflow-hidden mb-2 bg-gray-900 border border-gray-800"
+          onMouseEnter={startPreview}
+          onMouseLeave={stopPreview}
+        >
           <img 
-            src={thumbnailUrl || 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&q=80&w=400&h=700'} 
+            src={resolvedThumbnail} 
             alt={title} 
-            className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300"
+            loading="lazy"
+            className={`object-cover w-full h-full transition-transform duration-300 ${isPreviewing ? "opacity-0" : "opacity-100 group-hover:scale-105"}`}
           />
+          {videoUrl ? (
+            <video
+              ref={previewVideoRef}
+              src={videoUrl}
+              muted
+              loop
+              playsInline
+              preload="metadata"
+              className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-200 ${isPreviewing ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+            />
+          ) : null}
           <div className="absolute top-2 left-2 bg-black/70 backdrop-blur-md px-2 py-0.5 rounded text-white font-bold text-xs">
              {formattedPrice}
           </div>
@@ -52,9 +96,12 @@ export default function VideoCard({
                {status === 'FOR_SALE' ? 'For Sale' : 'For Rent'}
             </div>
           )}
-          <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent">
+          <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/90 via-black/50 to-transparent">
             <h3 className="text-white font-medium text-sm line-clamp-2 leading-tight">{title}</h3>
-            <p className="text-gray-300 text-xs mt-1">{formattedViews} views</p>
+            <p className="text-gray-300 text-xs mt-1">{formattedViews} views • {timeAgo}</p>
+            <p className="text-gray-200 text-[11px] mt-1 line-clamp-1">
+              {location}{bedrooms ? ` • ${bedrooms} bd` : ""}
+            </p>
           </div>
         </div>
       </Link>
@@ -62,15 +109,36 @@ export default function VideoCard({
   }
 
   return (
-    <div className="flex flex-col gap-3 group w-full cursor-pointer">
+    <div className="flex flex-col gap-3 group w-full cursor-pointer transition-transform duration-200 hover:scale-[1.01]">
       {/* Thumbnail */}
       <Link href={`/watch/${id}`}>
-        <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-gray-900 border border-gray-800/50">
+        <div
+          className="relative w-full aspect-video rounded-xl overflow-hidden bg-gray-900 border border-gray-800/50"
+          onMouseEnter={startPreview}
+          onMouseLeave={stopPreview}
+        >
           <img 
-            src={thumbnailUrl || 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&q=80&w=800&h=450'} 
+            src={resolvedThumbnail} 
             alt={title} 
-            className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300"
+            loading="lazy"
+            className={`object-cover w-full h-full transition-transform duration-300 ${isPreviewing ? "opacity-0" : "opacity-100 group-hover:scale-105"}`}
           />
+          {videoUrl ? (
+            <video
+              ref={previewVideoRef}
+              src={videoUrl}
+              muted
+              loop
+              playsInline
+              preload="metadata"
+              className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-200 ${isPreviewing ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+            />
+          ) : null}
+          <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/90 via-black/55 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+            <p className="text-white text-sm font-semibold">{formattedPrice}</p>
+            <p className="text-gray-200 text-xs line-clamp-1">{location}</p>
+            {bedrooms ? <p className="text-gray-300 text-xs">{bedrooms} bedrooms</p> : null}
+          </div>
           {/* Status Badge */}
           {status && (
             <div className={`absolute top-2 right-2 px-3 py-1 rounded-lg text-white font-bold text-xs tracking-wide shadow-lg ${status === 'FOR_SALE' ? 'bg-blue-600/90' : 'bg-purple-600/90'}`}>
@@ -85,7 +153,7 @@ export default function VideoCard({
         {/* Avatar */}
         <Link href={`/channel/${channelId ?? "demo"}`}>
           <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-800 border border-gray-700 flex-shrink-0 mt-1">
-             <img src={channelAvatarUrl || `https://ui-avatars.com/api/?name=${channelName}&background=random`} alt={channelName} className="w-full h-full object-cover" />
+             <img src={channelAvatarUrl || `https://ui-avatars.com/api/?name=${channelName}&background=random`} alt={channelName} loading="lazy" className="w-full h-full object-cover" />
           </div>
         </Link>
         

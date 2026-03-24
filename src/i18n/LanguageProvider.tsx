@@ -1,12 +1,20 @@
 "use client";
 
-import React, { createContext, useContext } from 'react';
-import type { Dictionary, Locale } from './config';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef } from "react";
+import { useRouter } from "next/navigation";
+import type { Dictionary, Locale } from "./config";
+import { locales, LOCALE_STORAGE_KEY, languages } from "./config";
+import { translateWithFallback } from "./resolve";
+
+export type TranslateFn = (namespaceOrPath: string, key?: string) => string;
 
 type LanguageContextType = {
   locale: Locale;
+  dir: "ltr" | "rtl";
   dict: Dictionary;
-  t: (namespace: keyof Dictionary, key: string) => string;
+  /** Two-arg: t('nav','home') or single path: t('nav.home') */
+  t: TranslateFn;
+  setLocale: (next: Locale) => Promise<void>;
 };
 
 const LanguageContext = createContext<LanguageContextType | null>(null);
@@ -15,49 +23,86 @@ export const LanguageProvider = ({
   children,
   locale,
   dictionary,
+  fallbackDictionary,
 }: {
   children: React.ReactNode;
   locale: Locale;
   dictionary: Dictionary;
+  /** Always English — used when a key is missing in the active locale */
+  fallbackDictionary: Dictionary;
 }) => {
-  // A helper function to safely extract translated strings
-  const translate = (namespace: keyof Dictionary, key: string): string => {
-    try {
-      const section = dictionary[namespace];
-      if (!section) return key;
+  const router = useRouter();
+  const hasSyncedStorage = useRef(false);
 
-      const keys = key.split('.');
-      let value: any = section;
-
-      for (const k of keys) {
-        if (value && typeof value === 'object' && k in value) {
-          value = value[k];
-        } else {
-          return key; // Fallback to raw key if missing
-        }
-      }
-
-      if (typeof value === 'string') {
-        return value; // Returns the translated string
-      }
-
-      return key; // Fallback to raw key if missing or not a string
-    } catch {
-       return key;
-    }
-  };
-
-  return (
-    <LanguageContext.Provider value={{ locale, dict: dictionary, t: translate }}>
-      {children}
-    </LanguageContext.Provider>
+  const t: TranslateFn = useCallback(
+    (namespaceOrPath: string, key?: string) => {
+      const path = key !== undefined ? `${namespaceOrPath}.${key}` : namespaceOrPath;
+      return translateWithFallback(dictionary, fallbackDictionary, path);
+    },
+    [dictionary, fallbackDictionary]
   );
+
+  const dir = languages[locale]?.dir ?? "ltr";
+
+  const setLocale = useCallback(
+    async (next: Locale) => {
+      if (!locales.includes(next)) return;
+      try {
+        localStorage.setItem(LOCALE_STORAGE_KEY, next);
+        await fetch("/api/locale", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ locale: next }),
+        });
+        document.documentElement.lang = next;
+        document.documentElement.dir = languages[next].dir;
+        router.refresh();
+      } catch (e) {
+        console.error("setLocale failed", e);
+      }
+    },
+    [router]
+  );
+
+  // Persist server locale to localStorage; one-way sync localStorage → server if user preference differs
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem(LOCALE_STORAGE_KEY, locale);
+    document.documentElement.lang = locale;
+    document.documentElement.dir = dir;
+  }, [locale, dir]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || hasSyncedStorage.current) return;
+    hasSyncedStorage.current = true;
+    const stored = localStorage.getItem(LOCALE_STORAGE_KEY) as Locale | null;
+    if (stored && locales.includes(stored) && stored !== locale) {
+      fetch("/api/locale", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ locale: stored }),
+      }).then(() => router.refresh());
+    }
+  }, [locale, router]);
+
+  const value = useMemo(
+    () => ({
+      locale,
+      dir,
+      dict: dictionary,
+      t,
+      setLocale,
+    }),
+    [locale, dir, dictionary, t, setLocale]
+  );
+
+  return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
 };
 
 export const useTranslation = () => {
   const context = useContext(LanguageContext);
   if (!context) {
-    throw new Error('useTranslation must be used within a LanguageProvider');
+    throw new Error("useTranslation must be used within a LanguageProvider");
   }
   return context;
 };

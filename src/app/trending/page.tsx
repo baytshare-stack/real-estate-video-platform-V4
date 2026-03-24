@@ -1,21 +1,22 @@
-import { PrismaClient } from '@prisma/client';
 import VideoGrid from '@/components/VideoGrid';
 import PageHeader from '@/components/PageHeader';
 import { serializeVideosForClient } from '@/lib/serializePrismaVideos';
+import prisma from '@/lib/prisma';
+import { safeFindMany } from '@/lib/safePrisma';
 
-const prisma = new PrismaClient();
 export const dynamic = 'force-dynamic';
 
 export default async function TrendingPage() {
-  // Sort by likesCount (most engagement) — viewsCount field does not exist in schema yet
-  const videos = await prisma.video.findMany({
-    orderBy: { likesCount: 'desc' },
-    include: {
-      channel: { select: { name: true, avatar: true } },
-      property: true,
-    },
-    take: 24,
-  });
+  const videos = await safeFindMany(() =>
+    prisma.video.findMany({
+      orderBy: { likesCount: 'desc' },
+      include: {
+        channel: { select: { name: true, avatar: true } },
+        property: true,
+      },
+      take: 24,
+    })
+  );
 
   const serializedVideos = serializeVideosForClient(videos);
   const display = serializedVideos.length > 0 ? serializedVideos : MOCK_TRENDING;

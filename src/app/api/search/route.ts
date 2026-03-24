@@ -1,25 +1,24 @@
 import { NextResponse } from "next/server";
-import { PrismaClient, Prisma } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import prisma from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
+import { safeFindMany } from "@/lib/safePrisma";
 
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const query = searchParams.get("query") || "";
     const city = searchParams.get("city") || "";
-    const type = searchParams.get("type") || ""; // APARTMENT, VILLA, etc
+    const type = searchParams.get("type") || "";
     const minPrice = searchParams.get("minPrice");
     const maxPrice = searchParams.get("maxPrice");
     const bedrooms = searchParams.get("bedrooms");
 
     const whereClause: Prisma.VideoWhereInput = {
-      // Basic free-text search across Title and Description
       OR: [
-        { title: { contains: query } },  // SQLite defaults to case-insensitive mostly
+        { title: { contains: query } },
         { description: { contains: query } },
         { property: { city: { contains: query } } },
-        { property: { country: { contains: query } } }
+        { property: { country: { contains: query } } },
       ],
     };
 
@@ -30,7 +29,7 @@ export async function GET(req: Request) {
     }
 
     if (type) {
-      propertyFilter.propertyType = type as any; 
+      propertyFilter.propertyType = type as any;
     }
 
     if (minPrice || maxPrice) {
@@ -47,24 +46,25 @@ export async function GET(req: Request) {
       whereClause.property = propertyFilter;
     }
 
-    const results = await prisma.video.findMany({
-      where: whereClause,
-      include: {
-        channel: {
-          select: { name: true, avatar: true }
+    const results = await safeFindMany(() =>
+      prisma.video.findMany({
+        where: whereClause,
+        include: {
+          channel: {
+            select: { name: true, avatar: true },
+          },
+          property: true,
         },
-        property: true
-      },
-      orderBy: {
-        createdAt: "desc"
-      },
-      take: 20 // Pagination logic can be added later
-    });
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 20,
+      })
+    );
 
     return NextResponse.json(results, { status: 200 });
-
   } catch (error) {
     console.error("Search API Error:", error);
-    return NextResponse.json({ error: "Failed to search videos" }, { status: 500 });
+    return NextResponse.json([], { status: 200 });
   }
 }

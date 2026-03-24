@@ -1,26 +1,59 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { safeFindFirst } from "@/lib/safePrisma";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { PropertyStatus, PropertyType } from "@prisma/client";
 
+export const runtime = "nodejs";
+
+const FALLBACK_THUMBNAIL =
+  "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&q=80&w=800&h=450";
+
+type CreateBody = {
+  title?: string;
+  description?: string;
+  videoUrl?: string;
+  thumbnail?: string;
+  videoType?: string;
+  propertyType?: string;
+  status?: string;
+  price?: unknown;
+  bedrooms?: unknown;
+  bathrooms?: unknown;
+  sizeSqm?: unknown;
+  currency?: unknown;
+  country?: string;
+  city?: string;
+  address?: string;
+  latitude?: unknown;
+  longitude?: unknown;
+};
+
 export async function POST(req: Request) {
-  console.log("API WORKING");
   try {
     const session = await getServerSession(authOptions);
     if (!session || !session.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Only AGENT and AGENCY roles can create videos
-    if (session.user.role === "USER" || session.user.role === "ADMIN") {
+    const uploadRoles = ["AGENT", "AGENCY", "ADMIN", "SUPER_ADMIN"] as const;
+    if (!uploadRoles.includes(session.user.role as (typeof uploadRoles)[number])) {
       return NextResponse.json(
-        { error: "Only agents or agencies can upload properties" },
+        { error: "Only agents, agencies, or admins can upload properties" },
         { status: 403 }
       );
     }
 
-    const body = await req.json().catch(() => null);
+    const contentType = req.headers.get("content-type") || "";
+    if (!contentType.includes("application/json")) {
+      return NextResponse.json(
+        { error: "Content-Type must be application/json" },
+        { status: 400 }
+      );
+    }
+
+    const body = (await req.json().catch(() => null)) as CreateBody | null;
     if (!body || typeof body !== "object") {
       return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     }
@@ -30,25 +63,100 @@ export async function POST(req: Request) {
       description,
       videoUrl,
       thumbnail,
+      videoType,
       propertyType,
       status,
       price,
       bedrooms,
       bathrooms,
       sizeSqm,
+      currency,
       country,
       city,
       address,
-    } = body as Record<string, unknown>;
+      latitude,
+      longitude,
+    } = body;
+
+    type VideoPropertyType =
+      | "APARTMENT"
+      | "VILLA"
+      | "TOWNHOUSE"
+      | "STUDIO"
+      | "DUPLEX"
+      | "LAND"
+      | "OTHER";
+
+    const VIDEO_PROPERTY_TYPES: VideoPropertyType[] = [
+      "APARTMENT",
+      "VILLA",
+      "TOWNHOUSE",
+      "STUDIO",
+      "DUPLEX",
+      "LAND",
+      "OTHER",
+    ];
+
+    const isVideoPropertyType = (v: string): v is VideoPropertyType =>
+      VIDEO_PROPERTY_TYPES.includes(v as VideoPropertyType);
+
+    const mapVideoPropertyTypeToPropertyType = (v: VideoPropertyType): PropertyType => {
+      switch (v) {
+        case "APARTMENT":
+          return "APARTMENT";
+        case "VILLA":
+          return "VILLA";
+        case "TOWNHOUSE":
+          return "HOUSE";
+        case "STUDIO":
+          // Studio is a type of apartment for the existing Property model.
+          return "APARTMENT";
+        case "DUPLEX":
+          return "HOUSE";
+        case "LAND":
+          return "LAND";
+        case "OTHER":
+          // No exact OTHER in legacy PropertyType enum; COMMERCIAL is the closest catch-all.
+          return "COMMERCIAL";
+        default:
+          return "COMMERCIAL";
+      }
+    };
+
+    const mapPropertyTypeToVideoPropertyType = (p: PropertyType): VideoPropertyType => {
+      switch (p) {
+        case "APARTMENT":
+          return "APARTMENT";
+        case "VILLA":
+          return "VILLA";
+        case "LAND":
+          return "LAND";
+        case "HOUSE":
+          return "TOWNHOUSE";
+        case "OFFICE":
+          return "OTHER";
+        case "SHOP":
+          return "OTHER";
+        case "COMMERCIAL":
+          return "OTHER";
+        default:
+          return "OTHER";
+      }
+    };
 
     const missingFields: string[] = [];
-    if (!title) missingFields.push("title");
-    if (!videoUrl) missingFields.push("videoUrl");
+    if (!title?.trim()) missingFields.push("title");
+    if (!videoUrl?.trim()) missingFields.push("videoUrl");
+    if (!videoType) missingFields.push("videoType");
+    const videoTypeValue = String(videoType).toLowerCase();
+    if (videoTypeValue !== "short" && videoTypeValue !== "long") {
+      return NextResponse.json({ error: "Invalid videoType. Use 'short' or 'long'." }, { status: 400 });
+    }
     if (!propertyType) missingFields.push("propertyType");
     if (!status) missingFields.push("status");
     if (price === undefined || price === null || price === "") missingFields.push("price");
-    if (!country) missingFields.push("country");
-    if (!city) missingFields.push("city");
+    if (!country?.trim()) missingFields.push("country");
+    if (!city?.trim()) missingFields.push("city");
 
     if (missingFields.length > 0) {
       return NextResponse.json(
@@ -62,8 +170,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid price" }, { status: 400 });
     }
 
-    const propertyTypeValue = String(propertyType);
-    if (!Object.values(PropertyType).includes(propertyTypeValue as PropertyType)) {
+    const inputPropertyType = String(propertyType).toUpperCase();
+    let videoPropertyTypeValue: VideoPropertyType | null = null;
+    let propertyTypeValue: PropertyType | null = null;
+
+    if (isVideoPropertyType(inputPropertyType)) {
+      videoPropertyTypeValue = inputPropertyType;
+      propertyTypeValue = mapVideoPropertyTypeToPropertyType(videoPropertyTypeValue);
+    } else if (Object.values(PropertyType).includes(inputPropertyType as PropertyType)) {
+      propertyTypeValue = inputPropertyType as PropertyType;
+      videoPropertyTypeValue = mapPropertyTypeToVideoPropertyType(propertyTypeValue);
+    } else {
       return NextResponse.json({ error: "Invalid propertyType" }, { status: 400 });
     }
 
@@ -78,7 +195,6 @@ export async function POST(req: Request) {
         : typeof bedrooms === "number"
           ? Math.trunc(bedrooms)
           : Number.parseInt(String(bedrooms), 10);
-
     if (bedroomsNumber !== undefined && !Number.isFinite(bedroomsNumber)) {
       return NextResponse.json({ error: "Invalid bedrooms" }, { status: 400 });
     }
@@ -89,7 +205,6 @@ export async function POST(req: Request) {
         : typeof bathrooms === "number"
           ? bathrooms
           : Number(String(bathrooms));
-
     if (bathroomsNumber !== undefined && !Number.isFinite(bathroomsNumber)) {
       return NextResponse.json({ error: "Invalid bathrooms" }, { status: 400 });
     }
@@ -100,14 +215,35 @@ export async function POST(req: Request) {
         : typeof sizeSqm === "number"
           ? sizeSqm
           : Number(String(sizeSqm));
-
     if (sizeSqmNumber !== undefined && !Number.isFinite(sizeSqmNumber)) {
       return NextResponse.json({ error: "Invalid sizeSqm" }, { status: 400 });
     }
 
-    const channel = await prisma.channel.findUnique({
-      where: { ownerId: session.user.id },
-    });
+    const latitudeNumber =
+      latitude === undefined || latitude === null || latitude === ""
+        ? undefined
+        : typeof latitude === "number"
+          ? latitude
+          : Number(String(latitude));
+    if (latitudeNumber !== undefined && !Number.isFinite(latitudeNumber)) {
+      return NextResponse.json({ error: "Invalid latitude" }, { status: 400 });
+    }
+
+    const longitudeNumber =
+      longitude === undefined || longitude === null || longitude === ""
+        ? undefined
+        : typeof longitude === "number"
+          ? longitude
+          : Number(String(longitude));
+    if (longitudeNumber !== undefined && !Number.isFinite(longitudeNumber)) {
+      return NextResponse.json({ error: "Invalid longitude" }, { status: 400 });
+    }
+
+    const channel = await safeFindFirst(() =>
+      prisma.channel.findUnique({
+        where: { ownerId: session.user.id },
+      })
+    );
 
     if (!channel) {
       return NextResponse.json(
@@ -116,13 +252,23 @@ export async function POST(req: Request) {
       );
     }
 
+    const videoUrlStr = String(videoUrl).trim();
+    let thumbnailFinal = thumbnail?.trim() || "";
+    if (!thumbnailFinal) {
+      thumbnailFinal = FALLBACK_THUMBNAIL;
+    }
+
     const newVideo = await prisma.video.create({
-      data: {
-        title: String(title),
+      data: ({
+        title: String(title).trim(),
         description: description ? String(description) : undefined,
-        videoUrl: String(videoUrl),
-        thumbnail: thumbnail ? String(thumbnail) : undefined,
+        videoUrl: videoUrlStr,
+        thumbnail: thumbnailFinal,
+        isShort: videoTypeValue === "short",
+        isDemo: false,
         channelId: channel.id,
+        // Used for auto-generated playlists on the channel page.
+        propertyType: videoPropertyTypeValue,
         property: {
           create: {
             propertyType: propertyTypeValue as PropertyType,
@@ -131,18 +277,30 @@ export async function POST(req: Request) {
             bedrooms: bedroomsNumber,
             bathrooms: bathroomsNumber,
             sizeSqm: sizeSqmNumber,
-            country: String(country),
-            city: String(city),
+            currency: currency ? String(currency) : "USD",
+            country: String(country).trim(),
+            city: String(city).trim(),
             address: address ? String(address) : undefined,
+            latitude: latitudeNumber,
+            longitude: longitudeNumber,
           },
         },
-      },
+      } as any),
       include: { property: true },
     });
 
-    return NextResponse.json(newVideo, { status: 201 });
+    return NextResponse.json(
+      {
+        ...newVideo,
+        thumbnailUrl: newVideo.thumbnail,
+      },
+      { status: 201 }
+    );
   } catch (error) {
-    console.error("Video Upload Error:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    console.error("VIDEO CREATE ERROR:", error);
+    return NextResponse.json(
+      { error: "Failed to create video", detail: error instanceof Error ? error.message : "Unknown error" },
+      { status: 500 }
+    );
   }
 }

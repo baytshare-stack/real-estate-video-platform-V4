@@ -1,4 +1,3 @@
-import { PrismaClient } from '@prisma/client';
 import VideoGrid from '@/components/VideoGrid';
 import PageHeader from '@/components/PageHeader';
 import { Users } from 'lucide-react';
@@ -6,8 +5,8 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import Link from 'next/link';
 import { serializeVideosForClient } from '@/lib/serializePrismaVideos';
-
-const prisma = new PrismaClient();
+import prisma from '@/lib/prisma';
+import { safeFindMany } from '@/lib/safePrisma';
 
 export default async function SubscribersPage() {
   const session = await getServerSession(authOptions);
@@ -26,16 +25,16 @@ export default async function SubscribersPage() {
     );
   }
 
-  // NOTE: Schema currently lacks a 'Subscription' model. 
-  // For now, we show latest videos from all channels as a fallback.
-  const videos = await prisma.video.findMany({
-    orderBy: { createdAt: 'desc' },
-    include: {
-      channel: { select: { name: true, avatar: true } },
-      property: true,
-    },
-    take: 20,
-  });
+  const videos = await safeFindMany(() =>
+    prisma.video.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: {
+        channel: { select: { name: true, avatar: true } },
+        property: true,
+      },
+      take: 20,
+    })
+  );
 
   const serializedVideos = serializeVideosForClient(videos);
 

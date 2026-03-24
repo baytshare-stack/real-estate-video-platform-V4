@@ -2,10 +2,19 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { 
-  Home, Flame, PlaySquare, Compass, TrendingUp, Users, 
-  Settings, HelpCircle, ChevronLeft, ChevronRight 
-} from 'lucide-react';
+import {
+  Home,
+  Flame,
+  PlaySquare,
+  Compass,
+  TrendingUp,
+  Users,
+  Building2,
+  UserRound,
+  Settings,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import { useState, useEffect } from 'react';
 import { useTranslation } from '@/i18n/LanguageProvider';
 
@@ -24,24 +33,36 @@ export default function Sidebar() {
   }, []);
 
   const navItems = [
-    { name: t('nav', 'home'), href: '/', icon: Home },
-    { name: 'Shorts', href: '/shorts', icon: Flame },
-    { name: 'Subscribers', href: '/subscribers', icon: Users },
-    { name: 'Subscriptions', href: '/subscriptions', icon: PlaySquare },
-    { name: 'Explore', href: '/explore', icon: Compass },
-    { name: 'Trending', href: '/trending', icon: TrendingUp },
+    { name: t("nav", "home"), href: "/", icon: Home },
+    { name: t("sidebar", "shorts"), href: "/shorts", icon: Flame },
+    { name: t("sidebar", "subscribers"), href: "/subscribers", icon: Users },
+    { name: t("sidebar", "subscriptions"), href: "/subscriptions", icon: PlaySquare },
+    { name: t("sidebar", "explore"), href: "/explore", icon: Compass },
+    { name: t("sidebar", "agents"), href: "/agents", icon: UserRound },
+    { name: t("sidebar", "agencies"), href: "/agencies", icon: Building2 },
+    { name: t("sidebar", "trending"), href: "/trending", icon: TrendingUp },
+  ];
+
+  const mobileNavItems = [
+    { name: t("nav", "home"), href: "/", icon: Home },
+    { name: t("sidebar", "explore"), href: "/explore", icon: Compass },
+    { name: t("sidebar", "agents"), href: "/agents", icon: UserRound },
+    { name: t("sidebar", "agencies"), href: "/agencies", icon: Building2 },
   ];
 
   return (
     <>
       {/* ── Desktop Sidebar ── */}
       <aside 
-        className={`fixed left-0 top-16 h-[calc(100vh-64px)] bg-[#0f0f0f] border-r border-white/10 overflow-y-auto hide-scrollbar hidden xl:flex flex-col py-3 z-40 transition-all duration-300 ${collapsed ? 'w-20' : 'w-64'}`}
+        className={`fixed left-0 top-16 h-[calc(100vh-64px)] bg-[#0f0f0f] border-r border-white/10 overflow-y-auto hide-scrollbar hidden xl:flex flex-col py-3 z-40 transition-all duration-300 ${collapsed ? 'w-20' : 'w-60'}`}
       >
         <div className="flex flex-col gap-1 px-3">
           {navItems.map((link) => {
             const Icon = link.icon;
-            const isActive = pathname === link.href;
+            const isActive =
+              link.href === "/"
+                ? pathname === "/"
+                : pathname === link.href || pathname.startsWith(`${link.href}/`);
             return (
               <Link 
                 key={link.href} 
@@ -79,17 +100,22 @@ export default function Sidebar() {
 
       {/* ── Mobile Bottom Navigation ── */}
       <nav className="xl:hidden fixed bottom-0 left-0 right-0 h-16 bg-gray-950/95 backdrop-blur-md border-t border-white/10 z-50 flex items-center justify-around px-2">
-        {navItems.slice(0, 4).map((link) => {
+        {mobileNavItems.map((link) => {
           const Icon = link.icon;
-          const isActive = pathname === link.href;
+          const isActive =
+            link.href === "/"
+              ? pathname === "/"
+              : pathname === link.href || pathname.startsWith(`${link.href}/`);
           return (
-            <Link 
-              key={link.href} 
+            <Link
+              key={link.href}
               href={link.href}
-              className={`flex flex-col items-center gap-1 flex-1 py-1 transition-colors ${isActive ? 'text-blue-400' : 'text-gray-500'}`}
+              className={`flex flex-col items-center gap-1 flex-1 py-1 transition-colors ${isActive ? "text-blue-400" : "text-gray-500"}`}
             >
               <Icon className="w-5 h-5" />
-              <span className="text-[10px] font-bold uppercase tracking-tighter">{link.name}</span>
+              <span className="text-[10px] font-bold uppercase tracking-tighter text-center leading-tight">
+                {link.name}
+              </span>
             </Link>
           );
         })}

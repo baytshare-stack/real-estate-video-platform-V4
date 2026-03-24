@@ -9,6 +9,7 @@ export interface VideoRowData {
   id: string;
   title: string;
   thumbnail?: string | null;
+  isShort?: boolean;
   likesCount: number;
   commentsCount: number;
   createdAt: string | Date;
@@ -24,6 +25,9 @@ interface VideoRowProps {
 export default function VideoRow({ video, onDeleted, index }: VideoRowProps) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // TEMP DEBUG: verify thumbnail value flowing to dashboard row.
+  console.debug("[VideoRow] thumbnail", { id: video.id, thumbnail: video.thumbnail });
 
   const handleDelete = async () => {
     setDeleting(true);
@@ -44,7 +48,7 @@ export default function VideoRow({ video, onDeleted, index }: VideoRowProps) {
     month: 'short', day: 'numeric', year: 'numeric',
   });
 
-  const isShort = index % 5 === 0; // Visual indicator — until isShort field added to schema
+  const isShort = Boolean(video.isShort);
 
   return (
     <>

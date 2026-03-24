@@ -30,6 +30,7 @@ export default async function RootLayout({
   // التحقق من أن اللغة مدعومة وإلا استخدام اللغة الافتراضية
   const locale = cookieLocale && locales.includes(cookieLocale) ? cookieLocale : defaultLocale;
   const dict = await getDictionary(locale);
+  const fallbackDictionary = await getDictionary(defaultLocale);
 
   // تحديد اتجاه الصفحة بناءً على اللغة
   const dir = locale === "ar" ? "rtl" : "ltr";
@@ -37,13 +38,15 @@ export default async function RootLayout({
   return (
     <html lang={locale} dir={dir} className="dark">
       <body className={`${inter.className} bg-[#0f0f0f] text-[#f1f1f1]`}>
-        <LanguageProvider locale={locale} dictionary={dict}>
+        <LanguageProvider locale={locale} dictionary={dict} fallbackDictionary={fallbackDictionary}>
           <Providers>
             <Header />
             <div className="flex pt-16">
               <Sidebar />
               <main className="flex-1 min-h-[calc(100vh-64px)] xl:ml-64 bg-[#0f0f0f]">
-                {children}
+                <div className="max-w-screen-2xl mx-auto w-full px-3 sm:px-4 md:px-6 lg:px-8 xl:px-10">
+                  {children}
+                </div>
               </main>
             </div>
           </Providers>

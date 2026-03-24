@@ -1,9 +1,12 @@
 import VideoCard from '@/components/VideoCard';
+import ShortVideoPlayer from '@/components/shorts/ShortVideoPlayer';
+import type { ShortVideoPayload } from '@/components/shorts/types';
 
 export interface VideoItem {
   id: string;
   title: string;
-  thumbnailUrl: string;
+  thumbnailUrl?: string | null;
+  thumbnail?: string | null;
   price?: number;
   location?: string;
   city?: string;
@@ -13,6 +16,8 @@ export interface VideoItem {
   viewsCount: number;
   createdAt: Date | string;
   isShort?: boolean;
+  videoUrl?: string | null;
+  currency?: string;
   bedrooms?: number;
   bathrooms?: number;
   sizeSqm?: number;
@@ -20,6 +25,7 @@ export interface VideoItem {
   channel?: { name: string; avatar?: string | null };
   property?: {
     price?: number | bigint | null;
+    currency?: string | null;
     bedrooms?: number | null;
     bathrooms?: number | null;
     sizeSqm?: number | null;
@@ -38,7 +44,10 @@ interface VideoGridProps {
 function normalise(v: VideoItem) {
   return {
     ...v,
+    thumbnailUrl: v.thumbnailUrl ?? v.thumbnail ?? undefined,
+    videoUrl: v.videoUrl ?? undefined,
     price: v.property?.price ? Number(v.property.price) : (v.price ?? 0),
+    currency: v.property?.currency ?? v.currency ?? "USD",
     bedrooms: v.property?.bedrooms ?? v.bedrooms,
     bathrooms: v.property?.bathrooms ?? v.bathrooms,
     sizeSqm:
@@ -71,7 +80,31 @@ export default function VideoGrid({ videos, shortsMode = false, emptyMessage }: 
       <div className="flex gap-4 overflow-x-auto hide-scrollbar pb-4">
         {videos.map((v) => {
           const n = normalise(v);
-          return <VideoCard key={n.id} {...n} isShort={true} />;
+          const shortPayload: ShortVideoPayload = {
+            id: n.id,
+            title: n.title,
+            videoUrl: n.videoUrl ?? null,
+            thumbnail: n.thumbnailUrl ?? null,
+            channelId: "demo",
+            channelName: n.channelName ?? "Channel",
+            channelAvatar: n.channelAvatarUrl ?? null,
+            viewsCount: n.viewsCount ?? 0,
+            likesCount: 0,
+            dislikesCount: 0,
+            commentsCount: 0,
+            sharesCount: 0,
+            createdAt: new Date(n.createdAt).toISOString(),
+            userReaction: null,
+            subscribed: false,
+          };
+          return (
+            <ShortVideoPlayer
+              key={n.id}
+              video={shortPayload}
+              mode="grid"
+              className="w-[220px] flex-shrink-0"
+            />
+          );
         })}
       </div>
     );

@@ -1,94 +1,80 @@
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
-import { getToken } from "next-auth/jwt";
-import { locales, defaultLocale, type Locale } from "./i18n/config";
+import { NextResponse, type NextRequest } from "next/server";
+import { defaultLocale, locales, type Locale, LOCALE_COOKIE } from "@/i18n/config";
+import {
+  ADMIN_SESSION_COOKIE,
+  verifyAdminToken,
+} from "@/lib/admin-jwt";
 
-// Simple in-memory rate limiter (for demo)
-// In production use Redis like @upstash/redis
-const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
-
-const RATE_LIMIT_WINDOW = 15 * 60 * 1000; // 15 minutes
-const MAX_REQUESTS = 100;
-
-function getLocale(request: NextRequest): Locale {
-  // 1. Check if the user already has a sticky language preference
-  const cookieLocale = request.cookies.get("NEXT_LOCALE")?.value;
-  if (cookieLocale && locales.includes(cookieLocale as Locale)) {
-    return cookieLocale as Locale;
-  }
-  
-  // 2. Parse Accept-Language header to detect browser language automatically
-  const acceptLang = request.headers.get("accept-language") || "";
-  for (const lang of acceptLang.split(",")) {
-    const code = lang.split(';')[0].trim().substring(0, 2).toLowerCase();
-    if (locales.includes(code as Locale)) {
-      return code as Locale;
-    }
-  }
+function detectFromAcceptLanguage(header: string | null): Locale {
+  if (!header) return defaultLocale;
+  const first = header.split(",")[0]?.trim().toLowerCase() ?? "";
+  if (first.startsWith("ar")) return "ar";
   return defaultLocale;
 }
 
+function requiresAdminAuth(pathname: string): boolean {
+  // "/admin-login" starts with "/admin" — must be excluded first
+  if (pathname === "/admin-login" || pathname.startsWith("/admin-login/")) {
+    return false;
+  }
+  if (pathname.startsWith("/admin")) {
+    if (pathname === "/admin/login" || pathname.startsWith("/admin/login/")) {
+      return false;
+    }
+    return true;
+  }
+  if (pathname.startsWith("/api/admin/")) {
+    // POST /api/admin/auth — login (no JWT yet)
+    if (pathname === "/api/admin/auth") {
+      return false;
+    }
+    if (pathname === "/api/admin/auth/login" || pathname.startsWith("/api/admin/auth/login/")) {
+      return false;
+    }
+    if (pathname === "/api/admin/auth/logout" || pathname.startsWith("/api/admin/auth/logout/")) {
+      return false;
+    }
+    return true;
+  }
+  return false;
+}
+
+function applyLocale(request: NextRequest, response: NextResponse) {
+  const existing = request.cookies.get(LOCALE_COOKIE)?.value as Locale | undefined;
+  if (!existing || !locales.includes(existing)) {
+    const locale = detectFromAcceptLanguage(request.headers.get("accept-language"));
+    response.cookies.set(LOCALE_COOKIE, locale, {
+      path: "/",
+      maxAge: 60 * 60 * 24 * 365,
+      sameSite: "lax",
+    });
+  }
+}
+
 export async function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
-  let response: NextResponse | null = null;
+  const pathname = request.nextUrl.pathname;
 
-  // Get user IP safely
-  const ip =
-    request.headers.get("x-forwarded-for") ||
-    request.headers.get("x-real-ip") ||
-    "unknown";
+  if (requiresAdminAuth(pathname)) {
+    const token = request.cookies.get(ADMIN_SESSION_COOKIE)?.value;
+    const session = token ? await verifyAdminToken(token) : null;
 
-  // Rate limiting for sensitive routes
-  if (
-    pathname.startsWith("/api/auth/register") ||
-    pathname.startsWith("/api/auth/callback/credentials")
-  ) {
-    if (ip !== "unknown") {
-      const currentTime = Date.now();
-      const record = rateLimitMap.get(ip);
-
-      if (!record || currentTime > record.resetTime) {
-        rateLimitMap.set(ip, {
-          count: 1,
-          resetTime: currentTime + RATE_LIMIT_WINDOW,
-        });
-      } else {
-        if (record.count >= MAX_REQUESTS) {
-          response = new NextResponse("Too Many Requests", { status: 429 });
-        } else {
-          record.count += 1;
-        }
+    if (!session) {
+      if (pathname.startsWith("/api/")) {
+        const res = NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        applyLocale(request, res);
+        return res;
       }
+      const res = NextResponse.redirect(new URL("/admin-login", request.url));
+      applyLocale(request, res);
+      return res;
     }
   }
 
-  // Protect admin routes
-  // NOTE:
-  // Admin route access is guarded in `src/app/admin/layout.tsx` using a
-  // localStorage-backed admin session (temporary approach).
-  // Middleware cannot read localStorage, so we do not enforce /admin here.
-
-  // If no response has been decided, continue to the next handler.
-  if (!response) {
-    response = NextResponse.next();
-  }
-
-  // Ensure NEXT_LOCALE cookie logic
-  const locale = getLocale(request);
-  response.cookies.set("NEXT_LOCALE", locale, { path: "/", maxAge: 60 * 60 * 24 * 365, sameSite: "lax" });
-
-  // Add security headers to all responses.
-  response.headers.set("X-XSS-Protection", "1; mode=block");
-  response.headers.set("X-Frame-Options", "DENY");
-  response.headers.set("X-Content-Type-Options", "nosniff");
-  response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
-
-  return response;
+  const res = NextResponse.next();
+  applyLocale(request, res);
+  return res;
 }
 
 export const config = {
-  matcher: [
-    // Skip Next.js internals and all static files, unless found in search params
-    "/((?!_next|favicon.ico|images|api).*)"
-  ],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|mp4|woff2?)$).*)"],
 };

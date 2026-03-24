@@ -1,20 +1,71 @@
 import prisma from "@/lib/prisma";
+import { safeCount, safeFindFirst } from "@/lib/safePrisma";
 import VideoCard from "@/components/VideoCard";
+import ShortVideoPlayer from "@/components/shorts/ShortVideoPlayer";
 import SubscribeButton from "@/components/channel/SubscribeButton";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { notFound } from "next/navigation";
 import { getServerSession } from "next-auth";
+import Link from "next/link";
+import type { ShortVideoPayload } from "@/components/shorts/types";
 
 function digitsOnly(s: string) {
   return s.replace(/\D/g, "");
 }
 
-export default async function ChannelPage({ params }: { params: { id: string } }) {
+type VideoPropertyType = "APARTMENT" | "VILLA" | "TOWNHOUSE" | "STUDIO" | "DUPLEX" | "LAND" | "OTHER";
+
+const PLAYLIST_TYPES: VideoPropertyType[] = ["VILLA", "APARTMENT", "TOWNHOUSE", "STUDIO", "DUPLEX", "LAND", "OTHER"];
+const PLAYLIST_TITLES: Record<VideoPropertyType, string> = {
+  APARTMENT: "Apartments",
+  VILLA: "Villas",
+  TOWNHOUSE: "Townhouses",
+  STUDIO: "Studios",
+  DUPLEX: "Duplexes",
+  LAND: "Lands",
+  OTHER: "Other",
+};
+
+const FALLBACK_THUMBNAIL =
+  "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&q=80&w=800&h=450";
+
+function mapPropertyTypeToVideoPropertyType(propertyType: string | null | undefined): VideoPropertyType {
+  switch (propertyType) {
+    case "APARTMENT":
+      return "APARTMENT";
+    case "VILLA":
+      return "VILLA";
+    case "LAND":
+      return "LAND";
+    case "HOUSE":
+      // Legacy PropertyType has only HOUSE for multiple “house-like” categories.
+      return "TOWNHOUSE";
+    case "OFFICE":
+    case "SHOP":
+    case "COMMERCIAL":
+      return "OTHER";
+    default:
+      return "OTHER";
+  }
+}
+
+export default async function ChannelPage({
+  params,
+  searchParams,
+}: {
+  params: { id: string };
+  searchParams?: { tab?: string };
+}) {
   const unwrappedParams = await params;
   const channelId = unwrappedParams.id;
+  const tabRaw = searchParams?.tab;
+  const tab = String(tabRaw || "videos").toLowerCase();
+  const activeTab: "videos" | "shorts" | "playlists" =
+    tab === "shorts" ? "shorts" : tab === "playlists" ? "playlists" : "videos";
 
-  const [session, channel, subscriberCount] = await Promise.all([
-    getServerSession(authOptions),
+  const session = await getServerSession(authOptions);
+
+  const channel = await safeFindFirst(() =>
     prisma.channel.findUnique({
       where: { id: channelId },
       include: {
@@ -24,29 +75,36 @@ export default async function ChannelPage({ params }: { params: { id: string } }
           orderBy: { createdAt: "desc" },
         },
       },
-    }),
-    prisma.subscription.count({ where: { channelId } }).catch(() => 0),
-  ]);
+    })
+  );
+
+  const subscriberCount = await safeCount(() =>
+    prisma.subscription.count({ where: { channelId } })
+  );
 
   if (!channel) return notFound();
 
   const subscriberId = session?.user?.id as string | undefined;
 
   const me = subscriberId
-    ? await prisma.user.findUnique({
-        where: { id: subscriberId },
-        select: { channel: { select: { id: true } } },
-      })
+    ? await safeFindFirst(() =>
+        prisma.user.findUnique({
+          where: { id: subscriberId },
+          select: { channel: { select: { id: true } } },
+        })
+      )
     : null;
 
   const disabledSelf = Boolean(me?.channel?.id && me?.channel?.id === channelId);
 
   let initialSubscribed = false;
   if (subscriberId && !disabledSelf) {
-    const existing = await prisma.subscription.findFirst({
-      where: { subscriberId, channelId },
-      select: { id: true },
-    });
+    const existing = await safeFindFirst(() =>
+      prisma.subscription.findFirst({
+        where: { subscriberId, channelId },
+        select: { id: true },
+      })
+    );
     initialSubscribed = Boolean(existing);
   }
 
@@ -72,6 +130,44 @@ export default async function ChannelPage({ params }: { params: { id: string } }
 
   const shorts = channel.videos.filter((v) => v.isShort);
   const longs = channel.videos.filter((v) => !v.isShort);
+  const shortsPayload: ShortVideoPayload[] = shorts.map((v) => ({
+    id: v.id,
+    title: v.title,
+    videoUrl: v.videoUrl,
+    thumbnail: v.thumbnail,
+    channelId: channel.id,
+    channelName: channel.name,
+    channelAvatar: profileImage ?? channel.avatar ?? null,
+    viewsCount: v.viewsCount,
+    likesCount: v.likesCount,
+    dislikesCount: v.dislikesCount,
+    commentsCount: v.commentsCount,
+    sharesCount: v.sharesCount,
+    createdAt: v.createdAt.toISOString(),
+    userReaction: null,
+    subscribed: initialSubscribed,
+  }));
+
+  const buckets: Record<VideoPropertyType, typeof longs> = {
+    APARTMENT: [],
+    VILLA: [],
+    TOWNHOUSE: [],
+    STUDIO: [],
+    DUPLEX: [],
+    LAND: [],
+    OTHER: [],
+  };
+
+  const getVideoPropertyType = (v: (typeof channel.videos)[number]): VideoPropertyType => {
+    const denormalized = (v as any).propertyType as string | undefined;
+    if (denormalized) return denormalized as VideoPropertyType;
+    return mapPropertyTypeToVideoPropertyType(v.property?.propertyType);
+  };
+
+  for (const v of longs) {
+    const t = getVideoPropertyType(v);
+    buckets[t].push(v);
+  }
 
   return (
     <div className="w-full bg-[#0f0f0f] min-h-screen">
@@ -85,7 +181,7 @@ export default async function ChannelPage({ params }: { params: { id: string } }
       </div>
 
       {/* Channel Header Context */}
-      <div className="max-w-[2000px] mx-auto px-4 sm:px-8 lg:px-12 relative -mt-16 md:-mt-24 pb-8 border-b border-white/10">
+      <div className="relative -mt-16 md:-mt-24 pb-8 border-b border-white/10">
         <div className="flex flex-col lg:flex-row items-center lg:items-end gap-6">
           <div className="w-28 h-28 md:w-40 md:h-40 rounded-full border-4 border-[#0f0f0f] overflow-hidden bg-gray-800 shadow-2xl flex-shrink-0">
             {profileImage ? (
@@ -102,7 +198,9 @@ export default async function ChannelPage({ params }: { params: { id: string } }
           </div>
 
           <div className="flex-1 w-full text-center lg:text-left">
-            <h1 className="text-3xl md:text-4xl font-bold text-white tracking-tight">{channel.name}</h1>
+            <Link href={`/channel/${channelId}`} className="text-3xl md:text-4xl font-bold text-white tracking-tight hover:opacity-90">
+              {channel.name}
+            </Link>
 
             <div className="flex flex-wrap items-center justify-center lg:justify-start gap-x-4 gap-y-1 text-gray-400 mt-2 mb-3 font-medium">
               <span>@{channel.name.replace(/\s+/g, "")}</span>
@@ -174,66 +272,143 @@ export default async function ChannelPage({ params }: { params: { id: string } }
         </div>
       </div>
 
-      <div className="max-w-[2000px] mx-auto px-4 sm:px-8 lg:px-12 py-8">
-        {/* Shorts */}
-        {shorts.length > 0 ? (
+      <div className="py-8">
+        {/* Tabs */}
+        <div className="flex flex-wrap items-center gap-3 mb-6">
+          <Link
+            href={`/channel/${channelId}?tab=videos`}
+            className={[
+              "px-4 py-2 rounded-full text-sm font-bold transition-colors border",
+              activeTab === "videos"
+                ? "bg-indigo-600 border-indigo-500 text-white"
+                : "bg-white/5 border-white/10 text-white hover:bg-white/10",
+            ].join(" ")}
+          >
+            Videos
+          </Link>
+          <Link
+            href={`/channel/${channelId}?tab=shorts`}
+            className={[
+              "px-4 py-2 rounded-full text-sm font-bold transition-colors border",
+              activeTab === "shorts"
+                ? "bg-indigo-600 border-indigo-500 text-white"
+                : "bg-white/5 border-white/10 text-white hover:bg-white/10",
+            ].join(" ")}
+          >
+            Shorts
+          </Link>
+          <Link
+            href={`/channel/${channelId}?tab=playlists`}
+            className={[
+              "px-4 py-2 rounded-full text-sm font-bold transition-colors border",
+              activeTab === "playlists"
+                ? "bg-indigo-600 border-indigo-500 text-white"
+                : "bg-white/5 border-white/10 text-white hover:bg-white/10",
+            ].join(" ")}
+          >
+            Playlists
+          </Link>
+        </div>
+
+        {/* Videos tab */}
+        {activeTab === "videos" ? (
+          longs.length > 0 ? (
+            <div>
+              <h2 className="text-xl font-bold text-white mb-6">Long videos</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-x-4 gap-y-8">
+                {longs.map((video) => (
+                  <VideoCard
+                    key={video.id}
+                    id={video.id}
+                    title={video.title}
+                    thumbnailUrl={video.thumbnail ?? undefined}
+                    price={Number(video.property?.price ?? 0)}
+                    currency={video.property?.currency || "USD"}
+                    location={
+                      video.property ? `${video.property.city}, ${video.property.country}` : "Unknown location"
+                    }
+                    channelName={channel.name}
+                    channelAvatarUrl={profileImage}
+                    channelId={channel.id}
+                    viewsCount={Math.floor(Math.random() * 5000)}
+                    createdAt={video.createdAt}
+                    bedrooms={video.property?.bedrooms ?? undefined}
+                    bathrooms={video.property?.bathrooms ?? undefined}
+                    sizeSqm={video.property?.sizeSqm ?? undefined}
+                    status={video.property?.status ?? undefined}
+                    isShort={false}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="py-12 text-center text-gray-400">No property video tours uploaded yet.</div>
+          )
+        ) : null}
+
+        {/* Shorts tab */}
+        {activeTab === "shorts" ? (
+          shorts.length > 0 ? (
+            <div className="mb-12">
+              <h2 className="text-xl font-bold text-white mb-4">Shorts</h2>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 md:gap-4">
+                {shortsPayload.map((video) => (
+                  <ShortVideoPlayer
+                    key={video.id}
+                    video={video}
+                    mode="grid"
+                  />
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="py-12 text-center text-gray-400">No shorts yet.</div>
+          )
+        ) : null}
+
+        {/* Playlists tab */}
+        {activeTab === "playlists" ? (
           <div className="mb-12">
-            <h2 className="text-xl font-bold text-white mb-6">Shorts</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-x-4 gap-y-8">
-              {shorts.map((video) => (
-                <VideoCard
-                  key={video.id}
-                  id={video.id}
-                  title={video.title}
-                  thumbnailUrl={video.thumbnail || ""}
-                  price={Number(video.property?.price ?? 0)}
-                  location={video.property ? `${video.property.city}, ${video.property.country}` : "Unknown location"}
-                  channelName={channel.name}
-                  channelAvatarUrl={profileImage}
-                  channelId={channel.id}
-                  viewsCount={Math.floor(Math.random() * 5000)}
-                  createdAt={video.createdAt}
-                  bedrooms={video.property?.bedrooms ?? undefined}
-                  bathrooms={video.property?.bathrooms ?? undefined}
-                  sizeSqm={video.property?.sizeSqm ?? undefined}
-                  status={video.property?.status ?? undefined}
-                  isShort={true}
-                />
-              ))}
+            <h2 className="text-xl font-bold text-white mb-4">Playlists</h2>
+            <div className="flex gap-4 overflow-x-auto pb-2">
+              {PLAYLIST_TYPES.map((type) => {
+                const vids = buckets[type];
+                const preview = vids.slice(0, 3);
+                return (
+                  <Link
+                    key={type}
+                    href={`/channel/${channel.id}/playlist/${type}`}
+                    className="flex-shrink-0 w-[240px] rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 transition-colors p-4"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h3 className="text-white font-semibold">{PLAYLIST_TITLES[type]}</h3>
+                        <p className="text-xs text-white/60 mt-1">
+                          {vids.length} video{vids.length === 1 ? "" : "s"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 flex gap-2">
+                      {preview.map((v) => (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          key={v.id}
+                          src={v.thumbnail ?? FALLBACK_THUMBNAIL}
+                          alt=""
+                          className="h-16 w-16 rounded-lg object-cover border border-white/10"
+                        />
+                      ))}
+                    </div>
+                    {preview.length === 0 ? (
+                      <p className="mt-3 text-xs text-white/40">No videos yet.</p>
+                    ) : null}
+                  </Link>
+                );
+              })}
             </div>
           </div>
         ) : null}
-
-        {/* Long videos */}
-        {longs.length > 0 ? (
-          <div>
-            <h2 className="text-xl font-bold text-white mb-6">{longs.length > 0 ? "Long videos" : "Videos"}</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-x-4 gap-y-8">
-              {longs.map((video) => (
-                <VideoCard
-                  key={video.id}
-                  id={video.id}
-                  title={video.title}
-                  thumbnailUrl={video.thumbnail || ""}
-                  price={Number(video.property?.price ?? 0)}
-                  location={video.property ? `${video.property.city}, ${video.property.country}` : "Unknown location"}
-                  channelName={channel.name}
-                  channelAvatarUrl={profileImage}
-                  channelId={channel.id}
-                  viewsCount={Math.floor(Math.random() * 5000)}
-                  createdAt={video.createdAt}
-                  bedrooms={video.property?.bedrooms ?? undefined}
-                  bathrooms={video.property?.bathrooms ?? undefined}
-                  sizeSqm={video.property?.sizeSqm ?? undefined}
-                  status={video.property?.status ?? undefined}
-                  isShort={false}
-                />
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div className="py-12 text-center text-gray-400">No property video tours uploaded yet.</div>
-        )}
       </div>
     </div>
   );

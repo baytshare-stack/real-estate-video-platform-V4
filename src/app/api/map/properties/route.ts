@@ -1,60 +1,63 @@
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import prisma from "@/lib/prisma";
+import { safeFindMany } from "@/lib/safePrisma";
 
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const city = searchParams.get("city");
-    
-    // Base query to fetch only properties
-    const whereClause: any = {
-      property: { isNot: null }
+
+    const whereClause: Record<string, unknown> = {
+      property: { isNot: null },
     };
 
     if (city) {
-       whereClause.property = { city: { contains: city } };
+      whereClause.property = { city: { contains: city } };
     }
 
-    // Fetch essential data required for map markers
-    const mapProperties = await prisma.video.findMany({
-      where: whereClause,
-      select: {
-        id: true,
-        title: true,
-        property: {
-          select: {
-            propertyType: true,
-            price: true,
-            city: true,
-            status: true
-          }
+    const mapProperties = await safeFindMany(() =>
+      prisma.video.findMany({
+        where: whereClause as any,
+        select: {
+          id: true,
+          title: true,
+          thumbnail: true,
+          property: {
+            select: {
+              propertyType: true,
+              price: true,
+              currency: true,
+              city: true,
+              status: true,
+              latitude: true,
+              longitude: true,
+            },
+          },
+          channel: {
+            select: { avatar: true, name: true },
+          },
         },
-        channel: {
-          select: { avatar: true, name: true }
-        }
-      },
-      take: 100
-    });
+        take: 100,
+      })
+    );
 
-    // Map the shape back for the frontend
-    const mappedProps = mapProperties.map(v => ({
+    const mappedProps = mapProperties.map((v) => ({
       ...v,
       propertyType: v.property?.propertyType,
       price: v.property?.price ? Number(v.property.price) : 0,
+      currency: v.property?.currency || "USD",
       city: v.property?.city,
       status: v.property?.status,
-      latitude: 0, // removed from schema
-      longitude: 0, // removed from schema
+      latitude: v.property?.latitude ?? null,
+      longitude: v.property?.longitude ?? null,
+      thumbnailUrl: v.thumbnail || null,
       channelAvatarUrl: v.channel?.avatar,
-      channelName: v.channel?.name
+      channelName: v.channel?.name,
     }));
 
     return NextResponse.json(mappedProps, { status: 200 });
-
   } catch (error) {
     console.error("Map Data API Error:", error);
-    return NextResponse.json({ error: "Failed to fetch map data" }, { status: 500 });
+    return NextResponse.json([], { status: 200 });
   }
 }

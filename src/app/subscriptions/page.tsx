@@ -1,11 +1,11 @@
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { PrismaClient } from '@prisma/client';
 import Link from 'next/link';
 import { BookMarked, LogIn, Users } from 'lucide-react';
 import PageHeader from '@/components/PageHeader';
+import prisma from '@/lib/prisma';
+import { safeFindMany } from '@/lib/safePrisma';
 
-const prisma = new PrismaClient();
 export const dynamic = 'force-dynamic';
 
 export default async function SubscriptionsPage() {
@@ -33,14 +33,14 @@ export default async function SubscriptionsPage() {
     );
   }
 
-  // Fetch all channels — once a Subscription join table is added to the schema,
-  // this can be filtered to only show the user's subscribed channels.
-  const channels = await prisma.channel.findMany({
-    include: {
-      _count: { select: { videos: true } },
-    },
-    orderBy: { name: 'asc' },
-  });
+  const channels = await safeFindMany(() =>
+    prisma.channel.findMany({
+      include: {
+        _count: { select: { videos: true } },
+      },
+      orderBy: { name: 'asc' },
+    })
+  );
 
   return (
     <div className="p-4 md:p-6 max-w-[2000px] mx-auto min-h-screen">

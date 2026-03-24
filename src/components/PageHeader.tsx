@@ -1,6 +1,6 @@
 "use client";
 
-import { BookMarked, Clapperboard, Compass, Flame, TrendingUp, Users } from 'lucide-react';
+import { BookMarked, Building2, Clapperboard, Compass, Flame, TrendingUp, Users } from 'lucide-react';
 
 interface FilterChip {
   label: string;
@@ -24,6 +24,7 @@ const ICONS = {
   TrendingUp,
   Users,
   BookMarked,
+  Building2,
 } as const;
 
 export default function PageHeader({

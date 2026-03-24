@@ -1,9 +1,11 @@
 import VideoCard from '@/components/VideoCard';
+import ShortVideoPlayer from '@/components/shorts/ShortVideoPlayer';
+import type { ShortVideoPayload } from '@/components/shorts/types';
 import { Flame } from 'lucide-react';
-import { PrismaClient } from '@prisma/client';
 import { getServerTranslation } from '@/i18n/server';
-
-const prisma = new PrismaClient();
+import PropertyMap from '@/components/PropertyMap';
+import prisma from '@/lib/prisma';
+import { safeFindMany } from '@/lib/safePrisma';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,28 +13,50 @@ export const dynamic = 'force-dynamic';
 export default async function Home() {
   const { t } = await getServerTranslation();
   
-  // Fetch real data from sqlite/postgres database
-  const videos = await prisma.video.findMany({
-    orderBy: { createdAt: 'desc' },
-    include: {
-      channel: { select: { name: true, avatar: true } },
-      property: true
-    },
-    take: 16
-  });
+  const videos = await safeFindMany(() =>
+    prisma.video.findMany({
+      where: { isShort: false },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        channel: { select: { name: true, avatar: true } },
+        property: true
+      },
+      take: 16
+    })
+  );
 
-  const shorts = await prisma.video.findMany({
-    orderBy: { createdAt: 'desc' },
-    include: {
-      channel: { select: { name: true, avatar: true } },
-      property: true
-    },
-    take: 10
-  });
+  const shorts = await safeFindMany(() =>
+    prisma.video.findMany({
+      where: { isShort: true },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        channel: { select: { name: true, avatar: true } },
+        property: true
+      },
+      take: 10
+    })
+  );
 
   // Since we might not have DB entries right away, fallback mock for visual continuity
   const displayVideos = videos.length > 0 ? videos : MOCK_VIDEOS;
   const displayShorts = shorts.length > 0 ? shorts : MOCK_SHORTS;
+  const shortsPayload: ShortVideoPayload[] = displayShorts.map((short: any) => ({
+    id: short.id,
+    title: short.title,
+    videoUrl: short.videoUrl ?? null,
+    thumbnail: short.thumbnailUrl ?? short.thumbnail ?? null,
+    channelId: short.channelId ?? "demo",
+    channelName: short.channelName || short.channel?.name || "Channel",
+    channelAvatar: short.channelAvatarUrl || short.channel?.avatar || null,
+    viewsCount: short.viewsCount ?? 0,
+    likesCount: short.likesCount ?? 0,
+    dislikesCount: short.dislikesCount ?? 0,
+    commentsCount: short.commentsCount ?? 0,
+    sharesCount: short.sharesCount ?? 0,
+    createdAt: short.createdAt ? new Date(short.createdAt).toISOString() : new Date().toISOString(),
+    userReaction: null,
+    subscribed: false,
+  }));
 
   return (
     <div className="p-4 md:p-6 max-w-[2000px] mx-auto min-h-screen">
@@ -52,7 +76,9 @@ export default async function Home() {
           <VideoCard 
             key={video.id} 
             {...video} 
+            thumbnailUrl={video.thumbnailUrl ?? video.thumbnail}
             price={video.property?.price ? Number(video.property.price) : video.price}
+            currency={video.property?.currency || video.currency || "USD"}
             bedrooms={video.property?.bedrooms || video.bedrooms}
             bathrooms={video.property?.bathrooms || video.bathrooms}
               sizeSqm={video.property?.sizeSqm != null ? Number(video.property.sizeSqm) : video.sizeSqm != null ? Number(video.sizeSqm) : undefined}
@@ -71,19 +97,13 @@ export default async function Home() {
           <h2 className="text-xl font-bold">Shorts</h2>
         </div>
         <div className="flex gap-4 overflow-x-auto hide-scrollbar pb-4">
-          {displayShorts.map((short: any) => (
-             <VideoCard 
-               key={short.id} 
-               {...short} 
-               isShort={true} 
-               price={short.property?.price ? Number(short.property.price) : short.price}
-               bedrooms={short.property?.bedrooms || short.bedrooms}
-               bathrooms={short.property?.bathrooms || short.bathrooms}
-              sizeSqm={short.property?.sizeSqm != null ? Number(short.property.sizeSqm) : short.sizeSqm != null ? Number(short.sizeSqm) : undefined}
-               status={short.property?.status || short.status}
-               channelName={short.channelName || short.channel?.name}
-               channelAvatarUrl={short.channelAvatarUrl || short.channel?.avatar}
-             />
+          {shortsPayload.map((short) => (
+            <ShortVideoPlayer
+              key={short.id}
+              video={short}
+              mode="grid"
+              className="w-[220px] flex-shrink-0"
+            />
           ))}
         </div>
       </div>
@@ -95,7 +115,9 @@ export default async function Home() {
             <VideoCard 
               key={video.id} 
               {...video} 
+              thumbnailUrl={video.thumbnailUrl ?? video.thumbnail}
               price={video.property?.price ? Number(video.property.price) : video.price}
+              currency={video.property?.currency || video.currency || "USD"}
               bedrooms={video.property?.bedrooms || video.bedrooms}
               bathrooms={video.property?.bathrooms || video.bathrooms}
               sizeSqm={video.property?.sizeSqm != null ? Number(video.property.sizeSqm) : video.sizeSqm != null ? Number(video.sizeSqm) : undefined}
@@ -107,6 +129,24 @@ export default async function Home() {
           ))}
         </div>
       )}
+
+      <div className="mt-6 border-t border-white/10 pt-6">
+        <h2 className="mb-4 text-xl font-bold text-white">Properties Map</h2>
+        <div className="h-[420px] overflow-hidden rounded-2xl border border-white/10">
+          <PropertyMap
+            className="h-full w-full"
+            videos={displayVideos.map((video: any) => ({
+              id: video.id,
+              title: video.title,
+              price: video.property?.price ? Number(video.property.price) : video.price,
+              currency: video.property?.currency || video.currency || "USD",
+              thumbnailUrl: video.thumbnailUrl || video.thumbnail,
+              latitude: video.property?.latitude ?? video.latitude,
+              longitude: video.property?.longitude ?? video.longitude,
+            }))}
+          />
+        </div>
+      </div>
 
     </div>
   );

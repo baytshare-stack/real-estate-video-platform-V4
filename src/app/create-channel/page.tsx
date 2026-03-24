@@ -65,7 +65,8 @@ export default function CreateChannelPage() {
         throw new Error(data.error || "Failed to create channel");
       }
 
-      router.push(`/channel/${data.id}`);
+      router.push("/studio");
+      router.refresh();
     } catch (err: any) {
       setError(err.message);
     } finally {

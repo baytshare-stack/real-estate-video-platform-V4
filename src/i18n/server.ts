@@ -1,30 +1,36 @@
-"use server"; // بدل "server-only" يمكن أن يعمل مع Next.js 13+
-
 import { cookies } from "next/headers";
-import { defaultLocale, type Locale, locales } from "../i18n/config";
-import { getDictionary } from "../i18n/dictionaries";
+import {
+  defaultLocale,
+  locales,
+  type Locale,
+  LOCALE_COOKIE,
+  type Dictionary,
+} from "./config";
+import { getDictionary } from "./dictionaries";
+import { translateWithFallback } from "./resolve";
 
-export async function getServerTranslation() {
-  // قراءة لغة المستخدم من الكوكيز
-  const cookieStore = await cookies();
-  const cookieLocale = cookieStore.get("NEXT_LOCALE")?.value as Locale;
+export type ServerT = (namespaceOrPath: string, key?: string) => string;
 
-  // التحقق من أن اللغة مدعومة وإلا استخدام اللغة الافتراضية
-  const locale = cookieLocale && locales.includes(cookieLocale) ? cookieLocale : defaultLocale;
-  const dict = await getDictionary(locale);
-
-  // دالة لترجمة النصوص
-  const t = (namespace: keyof typeof dict, key: string): string => {
-    try {
-      const section = dict[namespace] as Record<string, string>;
-      if (section && key in section) {
-        return section[key];
-      }
-      return key; // fallback إذا لم توجد الترجمة
-    } catch {
-      return key; // fallback في حالة أي خطأ
-    }
+function makeT(dict: Dictionary, enDict: Dictionary): ServerT {
+  return (namespaceOrPath: string, key?: string) => {
+    const path = key !== undefined ? `${namespaceOrPath}.${key}` : namespaceOrPath;
+    return translateWithFallback(dict, enDict, path);
   };
+}
 
-  return { locale, dict, t };
+/**
+ * Server Components: locale from cookie + merged English fallback for missing keys.
+ */
+export async function getServerI18n() {
+  const cookieStore = await cookies();
+  const raw = cookieStore.get(LOCALE_COOKIE)?.value as Locale | undefined;
+  const locale = raw && locales.includes(raw) ? raw : defaultLocale;
+  const [dict, enDict] = await Promise.all([getDictionary(locale), getDictionary("en")]);
+  const t = makeT(dict, enDict);
+  return { locale, dict, enDict, t };
+}
+
+/** @deprecated Prefer getServerI18n — same behavior */
+export async function getServerTranslation() {
+  return getServerI18n();
 }
