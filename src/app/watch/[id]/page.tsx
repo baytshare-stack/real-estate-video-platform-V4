@@ -6,11 +6,13 @@ import VideoCard from '@/components/VideoCard';
 import ShareModal from '@/components/ShareModal';
 import Link from 'next/link';
 import { useTranslation } from '@/i18n/LanguageProvider';
+import { useSession } from 'next-auth/react';
 
 export default function WatchPage({ params }: { params: Promise<{ id: string }> }) {
   const unwrappedParams = use(params);
   const videoId = unwrappedParams.id;
   const { t } = useTranslation();
+  const { status: sessionStatus } = useSession();
   const [videoData, setVideoData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -30,6 +32,8 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
         const data = await res.json();
         setVideoData(data);
         setLikesCount(data.likesCount || 0);
+        setIsLiked(data.userReaction === "LIKE");
+        setIsSubscribed(Boolean(data.subscribedToChannel));
         
         // Fetch recommendations asynchronously
         fetch(`/api/recommendations/similar?videoId=${videoId}`)
@@ -47,28 +51,56 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
   }, [videoId]);
 
   const handleLike = async () => {
-    // Optimistic UI update
-    const previousState = isLiked;
+    if (sessionStatus !== "authenticated") return;
+
+    const previousReaction = isLiked;
     const previousCount = likesCount;
     setIsLiked(!isLiked);
-    setLikesCount(prev => isLiked ? prev - 1 : prev + 1);
+    setLikesCount((prev) => (isLiked ? prev - 1 : prev + 1));
 
     try {
-      const res = await fetch('/api/video/interact/like', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ videoId })
+      const res = await fetch(`/api/videos/${encodeURIComponent(videoId)}/react`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ type: "LIKE" }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      
-      // Update with server truth
-      setIsLiked(data.liked);
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        likesCount?: number;
+        userReaction?: "LIKE" | "DISLIKE" | null;
+      };
+      if (!res.ok) throw new Error(data.error || "Like failed");
+
+      if (typeof data.likesCount === "number") setLikesCount(data.likesCount);
+      setIsLiked(data.userReaction === "LIKE");
     } catch (e) {
       console.error(e);
-      // Revert on failure
-      setIsLiked(previousState);
+      setIsLiked(previousReaction);
       setLikesCount(previousCount);
+    }
+  };
+
+  const handleSubscribe = async () => {
+    if (sessionStatus !== "authenticated") return;
+    const chId = videoData?.channelId || videoData?.channel?.id;
+    if (!chId) return;
+
+    const prev = isSubscribed;
+    setIsSubscribed(!prev);
+    try {
+      const res = await fetch(`/api/channels/${encodeURIComponent(chId)}/subscribe`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({}),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string; subscribed?: boolean };
+      if (!res.ok) throw new Error(data.error || "Subscribe failed");
+      if (typeof data.subscribed === "boolean") setIsSubscribed(data.subscribed);
+    } catch (e) {
+      console.error(e);
+      setIsSubscribed(prev);
     }
   };
 
@@ -127,7 +159,8 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
                     <p className="text-gray-400 text-xs md:text-sm">{channel.followersCount || 0} {t('watch', 'subscribers')}</p>
                 </div>
                 <button 
-                    onClick={() => setIsSubscribed(!isSubscribed)}
+                    type="button"
+                    onClick={() => void handleSubscribe()}
                     className={`ml-2 px-3 md:px-4 py-1.5 md:py-2 rounded-full font-medium transition-colors flex items-center gap-2 text-sm ${
                         isSubscribed ? 'bg-gray-800 text-white hover:bg-gray-700' : 'bg-white text-black hover:bg-gray-200'
                     }`}
@@ -138,7 +171,8 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
 
             <div className="flex items-center gap-1 md:gap-2 bg-gray-900 rounded-full p-1 border border-gray-800 shrink-0">
                 <button 
-                  onClick={handleLike} 
+                  type="button"
+                  onClick={() => void handleLike()} 
                   className={`flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-1.5 rounded-full transition-colors text-sm font-medium ${isLiked ? 'bg-blue-600/20 text-blue-400' : 'hover:bg-white/10 text-white'}`}
                 >
                     <ThumbsUp className={`w-4 h-4 md:w-5 md:h-5 ${isLiked ? 'fill-blue-400' : ''}`} /> {likesCount}
@@ -228,6 +262,7 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
            <VideoCard 
              key={rec.id} 
              {...rec}
+             channelId={rec.channelId ?? rec.channel?.id}
              channelName={rec.channel?.channelName}
              channelAvatarUrl={rec.channel?.avatarUrl}
            />

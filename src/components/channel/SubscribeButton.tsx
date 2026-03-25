@@ -35,7 +35,7 @@ export default function SubscribeButton({
   useEffect(() => {
     if (!isLoggedIn || disabledSelf) return;
     let cancelled = false;
-    void fetch(`/api/subscribe?channelId=${encodeURIComponent(channelId)}`, {
+    void fetch(`/api/channels/${encodeURIComponent(channelId)}/subscribe`, {
       credentials: "include",
     })
       .then((res) => (res.ok ? res.json() : null))
@@ -66,11 +66,11 @@ export default function SubscribeButton({
     setPending(true);
 
     try {
-      const res = await fetch(`/api/subscribe`, {
+      const res = await fetch(`/api/channels/${encodeURIComponent(channelId)}/subscribe`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ channelId }),
+        body: JSON.stringify({}),
       });
 
       const data = await res.json().catch(() => null);

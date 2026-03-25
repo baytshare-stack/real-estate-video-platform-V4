@@ -1,12 +1,14 @@
 import NextAuth, { NextAuthOptions } from "next-auth";
 import type { Account } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
+import EmailProvider from "next-auth/providers/email";
 import GoogleProvider from "next-auth/providers/google";
 import FacebookProvider from "next-auth/providers/facebook";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { userWherePhoneMatches } from "@/lib/userPhone";
+import { sendTransactionalEmail } from "@/lib/email";
 
 const googleConfigured =
   Boolean(process.env.GOOGLE_CLIENT_ID?.trim()) && Boolean(process.env.GOOGLE_CLIENT_SECRET?.trim());
@@ -16,6 +18,9 @@ const facebookClientId =
 const facebookClientSecret =
   process.env.FACEBOOK_CLIENT_SECRET?.trim() || process.env.FACEBOOK_APP_SECRET?.trim();
 const facebookConfigured = Boolean(facebookClientId && facebookClientSecret);
+const emailServer = process.env.EMAIL_SERVER?.trim();
+const emailFrom = process.env.EMAIL_FROM?.trim() || process.env.RESEND_FROM_EMAIL?.trim();
+const emailProviderConfigured = Boolean(emailServer && emailFrom);
 
 /** Legacy accounts verified via phone OTP only (before email OTP). */
 function legacyPhoneVerifiedOnly(user: {
@@ -35,6 +40,37 @@ function legacyPhoneVerifiedOnly(user: {
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
   providers: [
+    ...(emailProviderConfigured
+      ? [
+          EmailProvider({
+            server: emailServer!,
+            from: emailFrom!,
+            async sendVerificationRequest({ identifier, url, provider }) {
+              try {
+                const host = new URL(url).host;
+                await sendTransactionalEmail({
+                  to: identifier,
+                  subject: `Sign in to ${host}`,
+                  text: `Sign in to ${host}\n${url}\n\nIf you did not request this email, you can safely ignore it.`,
+                  html: `
+                    <p>Sign in to <strong>${host}</strong></p>
+                    <p><a href="${url}">Click here to sign in</a></p>
+                    <p>If you did not request this email, you can safely ignore it.</p>
+                  `,
+                });
+              } catch (err) {
+                const message = err instanceof Error ? err.message : "Unknown email error";
+                console.error("[nextauth email] sendVerificationRequest failed", {
+                  to: identifier,
+                  from: provider.from,
+                  error: message,
+                });
+                throw new Error(`Failed to send verification email: ${message}`);
+              }
+            },
+          }),
+        ]
+      : []),
     ...(googleConfigured
       ? [
           GoogleProvider({
@@ -255,6 +291,7 @@ export const authOptions: NextAuthOptions = {
     signIn: "/login",
   },
   secret: process.env.NEXTAUTH_SECRET || "fallback_secret_for_dev",
+  debug: process.env.NODE_ENV !== "production",
 };
 
 const handler = NextAuth(authOptions);

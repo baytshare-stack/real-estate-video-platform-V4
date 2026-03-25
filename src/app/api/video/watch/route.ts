@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
 import prisma from "@/lib/prisma";
-import { safeFindUnique } from "@/lib/safePrisma";
+import { safeFindFirst, safeFindUnique } from "@/lib/safePrisma";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
 export async function GET(req: Request) {
   try {
@@ -37,6 +39,30 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Video not found" }, { status: 404 });
     }
 
+    const session = await getServerSession(authOptions);
+    const userId = session?.user?.id as string | undefined;
+
+    let userReaction: "LIKE" | "DISLIKE" | null = null;
+    let subscribedToChannel = false;
+    if (userId) {
+      const [reactionRow, subRow] = await Promise.all([
+        safeFindFirst(() =>
+          prisma.videoReaction.findUnique({
+            where: { userId_videoId: { userId, videoId } },
+            select: { type: true },
+          })
+        ),
+        safeFindFirst(() =>
+          prisma.subscription.findFirst({
+            where: { subscriberId: userId, channelId: video.channel.id },
+            select: { id: true },
+          })
+        ),
+      ]);
+      userReaction = reactionRow?.type ?? null;
+      subscribedToChannel = Boolean(subRow);
+    }
+
     const contactPhoneCode = video.channel?.owner?.phoneCode || "";
     const contactPhoneNumber = video.channel?.owner?.phoneNumber || "";
 
@@ -71,6 +97,8 @@ export async function GET(req: Request) {
       status: video.property?.status,
       viewsCount: 0,
       likesCount: video.likesCount,
+      userReaction,
+      subscribedToChannel,
       channel: {
         id: video.channel.id,
         channelName: video.channel.name,

@@ -90,7 +90,7 @@ export default function ShortVideoPlayer({
     if (!initial.channelId) return;
     if (status !== "authenticated") return;
     let cancelled = false;
-    void fetch(`/api/subscribe?channelId=${encodeURIComponent(initial.channelId)}`, {
+    void fetch(`/api/channels/${encodeURIComponent(initial.channelId)}/subscribe`, {
       credentials: "include",
     })
       .then((res) => (res.ok ? res.json() : null))
@@ -191,14 +191,15 @@ export default function ShortVideoPlayer({
 
   const doSubscribe = async () => {
     if (status !== "authenticated") return;
+    if (!initial.channelId) return;
     const prev = subscribed;
     setSubscribed(!prev);
     try {
-      const res = await fetch("/api/subscribe", {
+      const res = await fetch(`/api/channels/${encodeURIComponent(initial.channelId)}/subscribe`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ channelId: initial.channelId }),
+        body: JSON.stringify({}),
       });
       if (!res.ok) throw new Error();
       const j = (await res.json()) as { subscribed: boolean; subscriberCount: number };

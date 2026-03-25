@@ -7,6 +7,7 @@ export interface VideoItem {
   title: string;
   thumbnailUrl?: string | null;
   thumbnail?: string | null;
+  channelId?: string;
   price?: number;
   location?: string;
   city?: string;
@@ -22,7 +23,7 @@ export interface VideoItem {
   bathrooms?: number;
   sizeSqm?: number;
   status?: 'FOR_SALE' | 'FOR_RENT';
-  channel?: { name: string; avatar?: string | null };
+  channel?: { id?: string; name: string; avatar?: string | null };
   property?: {
     price?: number | bigint | null;
     currency?: string | null;
@@ -57,6 +58,7 @@ function normalise(v: VideoItem) {
           ? Number(v.sizeSqm)
           : undefined,
     status: (v.property?.status ?? v.status) as 'FOR_SALE' | 'FOR_RENT' | undefined,
+    channelId: v.channelId ?? v.channel?.id,
     channelName: v.channelName ?? v.channel?.name ?? 'Unknown',
     channelAvatarUrl: v.channelAvatarUrl ?? v.channel?.avatar ?? undefined,
     location: v.location ?? `${v.property?.city ?? v.city ?? ''}, ${v.property?.country ?? v.country ?? ''}`.replace(/^, |, $/, ''),
@@ -85,7 +87,7 @@ export default function VideoGrid({ videos, shortsMode = false, emptyMessage }: 
             title: n.title,
             videoUrl: n.videoUrl ?? null,
             thumbnail: n.thumbnailUrl ?? null,
-            channelId: "demo",
+            channelId: n.channel?.id ?? n.channelId ?? "",
             channelName: n.channelName ?? "Channel",
             channelAvatar: n.channelAvatarUrl ?? null,
             viewsCount: n.viewsCount ?? 0,

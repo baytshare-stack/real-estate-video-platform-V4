@@ -18,7 +18,7 @@ export default async function Home() {
       where: { isShort: false },
       orderBy: { createdAt: 'desc' },
       include: {
-        channel: { select: { name: true, avatar: true } },
+        channel: { select: { id: true, name: true, avatar: true } },
         property: true
       },
       take: 16
@@ -30,7 +30,7 @@ export default async function Home() {
       where: { isShort: true },
       orderBy: { createdAt: 'desc' },
       include: {
-        channel: { select: { name: true, avatar: true } },
+        channel: { select: { id: true, name: true, avatar: true } },
         property: true
       },
       take: 10
@@ -45,7 +45,7 @@ export default async function Home() {
     title: short.title,
     videoUrl: short.videoUrl ?? null,
     thumbnail: short.thumbnailUrl ?? short.thumbnail ?? null,
-    channelId: short.channelId ?? "demo",
+    channelId: short.channel?.id ?? short.channelId ?? "",
     channelName: short.channelName || short.channel?.name || "Channel",
     channelAvatar: short.channelAvatarUrl || short.channel?.avatar || null,
     viewsCount: short.viewsCount ?? 0,
@@ -83,6 +83,7 @@ export default async function Home() {
             bathrooms={video.property?.bathrooms || video.bathrooms}
               sizeSqm={video.property?.sizeSqm != null ? Number(video.property.sizeSqm) : video.sizeSqm != null ? Number(video.sizeSqm) : undefined}
             status={video.property?.status || video.status}
+            channelId={video.channel?.id ?? video.channelId}
             channelName={video.channelName || video.channel?.name}
             channelAvatarUrl={video.channelAvatarUrl || video.channel?.avatar}
             location={`${video.property?.city || video.city}, ${video.property?.country || video.country || 'USA'}`}
@@ -122,6 +123,7 @@ export default async function Home() {
               bathrooms={video.property?.bathrooms || video.bathrooms}
               sizeSqm={video.property?.sizeSqm != null ? Number(video.property.sizeSqm) : video.sizeSqm != null ? Number(video.sizeSqm) : undefined}
               status={video.property?.status || video.status}
+              channelId={video.channel?.id ?? video.channelId}
               channelName={video.channelName || video.channel?.name}
               channelAvatarUrl={video.channelAvatarUrl || video.channel?.avatar}
               location={`${video.property?.city || video.city}, ${video.property?.country || video.country || 'USA'}`}

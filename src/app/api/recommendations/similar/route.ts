@@ -32,7 +32,7 @@ export async function GET(req: Request) {
           ],
         },
         include: {
-          channel: { select: { name: true, avatar: true } },
+          channel: { select: { id: true, name: true, avatar: true } },
           property: true,
         },
         orderBy: {
