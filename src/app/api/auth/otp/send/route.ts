@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { sendOtpEmail } from "@/lib/email";
+import { sendEmail } from "@/lib/email";
 import { generateNumericOtp, hashOtp, OTP_TTL_MS } from "@/lib/otp";
 import { userWherePhoneMatches } from "@/lib/userPhone";
 
@@ -66,7 +66,12 @@ export async function POST(req: Request) {
       });
 
       try {
-        await sendOtpEmail(user.email, otpPlain);
+        await sendEmail({
+          to: user.email,
+          subject: "Your verification code",
+          text: `Your verification code is ${otpPlain}. It expires in a few minutes. If you did not request this, ignore this email.`,
+          html: `<p>Your verification code is <strong>${otpPlain}</strong>.</p><p>It expires in a few minutes. If you did not request this, ignore this email.</p>`,
+        });
       } catch (e) {
         console.error("[otp/send register email]", e);
         return NextResponse.json({ error: "Failed to send email" }, { status: 503 });
@@ -124,7 +129,12 @@ export async function POST(req: Request) {
       });
 
       try {
-        await sendOtpEmail(user.email, otpPlain);
+        await sendEmail({
+          to: user.email,
+          subject: "Your verification code",
+          text: `Your verification code is ${otpPlain}. It expires in a few minutes. If you did not request this, ignore this email.`,
+          html: `<p>Your verification code is <strong>${otpPlain}</strong>.</p><p>It expires in a few minutes. If you did not request this, ignore this email.</p>`,
+        });
       } catch (e) {
         console.error("[otp/send login email]", e);
         return NextResponse.json({ error: "Failed to send email" }, { status: 503 });

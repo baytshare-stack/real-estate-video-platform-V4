@@ -4,7 +4,7 @@ import { safeFindUnique } from "@/lib/safePrisma";
 import bcrypt from "bcryptjs";
 import type { Role } from "@prisma/client";
 import { buildFullPhoneNumber, buildWhatsappFull, getCountryByIso } from "@/lib/countriesData";
-import { sendOtpEmail } from "@/lib/email";
+import { sendEmail } from "@/lib/email";
 import { generateNumericOtp, hashOtp, OTP_TTL_MS } from "@/lib/otp";
 import { canonicalPhoneDigitsFromE164 } from "@/lib/userPhone";
 
@@ -146,9 +146,14 @@ export async function POST(req: Request) {
     });
 
     try {
-      await sendOtpEmail(newUser.email, otpPlain);
+      await sendEmail({
+        to: newUser.email,
+        subject: "Your verification code",
+        text: `Your verification code is ${otpPlain}. It expires in a few minutes. If you did not request this, ignore this email.`,
+        html: `<p>Your verification code is <strong>${otpPlain}</strong>.</p><p>It expires in a few minutes. If you did not request this, ignore this email.</p>`,
+      });
     } catch (e) {
-      console.error("[register] sendOtpEmail", e);
+      console.error("[register] sendEmail", e);
       await prisma.user.delete({ where: { id: newUser.id } }).catch(() => {});
       return NextResponse.json({ error: "Failed to send verification email" }, { status: 503 });
     }
