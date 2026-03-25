@@ -1,4 +1,4 @@
-import cloudinary from "@/lib/cloudinary";
+import cloudinary, { uploadBufferToCloudinaryStream } from "@/lib/cloudinary";
 
 export function formatCloudinaryError(err: unknown): string {
   if (err instanceof Error && err.message) return err.message;
@@ -17,25 +17,7 @@ export async function uploadBufferToCloudinary(
   buffer: Buffer,
   resourceType: "video" | "image"
 ): Promise<{ secure_url: string; public_id: string }> {
-  return new Promise((resolve, reject) => {
-    const stream = cloudinary.uploader.upload_stream(
-      {
-        resource_type: resourceType,
-        folder: "real-estate-platform/uploads",
-        use_filename: true,
-        unique_filename: true,
-        overwrite: false,
-      },
-      (error, result) => {
-        if (error || !result?.secure_url || !result.public_id) {
-          reject(error || new Error("Cloudinary upload failed"));
-          return;
-        }
-        resolve({ secure_url: result.secure_url, public_id: result.public_id });
-      }
-    );
-    stream.end(buffer);
-  });
+  return uploadBufferToCloudinaryStream(buffer, resourceType);
 }
 
 /** Poster image URL (first frame) for a Cloudinary-hosted video by public_id */

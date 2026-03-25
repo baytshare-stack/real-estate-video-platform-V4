@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import prisma from "@/lib/prisma";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-import { saveImageFile } from "@/lib/localMediaUpload";
+import { assertImageFile } from "@/lib/localMediaUpload";
+import { uploadBufferToCloudinaryStream } from "@/lib/cloudinary";
 
 export const runtime = "nodejs";
 
@@ -24,26 +25,28 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No file" }, { status: 400 });
     }
 
-    const { publicPath } = await saveImageFile(file);
+    assertImageFile(file);
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const { secure_url } = await uploadBufferToCloudinaryStream(buffer, "image");
     const userId = session.user.id;
 
     await prisma.profile.upsert({
       where: { userId },
       create: {
         userId,
-        avatar: publicPath,
+        avatar: secure_url,
       },
       update: {
-        avatar: publicPath,
+        avatar: secure_url,
       },
     });
 
     await prisma.user.update({
       where: { id: userId },
-      data: { image: publicPath },
+      data: { image: secure_url },
     });
 
-    return NextResponse.json({ url: publicPath }, { status: 200 });
+    return NextResponse.json({ url: secure_url }, { status: 200 });
   } catch (e) {
     console.error("POST /api/profile/avatar", e);
     const msg = e instanceof Error ? e.message : "Upload failed";

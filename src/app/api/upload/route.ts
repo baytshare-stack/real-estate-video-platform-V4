@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-import { saveImageFile, saveVideoFile } from "@/lib/localMediaUpload";
+import { assertImageFile, assertVideoFile } from "@/lib/localMediaUpload";
+import { uploadBufferToCloudinaryStream } from "@/lib/cloudinary";
 
 export const runtime = "nodejs";
 
 /**
- * Local multipart upload (no Cloudinary).
+ * Multipart upload to Cloudinary (Vercel-safe).
  * POST multipart/form-data:
  * - `video` (optional): .mp4
  * - `thumbnail` (optional): .jpg / .jpeg / .png
@@ -14,8 +15,8 @@ export const runtime = "nodejs";
  *
  * Response:
  * { url?: string, thumbnailUrl?: string }
- * - `url` = public path to saved video when a video was uploaded
- * - `thumbnailUrl` = public path to saved image when a thumbnail was uploaded
+ * - `url` = Cloudinary secure_url for the video when a video was uploaded
+ * - `thumbnailUrl` = Cloudinary secure_url when a thumbnail was uploaded
  */
 export async function POST(req: Request) {
   try {
@@ -63,22 +64,26 @@ export async function POST(req: Request) {
 
     if (hasVideo) {
       try {
-        const { publicPath } = await saveVideoFile(videoPart);
-        payload.url = publicPath;
+        assertVideoFile(videoPart);
+        const buffer = Buffer.from(await videoPart.arrayBuffer());
+        const { secure_url } = await uploadBufferToCloudinaryStream(buffer, "video");
+        payload.url = secure_url;
       } catch (err) {
-        const detail = err instanceof Error ? err.message : "Could not save video file";
-        console.error("LOCAL UPLOAD (video):", err);
+        const detail = err instanceof Error ? err.message : "Could not upload video";
+        console.error("CLOUDINARY UPLOAD (video):", err);
         return NextResponse.json({ error: "Video upload failed", detail }, { status: 400 });
       }
     }
 
     if (hasThumb) {
       try {
-        const { publicPath } = await saveImageFile(thumbPart);
-        payload.thumbnailUrl = publicPath;
+        assertImageFile(thumbPart);
+        const buffer = Buffer.from(await thumbPart.arrayBuffer());
+        const { secure_url } = await uploadBufferToCloudinaryStream(buffer, "image");
+        payload.thumbnailUrl = secure_url;
       } catch (err) {
-        const detail = err instanceof Error ? err.message : "Could not save image file";
-        console.error("LOCAL UPLOAD (thumbnail):", err);
+        const detail = err instanceof Error ? err.message : "Could not upload thumbnail";
+        console.error("CLOUDINARY UPLOAD (thumbnail):", err);
         return NextResponse.json({ error: "Thumbnail upload failed", detail }, { status: 400 });
       }
     }

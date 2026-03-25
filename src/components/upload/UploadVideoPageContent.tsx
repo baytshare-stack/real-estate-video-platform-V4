@@ -27,6 +27,7 @@ import {
   Youtube,
 } from "lucide-react";
 import type { LocationPatch } from "@/components/upload/MapLeafletPicker";
+import { uploadUnsignedToCloudinary } from "@/lib/cloudinaryDirectUpload";
 
 const MapLeafletPicker = dynamic(() => import("@/components/upload/MapLeafletPicker"), {
   ssr: false,
@@ -105,38 +106,6 @@ function parseApiError(data: unknown): string {
   if (o.detail) parts.push(o.detail);
   if (o.missingFields?.length) parts.push(`Missing: ${o.missingFields.join(", ")}`);
   return parts.length ? parts.join(" — ") : "Request failed";
-}
-
-function postFormDataWithProgress(
-  url: string,
-  formData: FormData,
-  onProgress: (pct: number) => void
-): Promise<Record<string, unknown>> {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open("POST", url);
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) {
-        onProgress(Math.min(100, Math.round((e.loaded / e.total) * 100)));
-      }
-    };
-    xhr.onload = () => {
-      let data: Record<string, unknown> = {};
-      try {
-        data = JSON.parse(xhr.responseText || "{}") as Record<string, unknown>;
-      } catch {
-        reject(new Error("Invalid server response"));
-        return;
-      }
-      if (xhr.status >= 200 && xhr.status < 300) {
-        resolve(data);
-      } else {
-        reject(new Error(parseApiError(data)));
-      }
-    };
-    xhr.onerror = () => reject(new Error("Network error during upload"));
-    xhr.send(formData);
-  });
 }
 
 export default function UploadVideoPageContent() {
@@ -331,25 +300,38 @@ export default function UploadVideoPageContent() {
         setVideoUpload((prev) => ({ ...prev, uploading: hasVideoFile, progress: 0 }));
         setThumbnailUpload((prev) => ({ ...prev, uploading: hasThumbFile, progress: 0 }));
 
-        const fd = new FormData();
-        if (videoUpload.file) fd.append("video", videoUpload.file);
-        if (thumbnailUpload.file) fd.append("thumbnail", thumbnailUpload.file);
+        let uploadedVideoUrl = "";
+        let uploadedThumbUrl = "";
 
-        const data = await postFormDataWithProgress("/api/upload", fd, (pct) => {
-          setCombinedUploadProgress(pct);
-          setVideoUpload((prev) => (prev.file ? { ...prev, progress: pct } : prev));
-          setThumbnailUpload((prev) => (prev.file ? { ...prev, progress: pct } : prev));
-        });
+        try {
+          if (videoUpload.file) {
+            const scale = hasThumbFile ? 0.5 : 1;
+            uploadedVideoUrl = await uploadUnsignedToCloudinary(videoUpload.file, "video", (pct) => {
+              setCombinedUploadProgress(Math.round(pct * scale));
+              setVideoUpload((prev) => (prev.file ? { ...prev, progress: pct } : prev));
+            });
+          }
 
-        const uploadedVideoUrl = typeof data.url === "string" ? data.url : "";
-        const uploadedThumbUrl = typeof data.thumbnailUrl === "string" ? data.thumbnailUrl : "";
+          if (thumbnailUpload.file) {
+            const basePct = videoUpload.file ? 50 : 0;
+            const scale = videoUpload.file && thumbnailUpload.file ? 0.5 : 1;
+            uploadedThumbUrl = await uploadUnsignedToCloudinary(thumbnailUpload.file, "image", (pct) => {
+              setCombinedUploadProgress(basePct + Math.round(pct * scale));
+              setThumbnailUpload((prev) => (prev.file ? { ...prev, progress: pct } : prev));
+            });
+          }
+        } catch (uploadErr) {
+          const msg = uploadErr instanceof Error ? uploadErr.message : "Cloudinary upload failed";
+          setError(msg);
+          return;
+        }
 
         if (hasVideoFile && !uploadedVideoUrl) {
-          setError("Upload finished but the server did not return a video URL.");
+          setError("Upload finished but no video URL was returned from Cloudinary.");
           return;
         }
         if (hasThumbFile && !uploadedThumbUrl) {
-          setError("Upload finished but the server did not return a thumbnail URL.");
+          setError("Upload finished but no thumbnail URL was returned from Cloudinary.");
           return;
         }
 
