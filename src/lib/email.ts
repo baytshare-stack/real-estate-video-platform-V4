@@ -8,6 +8,21 @@ export type SendEmailParams = {
   html?: string;
 };
 
+/** True when the app can attempt transactional email (Resend or SMTP). */
+export function isTransactionalEmailConfigured(): boolean {
+  if (process.env.RESEND_API_KEY?.trim()) {
+    const from =
+      process.env.RESEND_FROM_EMAIL?.trim() || process.env.EMAIL_FROM?.trim();
+    return Boolean(from);
+  }
+  if (process.env.EMAIL_SERVER?.trim()) {
+    return Boolean(process.env.EMAIL_FROM?.trim());
+  }
+  return Boolean(
+    process.env.EMAIL_FROM?.trim() && process.env.EMAIL_PASSWORD?.trim()
+  );
+}
+
 function parseEmailServer(): string | Record<string, unknown> | undefined {
   const raw = process.env.EMAIL_SERVER?.trim();
   if (!raw) return undefined;
@@ -84,7 +99,11 @@ async function sendWithResend(params: SendEmailParams): Promise<void> {
         text: params.text!,
       });
   if (error) {
-    throw error;
+    const msg =
+      typeof error === "object" && error !== null && "message" in error
+        ? String((error as { message: unknown }).message)
+        : JSON.stringify(error);
+    throw new Error(`Resend: ${msg}`);
   }
 }
 

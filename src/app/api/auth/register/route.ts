@@ -4,7 +4,7 @@ import { safeFindUnique } from "@/lib/safePrisma";
 import bcrypt from "bcryptjs";
 import type { Role } from "@prisma/client";
 import { buildFullPhoneNumber, buildWhatsappFull, getCountryByIso } from "@/lib/countriesData";
-import { sendEmail } from "@/lib/email";
+import { isTransactionalEmailConfigured, sendEmail } from "@/lib/email";
 import { generateNumericOtp, hashOtp, OTP_TTL_MS } from "@/lib/otp";
 import { canonicalPhoneDigitsFromE164 } from "@/lib/userPhone";
 
@@ -101,6 +101,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Username already taken" }, { status: 409 });
     }
 
+    const isDev = process.env.NODE_ENV === "development";
+    const emailConfigured = isTransactionalEmailConfigured();
+
+    if (!isDev && !emailConfigured) {
+      return NextResponse.json(
+        {
+          error:
+            "Email delivery is not configured on this server. The administrator must set RESEND_API_KEY and RESEND_FROM_EMAIL (or EMAIL_FROM), or SMTP (EMAIL_FROM + EMAIL_PASSWORD / EMAIL_SERVER).",
+        },
+        { status: 503 }
+      );
+    }
+
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
 
@@ -145,27 +158,52 @@ export async function POST(req: Request) {
       select: { id: true, email: true },
     });
 
-    try {
-      await sendEmail({
-        to: newUser.email,
-        subject: "Your verification code",
-        text: `Your verification code is ${otpPlain}. It expires in a few minutes. If you did not request this, ignore this email.`,
-        html: `<p>Your verification code is <strong>${otpPlain}</strong>.</p><p>It expires in a few minutes. If you did not request this, ignore this email.</p>`,
-      });
-    } catch (e) {
-      console.error("[register] sendEmail", e);
-      await prisma.user.delete({ where: { id: newUser.id } }).catch(() => {});
-      return NextResponse.json({ error: "Failed to send verification email" }, { status: 503 });
+    const otpMail = {
+      to: newUser.email,
+      subject: "Your verification code",
+      text: `Your verification code is ${otpPlain}. It expires in a few minutes. If you did not request this, ignore this email.`,
+      html: `<p>Your verification code is <strong>${otpPlain}</strong>.</p><p>It expires in a few minutes. If you did not request this, ignore this email.</p>`,
+    };
+
+    let emailSent = true;
+    if (isDev && !emailConfigured) {
+      emailSent = false;
+      console.warn(
+        "[register] Skipping email: not configured (development). OTP is included in the JSON response."
+      );
+    } else {
+      try {
+        await sendEmail(otpMail);
+      } catch (e) {
+        console.error("[register] sendEmail", e);
+        if (isDev) {
+          emailSent = false;
+          console.warn(
+            "[register] Email send failed in development; keeping user and returning OTP in the response."
+          );
+        } else {
+          await prisma.user.delete({ where: { id: newUser.id } }).catch(() => {});
+          return NextResponse.json(
+            {
+              error: "Failed to send verification email",
+              hint:
+                "Confirm RESEND_API_KEY and a verified Resend sender domain, or valid SMTP credentials. See server logs for the provider error.",
+            },
+            { status: 503 }
+          );
+        }
+      }
     }
 
-    const isDev = process.env.NODE_ENV === "development";
     return NextResponse.json(
       {
-        message: "Check your email for a verification code",
+        message: emailSent
+          ? "Check your email for a verification code"
+          : "Account created. Use the verification code below (email was not sent — development or send failure).",
         userId: newUser.id,
         email: newUser.email,
         needsOtp,
-        ...(isDev ? { otp: otpPlain } : {}),
+        ...(isDev ? { otp: otpPlain, emailSent } : {}),
       },
       { status: 201 }
     );

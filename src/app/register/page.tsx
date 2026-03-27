@@ -83,17 +83,28 @@ export default function RegisterPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || "Registration failed");
+        const hint = typeof data.hint === "string" ? data.hint : "";
+        setError(
+          hint ? `${data.error || "Registration failed"}\n${hint}` : data.error || "Registration failed"
+        );
         setLoading(false);
         return;
       }
 
       if (data.needsOtp) {
-        setSuccess("We sent a verification code to your email. Enter it below.");
+        const devOtp =
+          process.env.NODE_ENV === "development" && typeof data.otp === "string"
+            ? data.otp
+            : "";
+        setSuccess(
+          devOtp
+            ? `We sent a verification code to your email (or email is unavailable in dev). Your code: ${devOtp}`
+            : "We sent a verification code to your email. Enter it below."
+        );
         setStep("otp");
         setLoading(false);
-        if (process.env.NODE_ENV === "development" && data.otp) {
-          console.info("[dev] registration OTP:", data.otp);
+        if (devOtp) {
+          console.info("[dev] registration OTP:", devOtp);
         }
         return;
       }
@@ -139,10 +150,12 @@ export default function RegisterPage() {
         setError(d.error || "Could not resend code");
         return;
       }
-      if (process.env.NODE_ENV === "development" && d.otp) {
+      if (process.env.NODE_ENV === "development" && typeof d.otp === "string") {
         console.info("[dev] resent OTP:", d.otp);
+        setSuccess(`A new code was sent (or dev fallback). Your code: ${d.otp}`);
+      } else {
+        setSuccess("A new code was sent to your email.");
       }
-      setSuccess("A new code was sent to your email.");
     } catch {
       setError("Could not resend code");
     } finally {

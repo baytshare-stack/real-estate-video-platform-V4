@@ -7,7 +7,7 @@ import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import type { User } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import prisma from "@/lib/prisma";
-import { sendEmail } from "@/lib/email";
+import { isTransactionalEmailConfigured, sendEmail } from "@/lib/email";
 import { userWherePhoneMatches } from "@/lib/userPhone";
 
 const googleConfigured =
@@ -22,14 +22,11 @@ const facebookClientSecret =
   process.env.FACEBOOK_APP_SECRET?.trim();
 const facebookConfigured = Boolean(facebookClientId && facebookClientSecret);
 
-const emailFrom = process.env.EMAIL_FROM?.trim();
+const transactionalFrom =
+  process.env.RESEND_FROM_EMAIL?.trim() ||
+  process.env.EMAIL_FROM?.trim();
 const emailSendConfigured =
-  Boolean(emailFrom) &&
-  Boolean(
-    process.env.RESEND_API_KEY?.trim() ||
-      process.env.EMAIL_SERVER?.trim() ||
-      (process.env.EMAIL_PASSWORD && process.env.EMAIL_FROM?.trim())
-  );
+  isTransactionalEmailConfigured() && Boolean(transactionalFrom);
 
 function emailProviderServer():
   | string
@@ -74,7 +71,7 @@ export const authOptions: NextAuthOptions = {
       ? [
           EmailProvider({
             server: emailProviderServer(),
-            from: emailFrom!,
+            from: transactionalFrom!,
             async sendVerificationRequest({ identifier, url }) {
               try {
                 const host = new URL(url).host;

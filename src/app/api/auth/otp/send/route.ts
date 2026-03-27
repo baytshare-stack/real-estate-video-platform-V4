@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { sendEmail } from "@/lib/email";
+import { isTransactionalEmailConfigured, sendEmail } from "@/lib/email";
 import { generateNumericOtp, hashOtp, OTP_TTL_MS } from "@/lib/otp";
 import { userWherePhoneMatches } from "@/lib/userPhone";
 
@@ -34,11 +34,57 @@ function canReceiveEmailOtp(user: {
   return Boolean(user.emailVerified) || legacyPhoneVerifiedAccount(user);
 }
 
+async function sendOtpOrDevFallback(
+  isDev: boolean,
+  emailConfigured: boolean,
+  to: string,
+  otpPlain: string
+): Promise<void> {
+  const payload = {
+    to,
+    subject: "Your verification code",
+    text: `Your verification code is ${otpPlain}. It expires in a few minutes. If you did not request this, ignore this email.`,
+    html: `<p>Your verification code is <strong>${otpPlain}</strong>.</p><p>It expires in a few minutes. If you did not request this, ignore this email.</p>`,
+  };
+  if (isDev && !emailConfigured) {
+    console.warn("[otp/send] Skipping email: not configured (development).");
+    return;
+  }
+  try {
+    await sendEmail(payload);
+  } catch (e) {
+    if (isDev) {
+      console.error(
+        "[otp/send] sendEmail failed (development); OTP returned in response.",
+        e
+      );
+      return;
+    }
+    throw e;
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const body = (await req.json()) as Body;
     const purpose = body.purpose;
     const isDev = process.env.NODE_ENV === "development";
+    const emailConfigured = isTransactionalEmailConfigured();
+
+    if (
+      !isDev &&
+      !emailConfigured &&
+      (purpose === "register" || purpose === "login")
+    ) {
+      return NextResponse.json(
+        {
+          error: "Email delivery is not configured on this server.",
+          hint:
+            "Set RESEND_API_KEY + RESEND_FROM_EMAIL or SMTP on the host (e.g. Vercel environment variables).",
+        },
+        { status: 503 }
+      );
+    }
 
     if (purpose === "register") {
       const email = (body.email || "").trim().toLowerCase();
@@ -66,12 +112,7 @@ export async function POST(req: Request) {
       });
 
       try {
-        await sendEmail({
-          to: user.email,
-          subject: "Your verification code",
-          text: `Your verification code is ${otpPlain}. It expires in a few minutes. If you did not request this, ignore this email.`,
-          html: `<p>Your verification code is <strong>${otpPlain}</strong>.</p><p>It expires in a few minutes. If you did not request this, ignore this email.</p>`,
-        });
+        await sendOtpOrDevFallback(isDev, emailConfigured, user.email, otpPlain);
       } catch (e) {
         console.error("[otp/send register email]", e);
         return NextResponse.json({ error: "Failed to send email" }, { status: 503 });
@@ -129,12 +170,7 @@ export async function POST(req: Request) {
       });
 
       try {
-        await sendEmail({
-          to: user.email,
-          subject: "Your verification code",
-          text: `Your verification code is ${otpPlain}. It expires in a few minutes. If you did not request this, ignore this email.`,
-          html: `<p>Your verification code is <strong>${otpPlain}</strong>.</p><p>It expires in a few minutes. If you did not request this, ignore this email.</p>`,
-        });
+        await sendOtpOrDevFallback(isDev, emailConfigured, user.email, otpPlain);
       } catch (e) {
         console.error("[otp/send login email]", e);
         return NextResponse.json({ error: "Failed to send email" }, { status: 503 });
