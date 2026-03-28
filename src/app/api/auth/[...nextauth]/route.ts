@@ -205,6 +205,28 @@ export const authOptions: NextAuthOptions = {
     signIn: "/login",
   },
   callbacks: {
+    async signIn({ user, account }) {
+      if (
+        (account?.provider === "google" || account?.provider === "facebook") &&
+        user?.id
+      ) {
+        const existing = await prisma.user.findUnique({
+          where: { id: user.id },
+          select: { emailVerified: true },
+        });
+        if (!existing?.emailVerified) {
+          await prisma.user.update({
+            where: { id: user.id },
+            data: {
+              emailVerified: new Date(),
+              otpCode: null,
+              otpExpiresAt: null,
+            },
+          });
+        }
+      }
+      return true;
+    },
     async jwt({ token, user }) {
       if (user) {
         const u = user as User;
@@ -220,6 +242,32 @@ export const authOptions: NextAuthOptions = {
           (token.role as (typeof session.user)["role"]) || "USER";
       }
       return session;
+    },
+  },
+  events: {
+    async createUser({ user }) {
+      const id = user.id as string;
+      if (!id) return;
+      await prisma.user.update({
+        where: { id },
+        data: {
+          emailVerified: new Date(),
+          otpCode: null,
+          otpExpiresAt: null,
+          phoneVerified: true,
+        },
+      });
+      const email = user.email ?? undefined;
+      const display = user.name?.trim() || email?.split("@")[0] || "User";
+      await prisma.profile.upsert({
+        where: { userId: id },
+        create: {
+          userId: id,
+          name: display,
+          contactEmail: email,
+        },
+        update: {},
+      });
     },
   },
   secret: process.env.NEXTAUTH_SECRET,

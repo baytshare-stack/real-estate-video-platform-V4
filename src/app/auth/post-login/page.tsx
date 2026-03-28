@@ -1,16 +1,18 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, Suspense } from "react";
 
 function studioRole(role: string | undefined) {
   return role === "ADMIN" || role === "SUPER_ADMIN";
 }
 
-export default function PostLoginRedirectPage() {
+function PostLoginRedirectInner() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const fromRegister = searchParams.get("from") === "register";
 
   useEffect(() => {
     if (status === "loading") return;
@@ -19,12 +21,34 @@ export default function PostLoginRedirectPage() {
       return;
     }
     const role = session?.user?.role;
-    router.replace(studioRole(role) ? "/studio" : "/");
-  }, [status, session, router]);
+    if (studioRole(role)) {
+      router.replace("/studio");
+      return;
+    }
+    if (role === "AGENT" || role === "AGENCY") {
+      router.replace("/create-channel");
+      return;
+    }
+    router.replace(fromRegister ? "/profile" : "/");
+  }, [status, session, router, fromRegister]);
 
   return (
     <div className="flex min-h-[50vh] items-center justify-center text-gray-400">
       <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-blue-500" />
     </div>
+  );
+}
+
+export default function PostLoginRedirectPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-[50vh] items-center justify-center text-gray-400">
+          <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-blue-500" />
+        </div>
+      }
+    >
+      <PostLoginRedirectInner />
+    </Suspense>
   );
 }

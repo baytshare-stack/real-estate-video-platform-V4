@@ -285,6 +285,37 @@ export default function RegisterPage() {
           </div>
         )}
 
+        {showGoogle ? (
+          <div className="mb-6 space-y-3">
+            <button
+              type="button"
+              onClick={() =>
+                signIn("google", {
+                  callbackUrl: "/auth/post-login?from=register",
+                })
+              }
+              className="w-full bg-white hover:bg-gray-100 text-black font-semibold py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2"
+            >
+              <svg className="w-5 h-5" viewBox="0 0 24 24" aria-hidden>
+                <path
+                  fill="currentColor"
+                  d="M12.545,10.239v3.821h5.445c-0.712,2.315-2.647,3.972-5.445,3.972c-3.332,0-6.033-2.701-6.033-6.032s2.701-6.032,6.033-6.032c1.498,0,2.866,0.549,3.921,1.453l2.814-2.814C17.503,2.988,15.139,2,12.545,2C7.021,2,2.543,6.477,2.543,12s4.478,10,10.002,10c8.396,0,10.249-7.85,9.426-11.748L12.545,10.239z"
+                />
+              </svg>
+              Continue with Google — no email code
+            </button>
+            <p className="text-center text-xs text-gray-500">
+              Google confirms your email instantly. New accounts are <strong>users</strong> (viewer). Use the form
+              below to register as agent/agency with email + password.
+            </p>
+            <div className="flex items-center justify-center gap-4">
+              <div className="h-px bg-gray-800 flex-1" />
+              <span className="text-gray-500 text-sm font-medium">Or register with email</span>
+              <div className="h-px bg-gray-800 flex-1" />
+            </div>
+          </div>
+        ) : null}
+
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -389,29 +420,6 @@ export default function RegisterPage() {
             {loading ? "Creating Account..." : "Register"}
           </button>
         </form>
-
-        {formData.role === "user" && showGoogle ? (
-          <>
-            <div className="mt-6 flex items-center justify-center gap-4">
-              <div className="h-px bg-gray-800 flex-1" />
-              <span className="text-gray-500 text-sm font-medium">OR</span>
-              <div className="h-px bg-gray-800 flex-1" />
-            </div>
-            <button
-              type="button"
-              onClick={() => signIn("google", { callbackUrl: "/auth/post-login" })}
-              className="mt-4 w-full bg-white hover:bg-gray-100 text-black font-semibold py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2"
-            >
-              <svg className="w-5 h-5" viewBox="0 0 24 24">
-                <path
-                  fill="currentColor"
-                  d="M12.545,10.239v3.821h5.445c-0.712,2.315-2.647,3.972-5.445,3.972c-3.332,0-6.033-2.701-6.033-6.032s2.701-6.032,6.033-6.032c1.498,0,2.866,0.549,3.921,1.453l2.814-2.814C17.503,2.988,15.139,2,12.545,2C7.021,2,2.543,6.477,2.543,12s4.478,10,10.002,10c8.396,0,10.249-7.85,9.426-11.748L12.545,10.239z"
-                />
-              </svg>
-              Continue with Google
-            </button>
-          </>
-        ) : null}
 
         <p className="text-center text-gray-400 mt-8 text-sm">
           Already have an account?{" "}
