@@ -3,10 +3,11 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { Bell, Share2, ThumbsDown, ThumbsUp } from "lucide-react";
+import { Bell, MessageCircle, Share2, ThumbsDown, ThumbsUp } from "lucide-react";
 import type { ShortVideoPayload } from "./types";
 import YouTubePlayer from "@/components/video/YouTubePlayer";
 import { getYouTubeEmbedUrl } from "@/lib/youtube";
+import { useShortsPlayback } from "./ShortsPlaybackContext";
 
 type Mode = "feed" | "grid";
 
@@ -30,38 +31,28 @@ function timeAgo(iso: string) {
   return `${Math.floor(days / 30)}mo ago`;
 }
 
-function useInViewActive(ref: React.RefObject<HTMLElement | null>, rootMargin = "0px") {
-  const [active, setActive] = React.useState(false);
-  React.useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const io = new IntersectionObserver(
-      ([e]) => setActive(e.isIntersecting && e.intersectionRatio > 0.45),
-      { threshold: [0, 0.45, 0.6, 1], rootMargin }
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, [ref, rootMargin]);
-  return active;
-}
-
 export default function ShortVideoPlayer({
   video: initial,
   mode = "feed",
   className,
   onShare,
+  onOpenComments,
 }: {
   video: ShortVideoPayload;
   mode?: Mode;
   className?: string;
   onShare?: (video: ShortVideoPayload) => void;
+  onOpenComments?: (video: ShortVideoPayload) => void;
 }) {
   const router = useRouter();
   const { status } = useSession();
   const isFeedMode = mode === "feed";
   const containerRef = React.useRef<HTMLDivElement>(null);
   const videoRef = React.useRef<HTMLVideoElement>(null);
-  const active = useInViewActive(containerRef);
+  const playback = useShortsPlayback();
+  const reportFnRef = React.useRef(playback?.reportVisibility);
+  reportFnRef.current = playback?.reportVisibility;
+  const [localActive, setLocalActive] = React.useState(false);
 
   const [likes, setLikes] = React.useState(initial.likesCount);
   const [dislikes, setDislikes] = React.useState(initial.dislikesCount);
@@ -77,18 +68,48 @@ export default function ShortVideoPlayer({
     setSubscribed(initial.subscribed);
   }, [initial]);
 
+  /* IntersectionObserver → shared coordinator (one active short) or local fallback ≥0.7 */
   React.useEffect(() => {
     if (!isFeedMode) return;
-    /* Autoplay on scroll only applies to HTML5 <video>; YouTube uses embed (no ref). */
+    const el = containerRef.current;
+    if (!el) return;
+    const id = initial.id;
+    const io = new IntersectionObserver(
+      (entries) => {
+        const e = entries[0];
+        if (!e) return;
+        const report = reportFnRef.current;
+        if (report) {
+          report(id, e.intersectionRatio, e.isIntersecting);
+        } else {
+          setLocalActive(e.isIntersecting && e.intersectionRatio >= 0.7);
+        }
+      },
+      { threshold: [0, 0.25, 0.5, 0.7, 0.75, 1], rootMargin: "0px" }
+    );
+    io.observe(el);
+    return () => {
+      io.disconnect();
+      reportFnRef.current?.(id, 0, false);
+    };
+  }, [isFeedMode, initial.id]);
+
+  const isPlaybackActive =
+    isFeedMode && (playback ? playback.activeVideoId === initial.id : localActive);
+
+  /* HTML5 Shorts: muted + playsInline for autoplay policy; only active viewport item plays */
+  React.useEffect(() => {
+    if (!isFeedMode) return;
     if (initial.videoUrl && getYouTubeEmbedUrl(initial.videoUrl)) return;
     const el = videoRef.current;
     if (!el) return;
-    if (active) {
-      el.play().catch(() => {});
+    el.muted = true;
+    if (isPlaybackActive) {
+      void el.play().catch(() => {});
     } else {
       el.pause();
     }
-  }, [active, isFeedMode, initial.videoUrl]);
+  }, [isFeedMode, isPlaybackActive, initial.videoUrl]);
 
   React.useEffect(() => {
     if (!initial.channelId) return;
@@ -219,6 +240,7 @@ export default function ShortVideoPlayer({
     "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&q=80&w=720&h=1280";
 
   const youtubeEmbed = initial.videoUrl ? getYouTubeEmbedUrl(initial.videoUrl) : null;
+  const feedVideoPreload = isFeedMode ? (isPlaybackActive ? "metadata" : "none") : "metadata";
 
   if (!isFeedMode) {
     return (
@@ -328,6 +350,8 @@ export default function ShortVideoPlayer({
                 watchUrl={initial.videoUrl}
                 title={initial.title}
                 className="absolute inset-0 h-full w-full"
+                variant="shorts-feed"
+                shortsPlaybackActive={isPlaybackActive}
               />
             </div>
           ) : (
@@ -338,6 +362,7 @@ export default function ShortVideoPlayer({
               muted
               loop
               playsInline
+              preload={feedVideoPreload}
               poster={thumb}
             />
           )
@@ -387,6 +412,19 @@ export default function ShortVideoPlayer({
             <span className="text-[11px] font-semibold drop-shadow">Share</span>
           </button>
 
+          {onOpenComments ? (
+            <button
+              type="button"
+              onClick={() => onOpenComments(initial)}
+              className="flex flex-col items-center gap-0.5 text-white"
+            >
+              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-black/45 backdrop-blur-md border border-white/10">
+                <MessageCircle className="h-6 w-6" />
+              </span>
+              <span className="text-[11px] font-semibold drop-shadow">{formatCompact(initial.commentsCount)}</span>
+            </button>
+          ) : null}
+
           <button
             type="button"
             onClick={() => void doSubscribe()}
@@ -430,4 +468,3 @@ export default function ShortVideoPlayer({
     </section>
   );
 }
-

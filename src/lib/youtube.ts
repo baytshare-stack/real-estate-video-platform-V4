@@ -73,3 +73,24 @@ export function getYouTubeEmbedUrl(url: string | null | undefined): string | nul
   const id = parseYouTubeVideoId(url);
   return id ? `https://www.youtube.com/embed/${id}` : null;
 }
+
+/**
+ * Shorts-feed embed: when playing, adds autoplay/mute/loop (playlist=id) so one iframe
+ * can loop; when not playing, no autoplay (viewport left / another short active).
+ */
+export function getYouTubeShortsFeedEmbedSrc(watchUrl: string, playing: boolean): string | null {
+  const id = parseYouTubeVideoId(watchUrl);
+  if (!id) return null;
+  const base = `https://www.youtube.com/embed/${id}`;
+  const q = new URLSearchParams();
+  q.set("mute", "1");
+  q.set("controls", "0");
+  q.set("playsinline", "1");
+  q.set("rel", "0");
+  if (playing) {
+    q.set("autoplay", "1");
+    q.set("loop", "1");
+    q.set("playlist", id);
+  }
+  return `${base}?${q.toString()}`;
+}
