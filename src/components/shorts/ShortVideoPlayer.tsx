@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Bell, Share2, ThumbsDown, ThumbsUp } from "lucide-react";
 import type { ShortVideoPayload } from "./types";
+import YouTubePlayer from "@/components/video/YouTubePlayer";
+import { getYouTubeEmbedUrl } from "@/lib/youtube";
 
 type Mode = "feed" | "grid";
 
@@ -77,6 +79,8 @@ export default function ShortVideoPlayer({
 
   React.useEffect(() => {
     if (!isFeedMode) return;
+    /* Autoplay on scroll only applies to HTML5 <video>; YouTube uses embed (no ref). */
+    if (initial.videoUrl && getYouTubeEmbedUrl(initial.videoUrl)) return;
     const el = videoRef.current;
     if (!el) return;
     if (active) {
@@ -84,7 +88,7 @@ export default function ShortVideoPlayer({
     } else {
       el.pause();
     }
-  }, [active, isFeedMode]);
+  }, [active, isFeedMode, initial.videoUrl]);
 
   React.useEffect(() => {
     if (!initial.channelId) return;
@@ -214,21 +218,33 @@ export default function ShortVideoPlayer({
     initial.thumbnail ||
     "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&q=80&w=720&h=1280";
 
+  const youtubeEmbed = initial.videoUrl ? getYouTubeEmbedUrl(initial.videoUrl) : null;
+
   if (!isFeedMode) {
     return (
       <article className={className}>
         <div className="relative aspect-[9/16] w-full overflow-hidden rounded-2xl border border-white/10 bg-black">
           {initial.videoUrl ? (
-            <video
-              ref={videoRef}
-              src={initial.videoUrl}
-              className="absolute inset-0 h-full w-full object-cover"
-              muted
-              loop
-              playsInline
-              preload="metadata"
-              poster={thumb}
-            />
+            youtubeEmbed ? (
+              <div className="absolute inset-0 h-full w-full bg-black">
+                <YouTubePlayer
+                  watchUrl={initial.videoUrl}
+                  title={initial.title}
+                  className="absolute inset-0 h-full w-full"
+                />
+              </div>
+            ) : (
+              <video
+                ref={videoRef}
+                src={initial.videoUrl}
+                className="absolute inset-0 h-full w-full object-cover"
+                muted
+                loop
+                playsInline
+                preload="metadata"
+                poster={thumb}
+              />
+            )
           ) : (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={thumb} alt={initial.title} className="absolute inset-0 h-full w-full object-cover" />
@@ -306,15 +322,25 @@ export default function ShortVideoPlayer({
     >
       <div className="relative h-full w-full max-w-[420px] overflow-hidden rounded-none sm:rounded-2xl bg-black aspect-[9/16] max-h-[calc(100vh-64px)] mx-auto">
         {initial.videoUrl ? (
-          <video
-            ref={videoRef}
-            src={initial.videoUrl}
-            className="absolute inset-0 h-full w-full object-cover"
-            muted
-            loop
-            playsInline
-            poster={thumb}
-          />
+          youtubeEmbed ? (
+            <div className="absolute inset-0 h-full w-full bg-black">
+              <YouTubePlayer
+                watchUrl={initial.videoUrl}
+                title={initial.title}
+                className="absolute inset-0 h-full w-full"
+              />
+            </div>
+          ) : (
+            <video
+              ref={videoRef}
+              src={initial.videoUrl}
+              className="absolute inset-0 h-full w-full object-cover"
+              muted
+              loop
+              playsInline
+              poster={thumb}
+            />
+          )
         ) : (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={thumb} alt={initial.title} className="absolute inset-0 h-full w-full object-cover" />

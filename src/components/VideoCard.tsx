@@ -1,8 +1,9 @@
- "use client";
+"use client";
 
 import Link from 'next/link';
 import { useRef, useState } from 'react';
 import { Bed, Bath, Maximize } from 'lucide-react';
+import { isYouTubeWatchUrl } from '@/lib/youtube';
 
 interface VideoCardProps {
   id: string;
@@ -46,7 +47,8 @@ export default function VideoCard({
   const timeAgo = diffDays > 30 ? Math.floor(diffDays/30) + ' months ago' : diffDays + ' days ago';
 
   const startPreview = async () => {
-    if (!videoUrl || !previewVideoRef.current) return;
+    /* Hover preview uses <video>; YouTube page URLs are not playable in that element. */
+    if (!videoUrl || isYouTubeWatchUrl(videoUrl) || !previewVideoRef.current) return;
     try {
       previewVideoRef.current.currentTime = 0;
       await previewVideoRef.current.play();
@@ -77,7 +79,7 @@ export default function VideoCard({
             loading="lazy"
             className={`object-cover w-full h-full transition-transform duration-300 ${isPreviewing ? "opacity-0" : "opacity-100 group-hover:scale-105"}`}
           />
-          {videoUrl ? (
+          {videoUrl && !isYouTubeWatchUrl(videoUrl) ? (
             <video
               ref={previewVideoRef}
               src={videoUrl}

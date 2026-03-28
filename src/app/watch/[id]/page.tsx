@@ -7,6 +7,8 @@ import ShareModal from '@/components/ShareModal';
 import Link from 'next/link';
 import { useTranslation } from '@/i18n/LanguageProvider';
 import { useSession } from 'next-auth/react';
+import YouTubePlayer from '@/components/video/YouTubePlayer';
+import { getYouTubeEmbedUrl } from '@/lib/youtube';
 
 export default function WatchPage({ params }: { params: Promise<{ id: string }> }) {
   const unwrappedParams = use(params);
@@ -131,7 +133,12 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
           ].join(" ")}
         >
             {video.videoUrl ? (
-                <video src={video.videoUrl} controls className="w-full h-full object-contain" poster={video.thumbnailUrl} />
+                getYouTubeEmbedUrl(video.videoUrl) ? (
+                  /* YouTube: embed iframe; invalid / non-YouTube URLs still use native <video> below */
+                  <YouTubePlayer watchUrl={video.videoUrl} title={video.title} className="w-full h-full min-h-0" />
+                ) : (
+                  <video src={video.videoUrl} controls className="w-full h-full object-contain" poster={video.thumbnailUrl} />
+                )
             ) : (
                <div className="text-gray-500 flex flex-col items-center">
                   <PlaySquareIcon className="w-16 h-16 text-gray-700 mb-2" />
