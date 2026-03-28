@@ -287,8 +287,8 @@ export default function StudioPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {videos.slice(0, 5).map((v, i) => (
-                        <VideoRow key={v.id} video={v} onDeleted={handleVideoDeleted} index={i} />
+                      {videos.slice(0, 5).map((v) => (
+                        <VideoRow key={v.id} video={v} onDeleted={handleVideoDeleted} index={0} />
                       ))}
                     </tbody>
                   </table>
@@ -335,8 +335,8 @@ export default function StudioPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {videos.map((v, i) => (
-                        <VideoRow key={v.id} video={v} onDeleted={handleVideoDeleted} index={i} />
+                      {videos.map((v) => (
+                        <VideoRow key={v.id} video={v} onDeleted={handleVideoDeleted} index={0} />
                       ))}
                     </tbody>
                   </table>

@@ -5,6 +5,14 @@ import { listVideoCommentsForApi, createVideoCommentForApi } from "@/lib/video-c
 
 const NO_STORE = { "Cache-Control": "private, no-store, max-age=0" };
 
+function parseParentId(body: Record<string, unknown>): string | null | undefined {
+  const a = body?.parentCommentId;
+  const b = body?.parentId;
+  const raw = (typeof a === "string" ? a : typeof b === "string" ? b : "").trim();
+  if (!raw) return undefined;
+  return raw;
+}
+
 export async function GET(req: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -16,7 +24,11 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Missing videoId" }, { status: 400, headers: NO_STORE });
     }
 
-    const { comments, reactions } = await listVideoCommentsForApi(videoId.trim(), userId);
+    const limitRaw = searchParams.get("limit");
+    const limit = limitRaw != null ? Number(limitRaw) : undefined;
+    const { comments, reactions } = await listVideoCommentsForApi(videoId.trim(), userId, {
+      limit: Number.isFinite(limit) ? limit : undefined,
+    });
     return NextResponse.json({ comments, reactions }, { headers: NO_STORE });
   } catch (e) {
     console.error("[GET /api/comments]", e);
@@ -32,10 +44,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await req.json().catch(() => ({}));
+    const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
     const videoId = typeof body?.videoId === "string" ? body.videoId.trim() : "";
     const content = typeof body?.content === "string" ? body.content.trim() : "";
-    const parentCommentId = body?.parentCommentId as string | null | undefined;
+    const parentCommentId = parseParentId(body);
 
     if (!videoId) {
       return NextResponse.json({ error: "Missing videoId" }, { status: 400 });
@@ -44,7 +56,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Comment text cannot be empty" }, { status: 400 });
     }
 
-    const result = await createVideoCommentForApi(videoId, userId, content, parentCommentId);
+    const result = await createVideoCommentForApi(videoId, userId, content, parentCommentId ?? null);
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: result.status });
     }

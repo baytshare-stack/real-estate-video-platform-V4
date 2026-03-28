@@ -209,6 +209,7 @@ model Property {
   video        Video          @relation(fields: [videoId], references: [id], onDelete: Cascade)
 }
 
+/// Threading: `parentCommentId` is the parent comment (null = top-level thread). JSON APIs may also accept `parentId` as an alias.
 model Comment {
   id              String   @id @default(cuid())
   content         String

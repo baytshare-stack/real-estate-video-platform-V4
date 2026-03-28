@@ -82,10 +82,12 @@ export async function POST(req: Request) {
           user: { select: { fullName: true, name: true, image: true, profile: { select: { avatar: true, name: true } } } },
         },
       });
-      await tx.video.update({
-        where: { id: videoId },
-        data: { commentsCount: { increment: 1 } },
-      });
+      if (!parentCommentId) {
+        await tx.video.update({
+          where: { id: videoId },
+          data: { commentsCount: { increment: 1 } },
+        });
+      }
       return c;
     });
 

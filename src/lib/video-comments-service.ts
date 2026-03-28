@@ -18,11 +18,19 @@ export function isCommentSpam(content: string): boolean {
   return spamKeywords.some((k) => lower.includes(k));
 }
 
-export async function listVideoCommentsForApi(videoId: string, userId: string | undefined) {
+export async function listVideoCommentsForApi(
+  videoId: string,
+  userId: string | undefined,
+  opts?: { limit?: number }
+) {
+  const take =
+    opts?.limit != null ? Math.min(Math.max(Math.floor(opts.limit), 1), 100) : undefined;
+
   const top = await safeFindMany(() =>
     prisma.comment.findMany({
       where: { videoId, parentCommentId: null },
       orderBy: { createdAt: "desc" },
+      ...(take != null ? { take } : {}),
       include: {
         user: { select: commentUserSelect },
         replies: {
@@ -102,10 +110,13 @@ export async function createVideoCommentForApi(
       },
       include: { user: { select: commentUserSelect } },
     });
-    await tx.video.update({
-      where: { id: videoId },
-      data: { commentsCount: { increment: 1 } },
-    });
+    /* Only top-level comments bump the denormalized video counter (replies stay nested). */
+    if (!parentCommentId) {
+      await tx.video.update({
+        where: { id: videoId },
+        data: { commentsCount: { increment: 1 } },
+      });
+    }
     return c;
   });
 

@@ -32,14 +32,13 @@ export async function GET() {
       where: { channelId },
       include: {
         property: true,
-        _count: { select: { comments: true, videoReactions: true } },
       },
       orderBy: { createdAt: 'desc' },
     })
   );
 
   const totalLikes = videos.reduce((acc, v) => acc + (v.likesCount ?? 0), 0);
-  const totalComments = videos.reduce((acc, v) => acc + v._count.comments, 0);
+  const totalComments = videos.reduce((acc, v) => acc + (v.commentsCount ?? 0), 0);
 
   const digitsToPlus = (d: string | null | undefined) => {
     if (!d) return null;
@@ -75,7 +74,7 @@ export async function GET() {
       videoUrl: v.videoUrl,
       isShort: v.isShort,
       likesCount: v.likesCount,
-      commentsCount: v._count.comments,
+      commentsCount: v.commentsCount ?? 0,
       createdAt: v.createdAt,
       property: v.property ? {
         propertyType: v.property.propertyType,
