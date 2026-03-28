@@ -4,7 +4,11 @@ import { safeFindUnique } from "@/lib/safePrisma";
 import bcrypt from "bcryptjs";
 import type { Role } from "@prisma/client";
 import { buildFullPhoneNumber, buildWhatsappFull, getCountryByIso } from "@/lib/countriesData";
-import { isTransactionalEmailConfigured, sendEmail } from "@/lib/email";
+import {
+  allowUnconfiguredEmail,
+  isTransactionalEmailConfigured,
+  sendEmail,
+} from "@/lib/email";
 import { generateNumericOtp, hashOtp, OTP_TTL_MS } from "@/lib/otp";
 import { canonicalPhoneDigitsFromE164 } from "@/lib/userPhone";
 
@@ -101,14 +105,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Username already taken" }, { status: 409 });
     }
 
-    const isDev = process.env.NODE_ENV === "development";
+    const emailOptional = allowUnconfiguredEmail();
     const emailConfigured = isTransactionalEmailConfigured();
 
-    if (!isDev && !emailConfigured) {
+    if (!emailOptional && !emailConfigured) {
       return NextResponse.json(
         {
           error:
             "Email delivery is not configured on this server. The administrator must set RESEND_API_KEY and RESEND_FROM_EMAIL (or EMAIL_FROM), or SMTP (EMAIL_FROM + EMAIL_PASSWORD / EMAIL_SERVER).",
+          hint:
+            "For local `next start` or a private demo without email, add ALLOW_UNCONFIGURED_EMAIL=true to .env — never use that on public production.",
         },
         { status: 503 }
       );
@@ -166,20 +172,20 @@ export async function POST(req: Request) {
     };
 
     let emailSent = true;
-    if (isDev && !emailConfigured) {
+    if (emailOptional && !emailConfigured) {
       emailSent = false;
       console.warn(
-        "[register] Skipping email: not configured (development). OTP is included in the JSON response."
+        "[register] Skipping email: not configured. OTP is included in the JSON response (dev or ALLOW_UNCONFIGURED_EMAIL)."
       );
     } else {
       try {
         await sendEmail(otpMail);
       } catch (e) {
         console.error("[register] sendEmail", e);
-        if (isDev) {
+        if (emailOptional) {
           emailSent = false;
           console.warn(
-            "[register] Email send failed in development; keeping user and returning OTP in the response."
+            "[register] Email send failed; keeping user and returning OTP in the response (dev or ALLOW_UNCONFIGURED_EMAIL)."
           );
         } else {
           await prisma.user.delete({ where: { id: newUser.id } }).catch(() => {});
@@ -199,11 +205,16 @@ export async function POST(req: Request) {
       {
         message: emailSent
           ? "Check your email for a verification code"
-          : "Account created. Use the verification code below (email was not sent — development or send failure).",
+          : "Account created. Use the verification code below (email was not sent — dev/staging or send failure).",
         userId: newUser.id,
         email: newUser.email,
         needsOtp,
-        ...(isDev ? { otp: otpPlain, emailSent } : {}),
+        ...(emailOptional
+          ? {
+              emailSent,
+              ...(!emailSent ? { otp: otpPlain } : {}),
+            }
+          : {}),
       },
       { status: 201 }
     );

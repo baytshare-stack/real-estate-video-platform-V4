@@ -23,6 +23,17 @@ export function isTransactionalEmailConfigured(): boolean {
   );
 }
 
+/**
+ * When true, registration/OTP can proceed without Resend/SMTP; the API may return the OTP in JSON.
+ * - Always true in `next dev`.
+ * - Set `ALLOW_UNCONFIGURED_EMAIL=true` for local `next start` or private staging only.
+ * Do not enable on public production (anyone could register without email proof).
+ */
+export function allowUnconfiguredEmail(): boolean {
+  if (process.env.NODE_ENV === "development") return true;
+  return process.env.ALLOW_UNCONFIGURED_EMAIL === "true";
+}
+
 function parseEmailServer(): string | Record<string, unknown> | undefined {
   const raw = process.env.EMAIL_SERVER?.trim();
   if (!raw) return undefined;

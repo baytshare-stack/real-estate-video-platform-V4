@@ -92,19 +92,16 @@ export default function RegisterPage() {
       }
 
       if (data.needsOtp) {
-        const devOtp =
-          process.env.NODE_ENV === "development" && typeof data.otp === "string"
-            ? data.otp
-            : "";
+        const inlineOtp = typeof data.otp === "string" ? data.otp : "";
         setSuccess(
-          devOtp
-            ? `We sent a verification code to your email (or email is unavailable in dev). Your code: ${devOtp}`
+          inlineOtp
+            ? `Verification code (email not sent or dev/staging): ${inlineOtp}`
             : "We sent a verification code to your email. Enter it below."
         );
         setStep("otp");
         setLoading(false);
-        if (devOtp) {
-          console.info("[dev] registration OTP:", devOtp);
+        if (inlineOtp) {
+          console.info("[register] OTP from API:", inlineOtp);
         }
         return;
       }
@@ -150,9 +147,9 @@ export default function RegisterPage() {
         setError(d.error || "Could not resend code");
         return;
       }
-      if (process.env.NODE_ENV === "development" && typeof d.otp === "string") {
-        console.info("[dev] resent OTP:", d.otp);
-        setSuccess(`A new code was sent (or dev fallback). Your code: ${d.otp}`);
+      if (typeof d.otp === "string") {
+        console.info("[register] resent OTP from API:", d.otp);
+        setSuccess(`New code (email not sent or dev/staging): ${d.otp}`);
       } else {
         setSuccess("A new code was sent to your email.");
       }

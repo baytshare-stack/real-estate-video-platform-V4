@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { isTransactionalEmailConfigured, sendEmail } from "@/lib/email";
+import {
+  allowUnconfiguredEmail,
+  isTransactionalEmailConfigured,
+  sendEmail,
+} from "@/lib/email";
 import { generateNumericOtp, hashOtp, OTP_TTL_MS } from "@/lib/otp";
 import { userWherePhoneMatches } from "@/lib/userPhone";
 
@@ -34,31 +38,30 @@ function canReceiveEmailOtp(user: {
   return Boolean(user.emailVerified) || legacyPhoneVerifiedAccount(user);
 }
 
-async function sendOtpOrDevFallback(
-  isDev: boolean,
+/** @returns true if the provider accepted the message */
+async function trySendOtpEmail(
+  allowFallback: boolean,
   emailConfigured: boolean,
   to: string,
   otpPlain: string
-): Promise<void> {
+): Promise<boolean> {
   const payload = {
     to,
     subject: "Your verification code",
     text: `Your verification code is ${otpPlain}. It expires in a few minutes. If you did not request this, ignore this email.`,
     html: `<p>Your verification code is <strong>${otpPlain}</strong>.</p><p>It expires in a few minutes. If you did not request this, ignore this email.</p>`,
   };
-  if (isDev && !emailConfigured) {
-    console.warn("[otp/send] Skipping email: not configured (development).");
-    return;
+  if (allowFallback && !emailConfigured) {
+    console.warn("[otp/send] Skipping email: not configured (dev or ALLOW_UNCONFIGURED_EMAIL).");
+    return false;
   }
   try {
     await sendEmail(payload);
+    return true;
   } catch (e) {
-    if (isDev) {
-      console.error(
-        "[otp/send] sendEmail failed (development); OTP returned in response.",
-        e
-      );
-      return;
+    if (allowFallback) {
+      console.error("[otp/send] sendEmail failed; OTP returned in response.", e);
+      return false;
     }
     throw e;
   }
@@ -68,11 +71,11 @@ export async function POST(req: Request) {
   try {
     const body = (await req.json()) as Body;
     const purpose = body.purpose;
-    const isDev = process.env.NODE_ENV === "development";
+    const emailOptional = allowUnconfiguredEmail();
     const emailConfigured = isTransactionalEmailConfigured();
 
     if (
-      !isDev &&
+      !emailOptional &&
       !emailConfigured &&
       (purpose === "register" || purpose === "login")
     ) {
@@ -80,7 +83,7 @@ export async function POST(req: Request) {
         {
           error: "Email delivery is not configured on this server.",
           hint:
-            "Set RESEND_API_KEY + RESEND_FROM_EMAIL or SMTP on the host (e.g. Vercel environment variables).",
+            "Set RESEND_API_KEY + RESEND_FROM_EMAIL or SMTP (e.g. on Vercel). For local `next start` without email, set ALLOW_UNCONFIGURED_EMAIL=true — never on public production.",
         },
         { status: 503 }
       );
@@ -111,15 +114,21 @@ export async function POST(req: Request) {
         },
       });
 
+      let sent = false;
       try {
-        await sendOtpOrDevFallback(isDev, emailConfigured, user.email, otpPlain);
+        sent = await trySendOtpEmail(
+          emailOptional,
+          emailConfigured,
+          user.email,
+          otpPlain
+        );
       } catch (e) {
         console.error("[otp/send register email]", e);
         return NextResponse.json({ error: "Failed to send email" }, { status: 503 });
       }
 
       const resBody: { ok: true; otp?: string } = { ok: true };
-      if (isDev) resBody.otp = otpPlain;
+      if (emailOptional && !sent) resBody.otp = otpPlain;
       return NextResponse.json(resBody);
     }
 
@@ -169,15 +178,21 @@ export async function POST(req: Request) {
         },
       });
 
+      let sent = false;
       try {
-        await sendOtpOrDevFallback(isDev, emailConfigured, user.email, otpPlain);
+        sent = await trySendOtpEmail(
+          emailOptional,
+          emailConfigured,
+          user.email,
+          otpPlain
+        );
       } catch (e) {
         console.error("[otp/send login email]", e);
         return NextResponse.json({ error: "Failed to send email" }, { status: 503 });
       }
 
       const resBody: { ok: true; otp?: string } = { ok: true };
-      if (isDev) resBody.otp = otpPlain;
+      if (emailOptional && !sent) resBody.otp = otpPlain;
       return NextResponse.json(resBody);
     }
 
