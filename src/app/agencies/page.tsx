@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import AgencyCard from "@/components/discover/AgencyCard";
+import DiscoverListDebug from "@/components/discover/DiscoverListDebug";
 import DiscoverFilters from "@/components/discover/DiscoverFilters";
 import DiscoverPagination from "@/components/discover/DiscoverPagination";
 import PageHeader from "@/components/PageHeader";
@@ -9,6 +10,7 @@ import {
   parseDiscoverParams,
 } from "@/lib/discover-queries";
 
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
@@ -45,6 +47,7 @@ export default async function AgenciesPage({
 
   return (
     <div className="min-h-screen p-4 pb-24 md:p-6 md:pb-8 max-w-[2000px] mx-auto">
+      <DiscoverListDebug page="agencies" roleLabel="AGENCY" total={total} shown={items.length} />
       <PageHeader
         iconName="Building2"
         iconColor="text-violet-400"

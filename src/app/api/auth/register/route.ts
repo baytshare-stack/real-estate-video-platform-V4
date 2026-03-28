@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { safeFindUnique } from "@/lib/safePrisma";
 import bcrypt from "bcryptjs";
-import type { Role } from "@prisma/client";
 import { buildFullPhoneNumber, buildWhatsappFull, getCountryByIso } from "@/lib/countriesData";
+import { normalizeRegistrationRole } from "@/lib/roles";
 import {
   allowUnconfiguredEmail,
   isTransactionalEmailConfigured,
@@ -46,12 +46,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    const roleLower = String(role).toLowerCase();
-    if (!["user", "agent", "agency"].includes(roleLower)) {
+    const mappedRole = normalizeRegistrationRole(role);
+    if (!mappedRole) {
       return NextResponse.json({ error: "Invalid role" }, { status: 400 });
     }
 
-    const needsPhone = roleLower === "agent" || roleLower === "agency";
+    const needsPhone = mappedRole === "AGENT" || mappedRole === "AGENCY";
     const country = getCountryByIso(countryIso?.trim());
 
     let fullPhone: string | null =
@@ -84,9 +84,6 @@ export async function POST(req: Request) {
     if (hasPhone && !country && !String(clientFullPhone || "").trim().startsWith("+")) {
       return NextResponse.json({ error: "Country is required when registering with a phone" }, { status: 400 });
     }
-
-    const mappedRole: Role =
-      roleLower === "agent" ? "AGENT" : roleLower === "agency" ? "AGENCY" : "USER";
 
     const existingEmail = await safeFindUnique(() =>
       prisma.user.findUnique({

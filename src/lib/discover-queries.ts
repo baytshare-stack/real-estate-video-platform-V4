@@ -55,56 +55,27 @@ const discoverUserSelect = {
 
 export type DiscoverUserRow = Prisma.UserGetPayload<{ select: typeof discoverUserSelect }>;
 
-function nonEmptyString(field: "city" | "country"): Prisma.UserWhereInput {
-  return {
-    AND: [{ [field]: { not: null } }, { NOT: { [field]: "" } }],
-  } as Prisma.UserWhereInput;
+function safeDbHostForLog(): string {
+  const u = process.env.DATABASE_URL;
+  if (!u?.trim()) return "(DATABASE_URL unset)";
+  try {
+    return new URL(u.replace(/^postgresql:/i, "http:")).hostname;
+  } catch {
+    return "(DATABASE_URL parse error)";
+  }
 }
 
-const profileLocationPresent: Prisma.ProfileWhereInput = {
-  AND: [{ location: { not: null } }, { NOT: { location: "" } }],
-};
-
-const profileAvatarPresent: Prisma.ProfileWhereInput = {
-  AND: [{ avatar: { not: null } }, { NOT: { avatar: "" } }],
-};
-
-/** Public listing: must look complete and trustworthy */
-function listableProfileWhere(): Prisma.UserWhereInput {
-  return {
-    AND: [
-      {
-        OR: [
-          nonEmptyString("city"),
-          nonEmptyString("country"),
-          { profile: { is: profileLocationPresent } },
-        ],
-      },
-      {
-        OR: [
-          { profile: { is: profileAvatarPresent } },
-          { AND: [{ image: { not: null } }, { NOT: { image: "" } }] },
-          {
-            channel: {
-              is: {
-                OR: [
-                  { AND: [{ avatar: { not: null } }, { NOT: { avatar: "" } }] },
-                  { AND: [{ profileImage: { not: null } }, { NOT: { profileImage: "" } }] },
-                ],
-              },
-            },
-          },
-        ],
-      },
-      {
-        OR: [
-          { AND: [{ name: { not: null } }, { NOT: { name: "" } }] },
-          { fullName: { not: "User" } },
-          { channel: { is: {} } },
-        ],
-      },
-    ],
-  };
+function logDiscoverList(
+  role: "AGENT" | "AGENCY",
+  total: number,
+  pageItemCount: number
+): void {
+  if (process.env.NODE_ENV !== "production" && process.env.DISCOVER_DEBUG !== "1") {
+    return;
+  }
+  console.log(
+    `[discover] listDiscoverUsers role=${role} total=${total} pageItems=${pageItemCount} dbHost=${safeDbHostForLog()} vercel=${process.env.VERCEL ?? "0"}`
+  );
 }
 
 function searchFilters(params: DiscoverListParams): Prisma.UserWhereInput {
@@ -201,7 +172,7 @@ export async function listDiscoverUsers(
   const where: Prisma.UserWhereInput = {
     role,
     isBlocked: false,
-    AND: [listableProfileWhere(), searchFilters(params)],
+    AND: [searchFilters(params)],
   };
 
   const orderBy = orderByForSort(params.sort);
@@ -218,6 +189,8 @@ export async function listDiscoverUsers(
     ),
     safeCount(() => prisma.user.count({ where })),
   ]);
+
+  logDiscoverList(role, total, items.length);
 
   return { items, total, page, pageSize };
 }
@@ -377,23 +350,15 @@ export function isListablePublicProfile(user: {
   city: string | null;
   fullName: string;
   name: string | null;
-  image: string | null;
-  profile: { location: string | null; avatar: string | null } | null;
-  channel: {
-    avatar: string | null;
-    profileImage: string | null;
-  } | null;
+  profile: { location: string | null } | null;
+  channel: unknown | null;
 }): boolean {
   const hasLocation =
     Boolean(user.city?.trim()) ||
     Boolean(user.country?.trim()) ||
-    Boolean(user.profile?.location?.trim());
-  const hasAvatar =
-    Boolean(user.profile?.avatar?.trim()) ||
-    Boolean(user.image?.trim()) ||
-    Boolean(user.channel?.avatar?.trim()) ||
-    Boolean(user.channel?.profileImage?.trim());
+    Boolean(user.profile?.location?.trim()) ||
+    Boolean(user.channel);
   const hasName =
     Boolean(user.name?.trim()) || user.fullName !== "User" || Boolean(user.channel);
-  return hasLocation && hasAvatar && hasName;
+  return hasLocation && hasName;
 }
