@@ -1,5 +1,5 @@
 import prisma from "@/lib/prisma";
-import { safeCount, safeFindFirst } from "@/lib/safePrisma";
+import { safeCount, safeFindFirst, safeFindMany } from "@/lib/safePrisma";
 import VideoCard from "@/components/VideoCard";
 import ShortVideoPlayer from "@/components/shorts/ShortVideoPlayer";
 import SubscribeButton from "@/components/channel/SubscribeButton";
@@ -8,57 +8,32 @@ import { notFound } from "next/navigation";
 import { getServerSession } from "next-auth";
 import Link from "next/link";
 import type { ShortVideoPayload } from "@/components/shorts/types";
+import type { VideoPropertyType } from "@prisma/client";
+import {
+  CHANNEL_PLAYLIST_LABELS,
+  CHANNEL_PLAYLIST_ORDER,
+  CHANNEL_PUBLIC_VIDEO_WHERE,
+  playlistCategoryForVideo,
+} from "@/lib/channel-playlists";
 
 function digitsOnly(s: string) {
   return s.replace(/\D/g, "");
 }
 
-type VideoPropertyType = "APARTMENT" | "VILLA" | "TOWNHOUSE" | "STUDIO" | "DUPLEX" | "LAND" | "OTHER";
-
-const PLAYLIST_TYPES: VideoPropertyType[] = ["VILLA", "APARTMENT", "TOWNHOUSE", "STUDIO", "DUPLEX", "LAND", "OTHER"];
-const PLAYLIST_TITLES: Record<VideoPropertyType, string> = {
-  APARTMENT: "Apartments",
-  VILLA: "Villas",
-  TOWNHOUSE: "Townhouses",
-  STUDIO: "Studios",
-  DUPLEX: "Duplexes",
-  LAND: "Lands",
-  OTHER: "Other",
-};
-
 const FALLBACK_THUMBNAIL =
   "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&q=80&w=800&h=450";
-
-function mapPropertyTypeToVideoPropertyType(propertyType: string | null | undefined): VideoPropertyType {
-  switch (propertyType) {
-    case "APARTMENT":
-      return "APARTMENT";
-    case "VILLA":
-      return "VILLA";
-    case "LAND":
-      return "LAND";
-    case "HOUSE":
-      // Legacy PropertyType has only HOUSE for multiple “house-like” categories.
-      return "TOWNHOUSE";
-    case "OFFICE":
-    case "SHOP":
-    case "COMMERCIAL":
-      return "OTHER";
-    default:
-      return "OTHER";
-  }
-}
 
 export default async function ChannelPage({
   params,
   searchParams,
 }: {
-  params: { id: string };
-  searchParams?: { tab?: string };
+  params: Promise<{ id: string }>;
+  searchParams?: Promise<{ tab?: string }>;
 }) {
   const unwrappedParams = await params;
   const channelId = unwrappedParams.id;
-  const tabRaw = searchParams?.tab;
+  const sp = (await searchParams) ?? {};
+  const tabRaw = typeof sp.tab === "string" ? sp.tab : undefined;
   const tab = String(tabRaw || "videos").toLowerCase();
   const activeTab: "videos" | "shorts" | "playlists" =
     tab === "shorts" ? "shorts" : tab === "playlists" ? "playlists" : "videos";
@@ -71,6 +46,7 @@ export default async function ChannelPage({
       include: {
         owner: true,
         videos: {
+          where: CHANNEL_PUBLIC_VIDEO_WHERE,
           include: { property: true },
           orderBy: { createdAt: "desc" },
         },
@@ -130,6 +106,22 @@ export default async function ChannelPage({
 
   const shorts = channel.videos.filter((v) => v.isShort);
   const longs = channel.videos.filter((v) => !v.isShort);
+
+  const shortIds = shorts.map((v) => v.id);
+  const reactionRows =
+    subscriberId && shortIds.length > 0
+      ? await safeFindMany(() =>
+          prisma.videoReaction.findMany({
+            where: { userId: subscriberId, videoId: { in: shortIds } },
+            select: { videoId: true, type: true },
+          })
+        )
+      : [];
+  const shortReactionMap = Object.fromEntries(reactionRows.map((r) => [r.videoId, r.type])) as Record<
+    string,
+    "LIKE" | "DISLIKE"
+  >;
+
   const shortsPayload: ShortVideoPayload[] = shorts.map((v) => ({
     id: v.id,
     title: v.title,
@@ -144,7 +136,7 @@ export default async function ChannelPage({
     commentsCount: v.commentsCount,
     sharesCount: v.sharesCount,
     createdAt: v.createdAt.toISOString(),
-    userReaction: null,
+    userReaction: (shortReactionMap[v.id] as "LIKE" | "DISLIKE" | undefined) ?? null,
     subscribed: initialSubscribed,
   }));
 
@@ -158,15 +150,9 @@ export default async function ChannelPage({
     OTHER: [],
   };
 
-  const getVideoPropertyType = (v: (typeof channel.videos)[number]): VideoPropertyType => {
-    const denormalized = (v as any).propertyType as string | undefined;
-    if (denormalized) return denormalized as VideoPropertyType;
-    return mapPropertyTypeToVideoPropertyType(v.property?.propertyType);
-  };
-
   for (const v of longs) {
-    const t = getVideoPropertyType(v);
-    buckets[t].push(v);
+    const cat = playlistCategoryForVideo(v);
+    buckets[cat].push(v);
   }
 
   return (
@@ -322,6 +308,7 @@ export default async function ChannelPage({
                     id={video.id}
                     title={video.title}
                     thumbnailUrl={video.thumbnail ?? undefined}
+                    videoUrl={video.videoUrl}
                     price={Number(video.property?.price ?? 0)}
                     currency={video.property?.currency || "USD"}
                     location={
@@ -330,7 +317,7 @@ export default async function ChannelPage({
                     channelName={channel.name}
                     channelAvatarUrl={profileImage}
                     channelId={channel.id}
-                    viewsCount={Math.floor(Math.random() * 5000)}
+                    viewsCount={video.viewsCount}
                     createdAt={video.createdAt}
                     bedrooms={video.property?.bedrooms ?? undefined}
                     bathrooms={video.property?.bathrooms ?? undefined}
@@ -346,18 +333,14 @@ export default async function ChannelPage({
           )
         ) : null}
 
-        {/* Shorts tab */}
+        {/* Shorts tab — only this channel’s shorts (already scoped by channel include) */}
         {activeTab === "shorts" ? (
           shorts.length > 0 ? (
             <div className="mb-12">
               <h2 className="text-xl font-bold text-white mb-4">Shorts</h2>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 md:gap-4">
                 {shortsPayload.map((video) => (
-                  <ShortVideoPlayer
-                    key={video.id}
-                    video={video}
-                    mode="grid"
-                  />
+                  <ShortVideoPlayer key={video.id} video={video} mode="grid" />
                 ))}
               </div>
             </div>
@@ -366,12 +349,12 @@ export default async function ChannelPage({
           )
         ) : null}
 
-        {/* Playlists tab */}
+        {/* Playlists tab — buckets from Video.propertyType (upload) with Property fallback */}
         {activeTab === "playlists" ? (
           <div className="mb-12">
             <h2 className="text-xl font-bold text-white mb-4">Playlists</h2>
             <div className="flex gap-4 overflow-x-auto pb-2">
-              {PLAYLIST_TYPES.map((type) => {
+              {CHANNEL_PLAYLIST_ORDER.map((type) => {
                 const vids = buckets[type];
                 const preview = vids.slice(0, 3);
                 return (
@@ -382,7 +365,7 @@ export default async function ChannelPage({
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <h3 className="text-white font-semibold">{PLAYLIST_TITLES[type]}</h3>
+                        <h3 className="text-white font-semibold">{CHANNEL_PLAYLIST_LABELS[type]}</h3>
                         <p className="text-xs text-white/60 mt-1">
                           {vids.length} video{vids.length === 1 ? "" : "s"}
                         </p>

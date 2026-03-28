@@ -156,6 +156,10 @@ model Video {
   property    Property?
   adPlacements AdPlacement[]
   channel     Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@index([channelId, moderationStatus])
+  @@index([channelId, isShort])
+  @@index([channelId, propertyType])
 }
 
 model AdCampaign {
