@@ -9,6 +9,7 @@ import { useTranslation } from '@/i18n/LanguageProvider';
 import { useSession } from 'next-auth/react';
 import YouTubePlayer from '@/components/video/YouTubePlayer';
 import { getYouTubeEmbedUrl } from '@/lib/youtube';
+import WatchPageComments from '@/components/watch/WatchPageComments';
 
 export default function WatchPage({ params }: { params: Promise<{ id: string }> }) {
   const unwrappedParams = use(params);
@@ -249,16 +250,7 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
             )}
         </div>
 
-        {/* Comment Section Placeholder */}
-        <div className="mt-6">
-            <h3 className="text-lg md:text-xl font-bold text-white mb-4">{t('watch', 'comments')}</h3>
-            <div className="flex gap-4">
-                <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-blue-600 flex-shrink-0 flex items-center justify-center font-bold text-white">U</div>
-                <div className="flex-1 border-b border-gray-700 pb-2 focus-within:border-white transition-colors">
-                    <input type="text" placeholder={t('watch', 'addComment')} className="w-full bg-transparent outline-none text-white pb-1 text-sm md:text-base" />
-                </div>
-            </div>
-        </div>
+        <WatchPageComments videoId={videoId} />
 
       </div>
 

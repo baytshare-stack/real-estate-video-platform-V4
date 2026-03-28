@@ -61,6 +61,13 @@
     "forRent": "FOR RENT",
     "comments": "Comments",
     "addComment": "Add a comment...",
+    "postComment": "Comment",
+    "commentEmpty": "Comment cannot be empty.",
+    "signInToComment": "Sign in to comment",
+    "commentPostError": "Could not post comment. Try again.",
+    "commentsLoadError": "Could not load comments.",
+    "loadingComments": "Loading comments…",
+    "noCommentsYet": "No comments yet. Be the first to comment.",
     "recommended": "Recommended Properties"
   },
   "upload": {
