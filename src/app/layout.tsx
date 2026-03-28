@@ -41,10 +41,10 @@ export default async function RootLayout({
         <LanguageProvider locale={locale} dictionary={dict} fallbackDictionary={fallbackDictionary}>
           <Providers>
             <Header />
-            <div className="flex pt-16">
+            <div className="flex min-w-0 pt-16 overflow-x-hidden">
               <Sidebar />
-              <main className="flex-1 min-h-[calc(100vh-64px)] xl:ml-64 bg-[#0f0f0f]">
-                <div className="max-w-screen-2xl mx-auto w-full px-3 sm:px-4 md:px-6 lg:px-8 xl:px-10">
+              <main className="flex-1 min-h-[calc(100vh-64px)] min-w-0 xl:ml-64 bg-[#0f0f0f] pb-[calc(4rem+env(safe-area-inset-bottom,0px))] xl:pb-0">
+                <div className="max-w-screen-2xl mx-auto w-full min-w-0 px-2.5 sm:px-4 md:px-6 lg:px-8 xl:px-10">
                   {children}
                 </div>
               </main>

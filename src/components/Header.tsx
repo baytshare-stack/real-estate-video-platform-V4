@@ -32,17 +32,19 @@ export default function Header() {
   };
 
   return (
-    <header className="fixed top-0 left-0 right-0 h-16 bg-[#0f0f0f] border-b border-white/10 z-50 flex items-center justify-between px-4">
+    <header className="fixed top-0 left-0 right-0 z-50 flex h-16 items-center justify-between border-b border-white/10 bg-[#0f0f0f] px-2 sm:px-4">
       {/* ── Left ── */}
-      <div className="flex items-center gap-4">
-        <button className="p-2 hover:bg-white/10 rounded-full transition-colors hidden xl:block">
-          <Menu className="w-6 h-6 text-white" />
+      <div className="flex min-w-0 shrink items-center gap-2 sm:gap-4">
+        <button type="button" className="hidden rounded-full p-2 transition-colors hover:bg-white/10 xl:block">
+          <Menu className="h-6 w-6 text-white" />
         </button>
-        <Link href="/" className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-blue-600/20">
+        <Link href="/" className="flex min-w-0 items-center gap-1.5 sm:gap-2">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-xl font-bold text-white shadow-lg shadow-blue-600/20">
             R
           </div>
-          <span className="text-xl font-black tracking-tighter text-white hidden sm:block uppercase">RealEstateTV</span>
+          <span className="hidden truncate text-lg font-black uppercase tracking-tighter text-white sm:block sm:text-xl">
+            RealEstateTV
+          </span>
         </Link>
       </div>
 
@@ -62,20 +64,29 @@ export default function Header() {
       </div>
 
       {/* ── Right ── */}
-      <div className="flex items-center gap-1.5 sm:gap-4">
-        <button 
+      <div className="flex shrink-0 items-center gap-0.5 sm:gap-4">
+        <button
+          type="button"
           onClick={() => setMobileSearchOpen(true)}
-          className="md:hidden p-2.5 hover:bg-white/10 rounded-full transition-colors text-gray-400"
+          className="rounded-full p-2.5 text-gray-400 transition-colors hover:bg-white/10 md:hidden"
+          aria-label={t("search", "placeholder")}
         >
-          <Search className="w-5 h-5" />
+          <Search className="h-5 w-5" />
         </button>
-        
-        <Link href="/upload" className="flex items-center gap-2 bg-blue-600/10 text-blue-400 hover:bg-blue-600/20 px-4 py-2 rounded-full text-xs font-bold transition-all border border-blue-500/20 hidden sm:flex">
-          <Video className="w-3.5 h-3.5" />
-          <span>{t('nav', 'upload')}</span>
+
+        <Link
+          href="/upload"
+          className="flex items-center gap-1.5 rounded-full border border-blue-500/20 bg-blue-600/10 p-2.5 text-blue-400 transition-all hover:bg-blue-600/20 sm:gap-2 sm:px-4 sm:py-2"
+          title={t("nav", "upload")}
+          aria-label={t("nav", "upload")}
+        >
+          <Video className="h-4 w-4 shrink-0 sm:h-3.5 sm:w-3.5" />
+          <span className="hidden text-xs font-bold sm:inline">{t("nav", "upload")}</span>
         </Link>
 
-        <LanguageSwitcher />
+        <div className="shrink-0">
+          <LanguageSwitcher />
+        </div>
 
         {status === "loading" ? (
           <div className="w-9 h-9 rounded-full bg-gray-800 animate-pulse tracking-widest px-8"></div>

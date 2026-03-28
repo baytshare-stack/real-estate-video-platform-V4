@@ -67,7 +67,7 @@ export default function VideoCard({
 
   if (isShort) {
     return (
-      <Link href={`/watch/${id}`} className="block group w-[220px] flex-shrink-0">
+      <Link href={`/watch/${id}`} className="group block w-[220px] max-w-[min(220px,85vw)] shrink-0">
         <div
           className="relative aspect-[9/16] rounded-xl overflow-hidden mb-2 bg-gray-900 border border-gray-800"
           onMouseEnter={startPreview}
@@ -111,11 +111,11 @@ export default function VideoCard({
   }
 
   return (
-    <div className="flex flex-col gap-3 group w-full cursor-pointer transition-transform duration-200 hover:scale-[1.01]">
+    <div className="group flex min-w-0 w-full cursor-pointer flex-col gap-3 transition-transform duration-200 hover:scale-[1.01]">
       {/* Thumbnail */}
-      <Link href={`/watch/${id}`}>
+      <Link href={`/watch/${id}`} className="min-w-0">
         <div
-          className="relative w-full aspect-video rounded-xl overflow-hidden bg-gray-900 border border-gray-800/50"
+          className="relative aspect-video w-full min-w-0 overflow-hidden rounded-xl border border-gray-800/50 bg-gray-900"
           onMouseEnter={startPreview}
           onMouseLeave={stopPreview}
         >

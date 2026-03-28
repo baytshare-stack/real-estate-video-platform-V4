@@ -340,9 +340,9 @@ export default function ShortVideoPlayer({
   return (
     <section
       ref={containerRef}
-      className={`relative h-[calc(100vh-64px)] min-h-[520px] w-full snap-start snap-always shrink-0 flex justify-center ${className ?? ""}`}
+      className={`relative flex h-[calc(100dvh-4rem-3.5rem-env(safe-area-inset-bottom,0px))] min-h-[min(520px,100dvh)] w-full shrink-0 snap-start snap-always justify-center xl:h-[calc(100vh-4rem)] ${className ?? ""}`}
     >
-      <div className="relative h-full w-full max-w-[420px] overflow-hidden rounded-none sm:rounded-2xl bg-black aspect-[9/16] max-h-[calc(100vh-64px)] mx-auto">
+      <div className="relative mx-auto aspect-[9/16] h-full w-full max-h-[calc(100dvh-4rem-3.5rem-env(safe-area-inset-bottom,0px))] max-w-[420px] overflow-hidden rounded-none bg-black sm:rounded-2xl xl:max-h-[calc(100vh-4rem)]">
         {initial.videoUrl ? (
           youtubeEmbed ? (
             <div className="absolute inset-0 h-full w-full bg-black">

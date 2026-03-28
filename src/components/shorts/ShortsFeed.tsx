@@ -19,7 +19,7 @@ export default function ShortsFeed({ videos, origin }: { videos: ShortVideoPaylo
   return (
     <ShortsPlaybackProvider>
       <div className="relative">
-        <div className="flex h-[calc(100vh-64px)] w-full flex-col overflow-y-scroll snap-y snap-mandatory scroll-smooth">
+        <div className="flex h-[calc(100dvh-4rem-3.5rem-env(safe-area-inset-bottom,0px))] w-full flex-col overflow-y-scroll scroll-smooth snap-y snap-mandatory xl:h-[calc(100vh-4rem)]">
           {videos.map((v) => (
             <ShortVideoPlayer
               key={v.id}

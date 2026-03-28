@@ -147,11 +147,11 @@ export default function WatchPageComments({ videoId }: { videoId: string }) {
   const userImg = session?.user?.image;
 
   return (
-    <div className="mt-6">
+    <div className="mt-6 min-w-0">
       <h3 className="mb-4 text-lg font-bold text-white md:text-xl">{t("watch", "comments")}</h3>
 
-      <form onSubmit={(e) => void submit(e)} className="flex flex-col gap-2">
-        <div className="flex gap-4">
+      <form onSubmit={(e) => void submit(e)} className="flex min-w-0 flex-col gap-2">
+        <div className="flex min-w-0 gap-3 sm:gap-4">
           {userImg ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -164,7 +164,7 @@ export default function WatchPageComments({ videoId }: { videoId: string }) {
               {userInitial}
             </div>
           )}
-          <div className="flex-1 border-b border-gray-700 pb-2 focus-within:border-white">
+          <div className="min-w-0 flex-1 border-b border-gray-700 pb-2 focus-within:border-white">
             <input
               type="text"
               name="comment"
@@ -172,7 +172,7 @@ export default function WatchPageComments({ videoId }: { videoId: string }) {
               onChange={(e) => setText(e.target.value)}
               placeholder={t("watch", "addComment")}
               disabled={status !== "authenticated" || submitting}
-              className="w-full bg-transparent pb-1 text-sm text-white outline-none placeholder:text-gray-500 md:text-base"
+              className="w-full min-w-0 bg-transparent pb-1 text-sm text-white outline-none placeholder:text-gray-500 md:text-base"
               autoComplete="off"
             />
           </div>

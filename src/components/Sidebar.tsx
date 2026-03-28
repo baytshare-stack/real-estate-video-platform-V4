@@ -45,6 +45,7 @@ export default function Sidebar() {
 
   const mobileNavItems = [
     { name: t("nav", "home"), href: "/", icon: Home },
+    { name: t("sidebar", "shorts"), href: "/shorts", icon: Flame },
     { name: t("sidebar", "explore"), href: "/explore", icon: Compass },
     { name: t("sidebar", "agents"), href: "/agents", icon: UserRound },
     { name: t("sidebar", "agencies"), href: "/agencies", icon: Building2 },
@@ -98,31 +99,43 @@ export default function Sidebar() {
         </div>
       </aside>
 
-      {/* ── Mobile Bottom Navigation ── */}
-      <nav className="xl:hidden fixed bottom-0 left-0 right-0 h-16 bg-gray-950/95 backdrop-blur-md border-t border-white/10 z-50 flex items-center justify-around px-2">
-        {mobileNavItems.map((link) => {
-          const Icon = link.icon;
-          const isActive =
-            link.href === "/"
-              ? pathname === "/"
-              : pathname === link.href || pathname.startsWith(`${link.href}/`);
-          return (
-            <Link
-              key={link.href}
-              href={link.href}
-              className={`flex flex-col items-center gap-1 flex-1 py-1 transition-colors ${isActive ? "text-blue-400" : "text-gray-500"}`}
-            >
-              <Icon className="w-5 h-5" />
-              <span className="text-[10px] font-bold uppercase tracking-tighter text-center leading-tight">
-                {link.name}
-              </span>
-            </Link>
-          );
-        })}
-        <Link href="/studio" className={`flex flex-col items-center gap-1 flex-1 py-1 transition-colors ${pathname === '/studio' ? 'text-blue-400' : 'text-gray-500'}`}>
-          <Settings className="w-5 h-5" />
-          <span className="text-[10px] font-bold uppercase tracking-tighter">Studio</span>
-        </Link>
+      {/* ── Mobile Bottom Navigation (scrollable row + safe area) ── */}
+      <nav
+        className="xl:hidden fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-gray-950/95 backdrop-blur-md pb-[env(safe-area-inset-bottom,0px)]"
+        aria-label="Primary"
+      >
+        <div className="flex h-14 min-h-14 items-stretch overflow-x-auto hide-scrollbar">
+          {mobileNavItems.map((link) => {
+            const Icon = link.icon;
+            const isActive =
+              link.href === "/"
+                ? pathname === "/"
+                : pathname === link.href || pathname.startsWith(`${link.href}/`);
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={`flex min-w-[4.25rem] max-w-[5.5rem] flex-1 flex-col items-center justify-center gap-0.5 px-1 py-1.5 transition-colors active:opacity-80 ${
+                  isActive ? "text-blue-400" : "text-gray-500"
+                }`}
+              >
+                <Icon className="h-5 w-5 shrink-0" aria-hidden />
+                <span className="line-clamp-2 w-full text-center text-[9px] font-bold uppercase leading-tight tracking-tight">
+                  {link.name}
+                </span>
+              </Link>
+            );
+          })}
+          <Link
+            href="/studio"
+            className={`flex min-w-[4.25rem] max-w-[5.5rem] flex-1 flex-col items-center justify-center gap-0.5 px-1 py-1.5 transition-colors active:opacity-80 ${
+              pathname === "/studio" ? "text-blue-400" : "text-gray-500"
+            }`}
+          >
+            <Settings className="h-5 w-5 shrink-0" aria-hidden />
+            <span className="text-center text-[9px] font-bold uppercase leading-tight tracking-tight">Studio</span>
+          </Link>
+        </div>
       </nav>
     </>
   );

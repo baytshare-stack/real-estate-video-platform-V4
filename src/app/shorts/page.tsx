@@ -79,16 +79,12 @@ export default async function ShortsPage() {
 
   if (videos.length === 0) {
     return (
-      <div className="flex min-h-[calc(100vh-64px)] flex-col items-center justify-center p-6 pb-24 text-center xl:pb-6">
+      <div className="flex min-h-[calc(100dvh-4rem)] flex-col items-center justify-center px-4 py-12 text-center">
         <p className="text-lg font-medium text-white/70">No Shorts yet</p>
         <p className="mt-2 text-sm text-white/40">Upload vertical tours to see them here.</p>
       </div>
     );
   }
 
-  return (
-    <div className="pb-16 xl:pb-0">
-      <ShortsFeed videos={videos} origin={origin} />
-    </div>
-  );
+  return <ShortsFeed videos={videos} origin={origin} />;
 }

@@ -260,7 +260,7 @@ export default async function ChannelPage({
 
       <div className="py-8">
         {/* Tabs */}
-        <div className="flex flex-wrap items-center gap-3 mb-6">
+        <div className="mb-6 flex flex-wrap items-center gap-2 sm:gap-3">
           <Link
             href={`/channel/${channelId}?tab=videos`}
             className={[

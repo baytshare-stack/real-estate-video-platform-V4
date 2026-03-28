@@ -119,10 +119,10 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
 
   return (
     <>
-    <div className="max-w-[1600px] mx-auto p-4 lg:p-6 lg:grid lg:grid-cols-[1fr_400px] gap-6">
+    <div className="mx-auto grid max-w-[1600px] gap-4 px-2 py-3 sm:gap-6 sm:p-4 lg:grid lg:grid-cols-[1fr_400px] lg:p-6">
       
       {/* Primary Column: Video & Details */}
-      <div className="flex flex-col gap-4 w-full overflow-hidden">
+      <div className="flex min-w-0 w-full flex-col gap-4 overflow-hidden">
         
         {/* The Video Player Area */}
         <div
@@ -152,17 +152,17 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
         <h1 className="text-xl md:text-2xl font-bold text-white mt-2 font-[family-name:var(--font-geist-sans)] line-clamp-2 leading-tight">{video.title}</h1>
 
         {/* Interactions & Channel Bar */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-gray-800">
+        <div className="flex flex-col gap-4 border-b border-gray-800 pb-4 sm:flex-row sm:items-center sm:justify-between">
             
-            <div className="flex items-center gap-3">
+            <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3">
                 <Link href={`/channel/${channel.id}`}>
                     <div className="w-10 h-10 md:w-12 md:h-12 rounded-full overflow-hidden bg-gray-800 shrink-0">
                         <img src={channel.avatarUrl || `https://ui-avatars.com/api/?name=${channel.name}&background=random`} alt={channel.name} className="w-full h-full object-cover" />
                     </div>
                 </Link>
-                <div className="flex flex-col justify-center">
-                    <Link href={`/channel/${video.channelId || 'demo'}`}>
-                        <h3 className="text-white font-medium text-base md:text-lg leading-tight hover:text-blue-400 transition-colors line-clamp-1">{channel.channelName || 'Unknown Channel'}</h3>
+                <div className="flex min-w-0 flex-1 flex-col justify-center">
+                    <Link href={`/channel/${video.channelId || 'demo'}`} className="min-w-0">
+                        <h3 className="line-clamp-2 text-base font-medium leading-tight text-white transition-colors hover:text-blue-400 md:line-clamp-1 md:text-lg">{channel.channelName || 'Unknown Channel'}</h3>
                     </Link>
                     <p className="text-gray-400 text-xs md:text-sm">{channel.followersCount || 0} {t('watch', 'subscribers')}</p>
                 </div>
@@ -177,7 +177,7 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
                 </button>
             </div>
 
-            <div className="flex items-center gap-1 md:gap-2 bg-gray-900 rounded-full p-1 border border-gray-800 shrink-0">
+            <div className="flex w-full max-w-full shrink-0 flex-wrap items-center gap-1 rounded-full border border-gray-800 bg-gray-900 p-1 sm:w-auto md:gap-2">
                 <button 
                   type="button"
                   onClick={() => void handleLike()} 
@@ -225,7 +225,7 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
                 </div>
             </div>
 
-            <p className="text-gray-300 text-xs md:text-sm leading-relaxed whitespace-pre-wrap">
+            <p className="break-words text-xs leading-relaxed text-gray-300 whitespace-pre-wrap md:text-sm">
                 {video.description}
             </p>
 
@@ -255,7 +255,7 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
       </div>
 
       {/* Secondary Column: Recommendations */}
-      <div className="hidden lg:flex flex-col gap-4 min-w-0">
+      <div className="hidden min-w-0 flex-col gap-4 lg:flex">
         <h3 className="text-lg font-bold text-white">{t('watch', 'recommended')}</h3>
         {recommendations?.map((rec: any) => (
            <VideoCard 

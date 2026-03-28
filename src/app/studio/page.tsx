@@ -217,7 +217,7 @@ export default function StudioPage() {
       </aside>
 
       {/* ── Mobile Tab Bar ── */}
-      <div className="xl:hidden fixed bottom-16 left-0 right-0 z-40 flex overflow-x-auto hide-scrollbar bg-gray-950/95 backdrop-blur-sm border-t border-white/[0.07]">
+      <div className="xl:hidden fixed bottom-[calc(3.5rem+env(safe-area-inset-bottom,0px))] left-0 right-0 z-40 flex overflow-x-auto hide-scrollbar border-t border-white/[0.07] bg-gray-950/95 backdrop-blur-sm">
         {TABS.map(tab => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -235,7 +235,7 @@ export default function StudioPage() {
       </div>
 
       {/* ── Main Content ── */}
-      <main className="flex-1 overflow-y-auto p-4 md:p-6 xl:p-8 pb-28 xl:pb-8">
+      <main className="flex-1 overflow-y-auto p-4 pb-[calc(8.5rem+env(safe-area-inset-bottom,0px))] md:p-6 xl:pb-8 xl:p-8">
 
         {/* ════ TAB: OVERVIEW ════ */}
         {activeTab === 'overview' && (
