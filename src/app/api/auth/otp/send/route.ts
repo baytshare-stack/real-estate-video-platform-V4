@@ -3,7 +3,7 @@ import prisma from "@/lib/prisma";
 import {
   allowUnconfiguredEmail,
   isTransactionalEmailConfigured,
-  sendEmail,
+  sendRegistrationOtpEmail,
 } from "@/lib/email";
 import { generateNumericOtp, hashOtp, OTP_TTL_MS } from "@/lib/otp";
 import { userWherePhoneMatches } from "@/lib/userPhone";
@@ -45,18 +45,12 @@ async function trySendOtpEmail(
   to: string,
   otpPlain: string
 ): Promise<boolean> {
-  const payload = {
-    to,
-    subject: "Your verification code",
-    text: `Your verification code is ${otpPlain}. It expires in a few minutes. If you did not request this, ignore this email.`,
-    html: `<p>Your verification code is <strong>${otpPlain}</strong>.</p><p>It expires in a few minutes. If you did not request this, ignore this email.</p>`,
-  };
   if (allowFallback && !emailConfigured) {
     console.warn("[otp/send] Skipping email: not configured (dev or ALLOW_UNCONFIGURED_EMAIL).");
     return false;
   }
   try {
-    await sendEmail(payload);
+    await sendRegistrationOtpEmail(to, otpPlain);
     return true;
   } catch (e) {
     if (allowFallback) {

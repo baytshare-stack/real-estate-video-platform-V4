@@ -7,7 +7,8 @@ import { buildFullPhoneNumber, buildWhatsappFull, getCountryByIso } from "@/lib/
 import {
   allowUnconfiguredEmail,
   isTransactionalEmailConfigured,
-  sendEmail,
+  sendRegistrationOtpEmail,
+  validateEmailEnvironment,
 } from "@/lib/email";
 import { generateNumericOtp, hashOtp, OTP_TTL_MS } from "@/lib/otp";
 import { canonicalPhoneDigitsFromE164 } from "@/lib/userPhone";
@@ -109,12 +110,14 @@ export async function POST(req: Request) {
     const emailConfigured = isTransactionalEmailConfigured();
 
     if (!emailOptional && !emailConfigured) {
+      const { issues } = validateEmailEnvironment();
       return NextResponse.json(
         {
           error:
-            "Email delivery is not configured on this server. The administrator must set RESEND_API_KEY and RESEND_FROM_EMAIL (or EMAIL_FROM), or SMTP (EMAIL_FROM + EMAIL_PASSWORD / EMAIL_SERVER).",
+            "Email delivery is not configured on this server. Set Resend or SMTP environment variables (see deployment docs).",
           hint:
-            "For local `next start` or a private demo without email, add ALLOW_UNCONFIGURED_EMAIL=true to .env — never use that on public production.",
+            "Vercel: add RESEND_API_KEY + RESEND_FROM_EMAIL (verified domain). Optional: ALLOW_UNCONFIGURED_EMAIL=true only for private demos — never on public production.",
+          missing: issues,
         },
         { status: 503 }
       );
@@ -164,13 +167,6 @@ export async function POST(req: Request) {
       select: { id: true, email: true },
     });
 
-    const otpMail = {
-      to: newUser.email,
-      subject: "Your verification code",
-      text: `Your verification code is ${otpPlain}. It expires in a few minutes. If you did not request this, ignore this email.`,
-      html: `<p>Your verification code is <strong>${otpPlain}</strong>.</p><p>It expires in a few minutes. If you did not request this, ignore this email.</p>`,
-    };
-
     let emailSent = true;
     if (emailOptional && !emailConfigured) {
       emailSent = false;
@@ -179,7 +175,7 @@ export async function POST(req: Request) {
       );
     } else {
       try {
-        await sendEmail(otpMail);
+        await sendRegistrationOtpEmail(newUser.email, otpPlain);
       } catch (e) {
         console.error("[register] sendEmail", e);
         if (emailOptional) {
