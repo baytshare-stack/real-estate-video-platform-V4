@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import prisma from '@/lib/prisma';
-import { safeFindMany, safeFindUnique } from '@/lib/safePrisma';
+import { safeCount, safeFindMany, safeFindUnique } from '@/lib/safePrisma';
 import type { Prisma } from '@prisma/client';
 
 type UserWithChannel = Prisma.UserGetPayload<{ include: { channel: true } }>;
@@ -63,7 +63,7 @@ export async function GET() {
       totalVideos: videos.length,
       totalLikes,
       totalComments,
-      totalSubscribers: 0,
+      totalSubscribers,
     },
     videos: videos.map(v => ({
       id: v.id,
