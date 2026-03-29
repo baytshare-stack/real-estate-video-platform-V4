@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import SubscribeButton from "@/components/channel/SubscribeButton";
+import SendMessageButton from "@/components/profile/SendMessageButton";
 import StarRating from "@/components/discover/StarRating";
 import VideoCard from "@/components/VideoCard";
 import { getAgentProfile } from "@/lib/discover-queries";
@@ -161,6 +162,9 @@ export default async function AgentProfilePage({ params }: Props) {
                 <MessageCircle className="h-4 w-4" />
                 WhatsApp
               </a>
+            ) : null}
+            {subscriberId && subscriberId !== user.id ? (
+              <SendMessageButton receiverId={user.id} receiverName={displayName} />
             ) : null}
             {channelId ? (
               <SubscribeButton

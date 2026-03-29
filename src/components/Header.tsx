@@ -92,7 +92,7 @@ export default function Header() {
           <div className="w-9 h-9 rounded-full bg-gray-800 animate-pulse tracking-widest px-8"></div>
         ) : session ? (
           <div className="flex items-center gap-3">
-             <Link href="/studio" className="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-600 to-purple-600 flex items-center justify-center text-white font-bold hover:scale-105 transition-transform shadow-lg shadow-blue-500/20">
+             <Link href="/profile" className="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-600 to-purple-600 flex items-center justify-center text-white font-bold hover:scale-105 transition-transform shadow-lg shadow-blue-500/20" title="Profile">
                 {session.user?.name?.charAt(0) || 'U'}
              </Link>
              <button onClick={() => signOut()} className="p-2 hover:bg-red-500/10 rounded-full transition-colors hidden sm:block text-gray-400 hover:text-red-400" title="Sign Out">

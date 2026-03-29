@@ -55,6 +55,8 @@ model User {
   profile           Profile?
   videoShares       VideoShare[]
   crmEvents         CrmEvent[]
+  sentMessages      Message[] @relation("SentMessages")
+  receivedMessages  Message[] @relation("ReceivedMessages")
 }
 
 model Account {
@@ -81,6 +83,8 @@ model Profile {
   userId       String  @unique
   name         String?
   bio          String?
+  /// When true, account email may be shown on the public profile (if you add a public view).
+  showEmailOnProfile Boolean @default(false)
   location     String?
   avatar       String?
   facebook     String?
@@ -90,6 +94,20 @@ model Profile {
   contactEmail String?
   contactPhone String?
   user         User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Message {
+  id         String   @id @default(cuid())
+  senderId   String
+  receiverId String
+  content    String   @db.Text
+  createdAt  DateTime @default(now())
+
+  sender   User @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@index([senderId, createdAt])
+  @@index([receiverId, createdAt])
 }
 
 model Channel {
