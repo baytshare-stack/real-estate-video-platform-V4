@@ -44,7 +44,7 @@ function timeAgo(iso: string) {
 
 function CommentRow({ c, depth }: { c: ApiComment; depth: number }) {
   return (
-    <div className={depth ? "ml-6 mt-3 border-l border-gray-700 pl-3" : "mt-4"}>
+    <div id={`comment-${c.id}`} className={depth ? "ml-6 mt-3 border-l border-gray-700 pl-3 scroll-mt-24" : "mt-4 scroll-mt-24"}>
       <div className="flex gap-3">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={avatarUrl(c.user)} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover" />

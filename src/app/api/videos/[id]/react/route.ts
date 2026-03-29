@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { recordCrmEvent } from "@/lib/crm-events";
 import { toggleVideoDislike, toggleVideoLike } from "@/lib/video-reaction";
+import { notifyChannelOwnerVideoLiked } from "@/lib/notifications";
 
 export async function POST(req: Request, context: { params: Promise<{ id: string }> }) {
   try {
@@ -41,6 +42,15 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
         action: type === "LIKE" ? "like" : "dislike",
       },
     });
+
+    if (type === "LIKE" && result.likeJustAdded) {
+      await notifyChannelOwnerVideoLiked({
+        videoId,
+        channelId: result.channelId,
+        actorUserId: userId,
+        actorName: session?.user?.name ?? null,
+      });
+    }
 
     return NextResponse.json({
       likesCount: result.likesCount,

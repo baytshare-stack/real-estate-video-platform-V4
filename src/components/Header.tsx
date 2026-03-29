@@ -2,11 +2,12 @@
 
 import Link from 'next/link';
 import { useSession, signOut } from 'next-auth/react';
-import { Search, Bell, Video, UserCircle, Menu, LogOut, X, ArrowLeft } from 'lucide-react';
+import { Search, Video, UserCircle, Menu, LogOut, X, ArrowLeft } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslation } from '@/i18n/LanguageProvider';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
+import NotificationBell from '@/components/NotificationBell';
 
 export default function Header() {
   const { data: session, status } = useSession();
@@ -92,6 +93,7 @@ export default function Header() {
           <div className="w-9 h-9 rounded-full bg-gray-800 animate-pulse tracking-widest px-8"></div>
         ) : session ? (
           <div className="flex items-center gap-3">
+             <NotificationBell />
              <Link href="/profile" className="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-600 to-purple-600 flex items-center justify-center text-white font-bold hover:scale-105 transition-transform shadow-lg shadow-blue-500/20" title="Profile">
                 {session.user?.name?.charAt(0) || 'U'}
              </Link>

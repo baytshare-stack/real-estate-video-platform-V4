@@ -1,5 +1,6 @@
 import prisma from "@/lib/prisma";
 import { recordCrmEvent } from "@/lib/crm-events";
+import { notifyOnVideoComment } from "@/lib/notifications";
 import { safeFindMany, safeFindUnique } from "@/lib/safePrisma";
 import { getUserCommentReaction } from "@/lib/comment-reaction";
 
@@ -126,6 +127,15 @@ export async function createVideoCommentForApi(
     videoId,
     channelId: video.channelId,
     metadata: { commentId: created.id, parentCommentId: parentCommentId ?? null },
+  });
+
+  await notifyOnVideoComment({
+    videoId,
+    channelId: video.channelId,
+    actorUserId: userId,
+    commentId: created.id,
+    parentCommentId: parentCommentId ?? null,
+    actor: created.user,
   });
 
   const userReaction = await getUserCommentReaction(userId, created.id);

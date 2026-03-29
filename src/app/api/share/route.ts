@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import prisma from "@/lib/prisma";
 import { recordCrmEvent } from "@/lib/crm-events";
+import { notifyChannelOwnerVideoShared } from "@/lib/notifications";
 import { safeFindUnique } from "@/lib/safePrisma";
 
 const PLATFORMS = new Set([
@@ -67,6 +68,13 @@ export async function POST(req: Request) {
       videoId,
       channelId: video.channelId,
       metadata: { platform },
+    });
+
+    await notifyChannelOwnerVideoShared({
+      videoId,
+      channelId: video.channelId,
+      actorUserId: userId,
+      platform,
     });
 
     return NextResponse.json({ sharesCount: updated?.sharesCount ?? 0 });

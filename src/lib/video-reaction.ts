@@ -9,6 +9,8 @@ export type VideoToggleResult =
       likesCount: number;
       dislikesCount: number;
       channelId: string;
+      /** True when the user ended with an active LIKE after not having one (new or switched from DISLIKE). */
+      likeJustAdded: boolean;
     }
   | { ok: false; error: "NOT_FOUND" };
 
@@ -49,6 +51,7 @@ async function toggleButton(
         likesCount: v!.likesCount,
         dislikesCount: v!.dislikesCount,
         channelId: video.channelId,
+        likeJustAdded: target === "LIKE",
       };
     }
 
@@ -71,6 +74,7 @@ async function toggleButton(
         likesCount: v!.likesCount,
         dislikesCount: v!.dislikesCount,
         channelId: video.channelId,
+        likeJustAdded: false,
       };
     }
 
@@ -95,6 +99,7 @@ async function toggleButton(
       likesCount: v!.likesCount,
       dislikesCount: v!.dislikesCount,
       channelId: video.channelId,
+      likeJustAdded: target === "LIKE",
     };
   });
 }

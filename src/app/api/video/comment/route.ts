@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { recordCrmEvent } from "@/lib/crm-events";
+import { notifyOnVideoComment } from "@/lib/notifications";
 
 const spamKeywords = [
   "http://",
@@ -97,6 +98,15 @@ export async function POST(req: Request) {
       videoId,
       channelId: video.channelId,
       metadata: { commentId: newComment.id, legacyRoute: true },
+    });
+
+    await notifyOnVideoComment({
+      videoId,
+      channelId: video.channelId,
+      actorUserId: userId,
+      commentId: newComment.id,
+      parentCommentId,
+      actor: newComment.user,
     });
 
     return NextResponse.json(newComment, { status: 201 });

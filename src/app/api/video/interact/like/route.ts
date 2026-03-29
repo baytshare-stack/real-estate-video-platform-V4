@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { safeFindUnique } from "@/lib/safePrisma";
+import { notifyChannelOwnerVideoLiked } from "@/lib/notifications";
 
 /** Legacy toggle-like (heart). Supports LIKE/DISLIKE rows: only toggles LIKE state. */
 export async function POST(req: Request) {
@@ -55,6 +56,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ liked: false }, { status: 200 });
     }
 
+    const video = await prisma.video.findUnique({
+      where: { id: videoId },
+      select: { channelId: true },
+    });
     await prisma.$transaction([
       prisma.videoReaction.update({
         where: { userId_videoId: { userId, videoId } },
@@ -65,6 +70,14 @@ export async function POST(req: Request) {
         data: { likesCount: { increment: 1 }, dislikesCount: { decrement: 1 } },
       }),
     ]);
+    if (video) {
+      await notifyChannelOwnerVideoLiked({
+        videoId,
+        channelId: video.channelId,
+        actorUserId: userId,
+        actorName: session.user?.name ?? null,
+      });
+    }
     return NextResponse.json({ liked: true }, { status: 200 });
   } catch (error) {
     console.error("Interaction API Error:", error);
