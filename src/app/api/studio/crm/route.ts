@@ -31,7 +31,19 @@ export async function GET() {
     prisma.videoReaction.findMany({
       where: { video: { channelId }, type: "LIKE" },
       include: {
-        user: { select: { id: true, fullName: true, email: true, country: true, phoneNumber: true, phoneCode: true, role: true } },
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            country: true,
+            phoneNumber: true,
+            phoneCode: true,
+            phone: true,
+            fullPhoneNumber: true,
+            role: true,
+          },
+        },
         video: { select: { id: true, title: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -42,7 +54,19 @@ export async function GET() {
     prisma.comment.findMany({
       where: { video: { channelId } },
       include: {
-        user: { select: { id: true, fullName: true, email: true, country: true, phoneNumber: true, phoneCode: true, role: true } },
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            country: true,
+            phoneNumber: true,
+            phoneCode: true,
+            phone: true,
+            fullPhoneNumber: true,
+            role: true,
+          },
+        },
         video: { select: { id: true, title: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -50,7 +74,17 @@ export async function GET() {
   );
 
   const interactorMap = new Map<string, {
-    user: { id: string; fullName: string; email: string; country: string | null; phoneNumber: string | null; phoneCode: string | null; role: string };
+    user: {
+      id: string;
+      fullName: string;
+      email: string;
+      country: string | null;
+      phoneNumber: string | null;
+      phoneCode: string | null;
+      phone: string | null;
+      fullPhoneNumber: string | null;
+      role: string;
+    };
     likes: { videoTitle: string }[];
     comments: { videoTitle: string; content?: string }[];
   }>();
