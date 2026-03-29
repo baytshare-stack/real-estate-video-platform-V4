@@ -23,7 +23,7 @@ export interface VideoItem {
   bathrooms?: number;
   sizeSqm?: number;
   status?: 'FOR_SALE' | 'FOR_RENT';
-  channel?: { id?: string; name: string; avatar?: string | null };
+  channel?: { id?: string; name: string; avatar?: string | null; subscribersCount?: number };
   property?: {
     price?: number | bigint | null;
     currency?: string | null;
@@ -98,6 +98,7 @@ export default function VideoGrid({ videos, shortsMode = false, emptyMessage }: 
             createdAt: new Date(n.createdAt).toISOString(),
             userReaction: null,
             subscribed: false,
+            subscribersCount: n.channel?.subscribersCount,
           };
           return (
             <ShortVideoPlayer

@@ -3,6 +3,7 @@ import { safeCount, safeFindFirst, safeFindMany } from "@/lib/safePrisma";
 import VideoCard from "@/components/VideoCard";
 import ShortVideoPlayer from "@/components/shorts/ShortVideoPlayer";
 import SubscribeButton from "@/components/channel/SubscribeButton";
+import { formatSubscriberCount } from "@/lib/formatSubscribers";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { notFound } from "next/navigation";
 import { getServerSession } from "next-auth";
@@ -74,14 +75,16 @@ export default async function ChannelPage({
   const disabledSelf = Boolean(me?.channel?.id && me?.channel?.id === channelId);
 
   let initialSubscribed = false;
+  let initialNotificationPreference: "ALL" | "PERSONALIZED" | "NONE" | null = null;
   if (subscriberId && !disabledSelf) {
     const existing = await safeFindFirst(() =>
       prisma.subscription.findFirst({
         where: { subscriberId, channelId },
-        select: { id: true },
+        select: { id: true, notificationPreference: true },
       })
     );
     initialSubscribed = Boolean(existing);
+    initialNotificationPreference = existing?.notificationPreference ?? null;
   }
 
   const profileImage = channel.profileImage ?? channel.avatar ?? undefined;
@@ -138,6 +141,7 @@ export default async function ChannelPage({
     createdAt: v.createdAt.toISOString(),
     userReaction: (shortReactionMap[v.id] as "LIKE" | "DISLIKE" | undefined) ?? null,
     subscribed: initialSubscribed,
+    subscribersCount: subscriberCount,
   }));
 
   const buckets: Record<VideoPropertyType, typeof longs> = {
@@ -193,7 +197,9 @@ export default async function ChannelPage({
               <span className="w-1 h-1 rounded-full bg-gray-600 hidden md:block"></span>
               <span className="text-indigo-400">{channel.owner.role === "AGENCY" ? "Real Estate Agency" : "Real Estate Agent"}</span>
               <span className="w-1 h-1 rounded-full bg-gray-600 hidden md:block"></span>
-              <span>{subscriberCount.toLocaleString()} subscriber{subscriberCount === 1 ? "" : "s"}</span>
+              <span>
+                {formatSubscriberCount(subscriberCount)} subscriber{subscriberCount === 1 ? "" : "s"}
+              </span>
               {channel.country ? (
                 <>
                   <span className="w-1 h-1 rounded-full bg-gray-600 hidden md:block"></span>
@@ -251,6 +257,7 @@ export default async function ChannelPage({
               channelId={channel.id}
               initialSubscribed={initialSubscribed}
               initialSubscriberCount={subscriberCount}
+              initialNotificationPreference={initialNotificationPreference}
               disabledSelf={disabledSelf}
               isLoggedIn={Boolean(subscriberId)}
             />

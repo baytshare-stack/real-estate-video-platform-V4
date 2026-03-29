@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { safeFindFirst } from "@/lib/safePrisma";
+import { notifySubscribersNewVideo } from "@/lib/notifications";
 import { PropertyType, VideoPropertyType, PropertyStatus } from "@prisma/client";
 
 export async function POST(req: NextRequest) {
@@ -140,6 +141,13 @@ export async function POST(req: NextRequest) {
           },
         },
       },
+    });
+
+    void notifySubscribersNewVideo({
+      videoId: video.id,
+      channelId: channel.id,
+      channelName: channel.name,
+      title: String(title).trim(),
     });
 
     return NextResponse.json({ success: true, videoId: video.id });

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { safeFindFirst } from "@/lib/safePrisma";
+import { notifySubscribersNewVideo } from "@/lib/notifications";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { PropertyStatus, PropertyType } from "@prisma/client";
@@ -242,6 +243,7 @@ export async function POST(req: Request) {
     const channel = await safeFindFirst(() =>
       prisma.channel.findUnique({
         where: { ownerId: session.user.id },
+        select: { id: true, name: true },
       })
     );
 
@@ -287,6 +289,13 @@ export async function POST(req: Request) {
         },
       } as any),
       include: { property: true },
+    });
+
+    void notifySubscribersNewVideo({
+      videoId: newVideo.id,
+      channelId: channel.id,
+      channelName: channel.name,
+      title: String(title).trim(),
     });
 
     return NextResponse.json(

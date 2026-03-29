@@ -452,7 +452,9 @@ export default function StudioPage() {
                   {crmSearch ? 'No leads match your search' : 'No interactions yet'}
                 </p>
                 <p className="text-gray-600 text-sm">
-                  {crmSearch ? 'Try a different name or email.' : 'When users like or comment on your videos, they appear here.'}
+                  {crmSearch
+                    ? 'Try a different name or email.'
+                    : 'When users subscribe, like, or comment on your videos, they appear here as leads.'}
                 </p>
               </div>
             ) : (

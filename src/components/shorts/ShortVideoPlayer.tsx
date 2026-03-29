@@ -3,8 +3,11 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { Bell, MessageCircle, Share2, ThumbsDown, ThumbsUp } from "lucide-react";
+import { Check, MessageCircle, Share2, ThumbsDown, ThumbsUp, UserPlus } from "lucide-react";
 import type { ShortVideoPayload } from "./types";
+import SubscriptionNotifyDropdown, {
+  type NotifyPref,
+} from "@/components/channel/SubscriptionNotifyDropdown";
 import YouTubePlayer from "@/components/video/YouTubePlayer";
 import { getYouTubeEmbedUrl } from "@/lib/youtube";
 import { useShortsPlayback } from "./ShortsPlaybackContext";
@@ -13,6 +16,10 @@ type Mode = "feed" | "grid";
 
 function formatCompact(n: number) {
   return new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(n);
+}
+
+function isNotifyPref(v: unknown): v is NotifyPref {
+  return v === "ALL" || v === "PERSONALIZED" || v === "NONE";
 }
 
 function timeAgo(iso: string) {
@@ -58,7 +65,10 @@ export default function ShortVideoPlayer({
   const [dislikes, setDislikes] = React.useState(initial.dislikesCount);
   const [reaction, setReaction] = React.useState<"LIKE" | "DISLIKE" | null>(initial.userReaction);
   const [subscribed, setSubscribed] = React.useState(initial.subscribed);
-  const [subs, setSubs] = React.useState<number | null>(null);
+  const [subs, setSubs] = React.useState<number | null>(
+    initial.subscribersCount != null ? initial.subscribersCount : null
+  );
+  const [notifyPref, setNotifyPref] = React.useState<NotifyPref>("ALL");
   const [pending, setPending] = React.useState<string | null>(null);
 
   React.useEffect(() => {
@@ -66,6 +76,7 @@ export default function ShortVideoPlayer({
     setDislikes(initial.dislikesCount);
     setReaction(initial.userReaction);
     setSubscribed(initial.subscribed);
+    if (initial.subscribersCount != null) setSubs(initial.subscribersCount);
   }, [initial]);
 
   /* IntersectionObserver → shared coordinator (one active short) or local fallback ≥0.7 */
@@ -119,11 +130,18 @@ export default function ShortVideoPlayer({
       credentials: "include",
     })
       .then((res) => (res.ok ? res.json() : null))
-      .then((data: { subscribed?: boolean; subscriberCount?: number } | null) => {
-        if (cancelled || !data) return;
-        if (typeof data.subscribed === "boolean") setSubscribed(data.subscribed);
-        if (typeof data.subscriberCount === "number") setSubs(data.subscriberCount);
-      })
+      .then(
+        (data: {
+          subscribed?: boolean;
+          subscriberCount?: number;
+          notificationPreference?: string;
+        } | null) => {
+          if (cancelled || !data) return;
+          if (typeof data.subscribed === "boolean") setSubscribed(data.subscribed);
+          if (typeof data.subscriberCount === "number") setSubs(data.subscriberCount);
+          if (isNotifyPref(data.notificationPreference)) setNotifyPref(data.notificationPreference);
+        }
+      )
       .catch(() => {});
     return () => {
       cancelled = true;
@@ -227,9 +245,15 @@ export default function ShortVideoPlayer({
         body: JSON.stringify({}),
       });
       if (!res.ok) throw new Error();
-      const j = (await res.json()) as { subscribed: boolean; subscriberCount: number };
+      const j = (await res.json()) as {
+        subscribed: boolean;
+        subscriberCount: number;
+        notificationPreference?: string;
+      };
       if (typeof j.subscribed === "boolean") setSubscribed(j.subscribed);
       if (typeof j.subscriberCount === "number") setSubs(j.subscriberCount);
+      if (isNotifyPref(j.notificationPreference)) setNotifyPref(j.notificationPreference);
+      else if (j.subscribed) setNotifyPref("ALL");
     } catch {
       setSubscribed(prev);
     }
@@ -318,18 +342,31 @@ export default function ShortVideoPlayer({
               <span className="text-sm font-semibold text-white">{initial.channelName}</span>
             </button>
             <p className="mt-1 line-clamp-2 text-xs text-white/85">{initial.title}</p>
-            <div className="mt-2 flex items-center justify-between">
-              <span className="text-[11px] text-white/60">{formatCompact(initial.viewsCount)} views</span>
-              <button
-                type="button"
-                onClick={() => void doSubscribe()}
-                disabled={status !== "authenticated"}
-                className={`rounded-full px-3 py-1 text-xs font-bold disabled:opacity-40 ${
-                  subscribed ? "bg-white/15 text-white" : "bg-white text-black"
-                }`}
-              >
-                {subscribed ? "Subscribed" : "Subscribe"}
-              </button>
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+              <span className="text-[11px] text-white/60">
+                {formatCompact(initial.viewsCount)} views
+                {subs != null ? ` · ${formatCompact(subs)} subs` : ""}
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => void doSubscribe()}
+                  disabled={status !== "authenticated"}
+                  className={`rounded-full px-3 py-1 text-xs font-bold disabled:opacity-40 ${
+                    subscribed ? "bg-white/15 text-white" : "bg-white text-black"
+                  }`}
+                >
+                  {subscribed ? "Subscribed" : "Subscribe"}
+                </button>
+                {subscribed && status === "authenticated" ? (
+                  <SubscriptionNotifyDropdown
+                    channelId={initial.channelId}
+                    value={notifyPref}
+                    onChange={setNotifyPref}
+                    variant="shorts"
+                  />
+                ) : null}
+              </div>
             </div>
           </div>
         </div>
@@ -425,21 +462,31 @@ export default function ShortVideoPlayer({
             </button>
           ) : null}
 
-          <button
-            type="button"
-            onClick={() => void doSubscribe()}
-            disabled={status !== "authenticated"}
-            className="flex flex-col items-center gap-0.5 text-white disabled:opacity-40"
-          >
-            <span
-              className={`flex h-12 w-12 items-center justify-center rounded-full bg-black/45 backdrop-blur-md border border-white/10 ${subscribed ? "text-amber-400" : ""}`}
+          <div className="flex flex-col items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => void doSubscribe()}
+              disabled={status !== "authenticated"}
+              className="flex flex-col items-center gap-0.5 text-white disabled:opacity-40"
             >
-              <Bell className="h-6 w-6" />
-            </span>
-            <span className="text-[11px] font-semibold drop-shadow max-w-[52px] text-center leading-tight">
-              {subscribed ? "Subscribed" : "Subscribe"}
-            </span>
-          </button>
+              <span
+                className={`flex h-12 w-12 items-center justify-center rounded-full bg-black/45 backdrop-blur-md border border-white/10 ${subscribed ? "text-emerald-400" : ""}`}
+              >
+                {subscribed ? <Check className="h-6 w-6" /> : <UserPlus className="h-6 w-6" />}
+              </span>
+              <span className="text-[11px] font-semibold drop-shadow max-w-[52px] text-center leading-tight">
+                {subscribed ? "Subscribed" : "Subscribe"}
+              </span>
+            </button>
+            {subscribed && status === "authenticated" ? (
+              <SubscriptionNotifyDropdown
+                channelId={initial.channelId}
+                value={notifyPref}
+                onChange={setNotifyPref}
+                variant="shorts"
+              />
+            ) : null}
+          </div>
         </div>
 
         <div className="absolute bottom-0 left-0 right-14 z-10 p-4 pr-2">

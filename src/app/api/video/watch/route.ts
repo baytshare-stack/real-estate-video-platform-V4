@@ -23,6 +23,7 @@ export async function GET(req: Request) {
               id: true,
               name: true,
               avatar: true,
+              subscribersCount: true,
               owner: {
                 select: {
                   phoneNumber: true,
@@ -44,6 +45,7 @@ export async function GET(req: Request) {
 
     let userReaction: "LIKE" | "DISLIKE" | null = null;
     let subscribedToChannel = false;
+    let subscriptionNotificationPreference: "ALL" | "PERSONALIZED" | "NONE" | null = null;
     if (userId) {
       const [reactionRow, subRow] = await Promise.all([
         safeFindFirst(() =>
@@ -55,12 +57,13 @@ export async function GET(req: Request) {
         safeFindFirst(() =>
           prisma.subscription.findFirst({
             where: { subscriberId: userId, channelId: video.channel.id },
-            select: { id: true },
+            select: { id: true, notificationPreference: true },
           })
         ),
       ]);
       userReaction = reactionRow?.type ?? null;
       subscribedToChannel = Boolean(subRow);
+      subscriptionNotificationPreference = subRow?.notificationPreference ?? null;
     }
 
     const contactPhoneCode = video.channel?.owner?.phoneCode || "";
@@ -99,11 +102,13 @@ export async function GET(req: Request) {
       likesCount: video.likesCount,
       userReaction,
       subscribedToChannel,
+      subscriptionNotificationPreference,
       channel: {
         id: video.channel.id,
         channelName: video.channel.name,
         avatarUrl: video.channel.avatar,
-        followersCount: 0,
+        followersCount: video.channel.subscribersCount,
+        subscribersCount: video.channel.subscribersCount,
       },
       channelId: video.channel.id,
       contact: contactInfo,

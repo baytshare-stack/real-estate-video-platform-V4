@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, use } from 'react';
-import { ThumbsUp, Share2, PhoneCall, MessageCircle, MapPin, Bed, Bath, Maximize, Bell } from 'lucide-react';
+import { ThumbsUp, Share2, PhoneCall, MessageCircle, MapPin, Bed, Bath, Maximize } from 'lucide-react';
 import VideoCard from '@/components/VideoCard';
 import ShareModal from '@/components/ShareModal';
 import Link from 'next/link';
@@ -10,6 +10,12 @@ import { useSession } from 'next-auth/react';
 import YouTubePlayer from '@/components/video/YouTubePlayer';
 import { getYouTubeEmbedUrl } from '@/lib/youtube';
 import WatchPageComments from '@/components/watch/WatchPageComments';
+import SubscriptionNotifyDropdown, { type NotifyPref } from '@/components/channel/SubscriptionNotifyDropdown';
+import { formatSubscriberCount } from '@/lib/formatSubscribers';
+
+function isNotifyPref(v: unknown): v is NotifyPref {
+  return v === 'ALL' || v === 'PERSONALIZED' || v === 'NONE';
+}
 
 export default function WatchPage({ params }: { params: Promise<{ id: string }> }) {
   const unwrappedParams = use(params);
@@ -20,6 +26,8 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [isSubscribed, setIsSubscribed] = useState(false);
+  const [subscriberCount, setSubscriberCount] = useState(0);
+  const [notifyPref, setNotifyPref] = useState<NotifyPref>('ALL');
   const [recommendations, setRecommendations] = useState<any[]>([]);
 
   // Engagement State
@@ -98,9 +106,17 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
         credentials: "include",
         body: JSON.stringify({}),
       });
-      const data = (await res.json().catch(() => ({}))) as { error?: string; subscribed?: boolean };
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        subscribed?: boolean;
+        subscriberCount?: number;
+        notificationPreference?: string;
+      };
       if (!res.ok) throw new Error(data.error || "Subscribe failed");
       if (typeof data.subscribed === "boolean") setIsSubscribed(data.subscribed);
+      if (typeof data.subscriberCount === "number") setSubscriberCount(data.subscriberCount);
+      if (isNotifyPref(data.notificationPreference)) setNotifyPref(data.notificationPreference);
+      else if (data.subscribed) setNotifyPref("ALL");
     } catch (e) {
       console.error(e);
       setIsSubscribed(prev);
@@ -164,17 +180,29 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
                     <Link href={`/channel/${video.channelId || 'demo'}`} className="min-w-0">
                         <h3 className="line-clamp-2 text-base font-medium leading-tight text-white transition-colors hover:text-blue-400 md:line-clamp-1 md:text-lg">{channel.channelName || 'Unknown Channel'}</h3>
                     </Link>
-                    <p className="text-gray-400 text-xs md:text-sm">{channel.followersCount || 0} {t('watch', 'subscribers')}</p>
+                    <p className="text-gray-400 text-xs md:text-sm">
+                      {formatSubscriberCount(subscriberCount)} {t('watch', 'subscribers')}
+                    </p>
                 </div>
+                <div className="ml-2 flex shrink-0 items-center gap-1">
                 <button 
                     type="button"
                     onClick={() => void handleSubscribe()}
-                    className={`ml-2 px-3 md:px-4 py-1.5 md:py-2 rounded-full font-medium transition-colors flex items-center gap-2 text-sm ${
+                    className={`px-3 md:px-4 py-1.5 md:py-2 rounded-full font-medium transition-colors flex items-center gap-2 text-sm ${
                         isSubscribed ? 'bg-gray-800 text-white hover:bg-gray-700' : 'bg-white text-black hover:bg-gray-200'
                     }`}
                 >
-                    {isSubscribed ? <><Bell className="w-4 h-4" /> {t('watch', 'subscribed')}</> : t('watch', 'subscribe')}
+                    {isSubscribed ? t('watch', 'subscribed') : t('watch', 'subscribe')}
                 </button>
+                {isSubscribed && sessionStatus === 'authenticated' && (video.channelId || channel.id) ? (
+                  <SubscriptionNotifyDropdown
+                    channelId={video.channelId || channel.id}
+                    value={notifyPref}
+                    onChange={setNotifyPref}
+                    variant="watch"
+                  />
+                ) : null}
+                </div>
             </div>
 
             <div className="flex w-full max-w-full shrink-0 flex-wrap items-center gap-1 rounded-full border border-gray-800 bg-gray-900 p-1 sm:w-auto md:gap-2">
@@ -192,6 +220,10 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
                 >
                     <Share2 className="w-4 h-4 md:w-5 md:h-5" /> {t('watch', 'share')}
                 </button>
+                <div className="hidden h-5 md:h-6 w-px bg-gray-700 sm:block" />
+                <span className="hidden text-xs text-gray-400 sm:inline md:text-sm">
+                  {formatSubscriberCount(subscriberCount)} {t('watch', 'subscribers')}
+                </span>
             </div>
         </div>
 

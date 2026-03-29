@@ -14,4 +14,6 @@ export type ShortVideoPayload = {
   createdAt: string;
   userReaction: "LIKE" | "DISLIKE" | null;
   subscribed: boolean;
+  /** Denormalized channel subscriber count for display */
+  subscribersCount?: number;
 };

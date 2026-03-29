@@ -73,7 +73,7 @@ export async function GET() {
     })
   );
 
-  const interactorMap = new Map<string, {
+  type MapEntry = {
     user: {
       id: string;
       fullName: string;
@@ -87,14 +87,22 @@ export async function GET() {
     };
     likes: { videoTitle: string }[];
     comments: { videoTitle: string; content?: string }[];
-  }>();
+    isSubscriber: boolean;
+  };
+
+  const interactorMap = new Map<string, MapEntry>();
 
   for (const l of likers) {
     const existing = interactorMap.get(l.user.id);
     if (existing) {
       existing.likes.push({ videoTitle: l.video.title });
     } else {
-      interactorMap.set(l.user.id, { user: l.user, likes: [{ videoTitle: l.video.title }], comments: [] });
+      interactorMap.set(l.user.id, {
+        user: l.user,
+        likes: [{ videoTitle: l.video.title }],
+        comments: [],
+        isSubscriber: false,
+      });
     }
   }
 
@@ -103,13 +111,54 @@ export async function GET() {
     if (existing) {
       existing.comments.push({ videoTitle: c.video.title });
     } else {
-      interactorMap.set(c.user.id, { user: c.user, likes: [], comments: [{ videoTitle: c.video.title }] });
+      interactorMap.set(c.user.id, {
+        user: c.user,
+        likes: [],
+        comments: [{ videoTitle: c.video.title }],
+        isSubscriber: false,
+      });
     }
   }
 
-  const interactors = Array.from(interactorMap.values()).map(entry => ({
+  const channelSubs = await safeFindMany(() =>
+    prisma.subscription.findMany({
+      where: { channelId },
+      include: {
+        subscriber: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            country: true,
+            phoneNumber: true,
+            phoneCode: true,
+            phone: true,
+            fullPhoneNumber: true,
+            role: true,
+          },
+        },
+      },
+    })
+  );
+
+  for (const s of channelSubs) {
+    const existing = interactorMap.get(s.subscriberId);
+    if (existing) {
+      existing.isSubscriber = true;
+    } else {
+      interactorMap.set(s.subscriberId, {
+        user: s.subscriber,
+        likes: [],
+        comments: [],
+        isSubscriber: true,
+      });
+    }
+  }
+
+  const interactors = Array.from(interactorMap.values()).map((entry) => ({
     ...entry,
-    totalInteractions: entry.likes.length + entry.comments.length,
+    totalInteractions:
+      entry.likes.length + entry.comments.length + (entry.isSubscriber ? 1 : 0),
   }));
 
   interactors.sort((a, b) => b.totalInteractions - a.totalInteractions);

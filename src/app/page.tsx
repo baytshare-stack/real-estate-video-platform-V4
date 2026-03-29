@@ -56,6 +56,7 @@ export default async function Home() {
     createdAt: short.createdAt ? new Date(short.createdAt).toISOString() : new Date().toISOString(),
     userReaction: null,
     subscribed: false,
+    subscribersCount: short.channel?.subscribersCount,
   }));
 
   return (

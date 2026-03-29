@@ -152,6 +152,12 @@ model Channel {
   subscriptions Subscription[]
 }
 
+enum SubscriptionNotifyPreference {
+  ALL
+  PERSONALIZED
+  NONE
+}
+
 model Subscription {
   id String @id @default(cuid())
 
@@ -162,6 +168,8 @@ model Subscription {
   channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
+  /// YouTube-style: which new-video notifications this subscriber wants.
+  notificationPreference SubscriptionNotifyPreference @default(ALL)
 
   @@unique([subscriberId, channelId])
 }

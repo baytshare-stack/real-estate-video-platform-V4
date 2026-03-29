@@ -75,6 +75,7 @@ export default async function ShortsPage() {
     createdAt: v.createdAt.toISOString(),
     userReaction: (reactionMap[v.id] as "LIKE" | "DISLIKE" | undefined) ?? null,
     subscribed: subSet.has(v.channelId),
+    subscribersCount: v.channel.subscribersCount,
   }));
 
   if (videos.length === 0) {

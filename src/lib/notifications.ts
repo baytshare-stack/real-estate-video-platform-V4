@@ -5,6 +5,7 @@ export const NOTIFICATION_TYPES = {
   COMMENT_REPLY: "COMMENT_REPLY",
   VIDEO_LIKE: "VIDEO_LIKE",
   VIDEO_SHARED: "VIDEO_SHARED",
+  CHANNEL_NEW_VIDEO: "CHANNEL_NEW_VIDEO",
 } as const;
 
 export function watchVideoUrl(videoId: string, commentId?: string) {
@@ -159,4 +160,32 @@ export async function notifyChannelOwnerVideoShared(params: {
     message: `${who} shared your video (${params.platform}).`,
     linkUrl: watchVideoUrl(params.videoId),
   });
+}
+
+/** Notify channel subscribers when a new video is published (respects Subscription.notify preference). */
+export async function notifySubscribersNewVideo(params: {
+  videoId: string;
+  channelId: string;
+  channelName: string;
+  title: string;
+}) {
+  const subs = await prisma.subscription.findMany({
+    where: { channelId: params.channelId },
+    select: { subscriberId: true, notificationPreference: true },
+  });
+
+  const titleShort =
+    params.title.length > 80 ? `${params.title.slice(0, 77)}…` : params.title;
+  const message = `${params.channelName} uploaded: ${titleShort}`;
+
+  for (const s of subs) {
+    if (s.notificationPreference === "NONE") continue;
+    /* ALL + PERSONALIZED: notify everyone; PERSONALIZED can later mean “weighted / filtered”. */
+    await createNotification({
+      userId: s.subscriberId,
+      type: NOTIFICATION_TYPES.CHANNEL_NEW_VIDEO,
+      message,
+      linkUrl: watchVideoUrl(params.videoId),
+    });
+  }
 }

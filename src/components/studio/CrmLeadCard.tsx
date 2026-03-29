@@ -1,6 +1,6 @@
 "use client";
 
-import { Heart, MessageCircle, Mail, Phone, ChevronDown, ChevronUp } from "lucide-react";
+import { Bell, Heart, MessageCircle, Mail, Phone, ChevronDown, ChevronUp } from "lucide-react";
 import { useState } from "react";
 import { mailtoInquiryUrl, telHref, whatsappDigits, whatsappUrl } from "@/lib/crmContactLinks";
 
@@ -19,6 +19,7 @@ export interface CrmInteractor {
   likes: { videoTitle: string }[];
   comments: { videoTitle: string }[];
   totalInteractions: number;
+  isSubscriber?: boolean;
 }
 
 interface CrmLeadCardProps {
@@ -38,7 +39,7 @@ function WhatsAppIcon({ className }: { className?: string }) {
 
 export default function CrmLeadCard({ lead }: CrmLeadCardProps) {
   const [expanded, setExpanded] = useState(false);
-  const { user, likes, comments, totalInteractions } = lead;
+  const { user, likes, comments, totalInteractions, isSubscriber } = lead;
   const initials = user.fullName
     .split(" ")
     .map((n) => n[0])
@@ -91,6 +92,11 @@ export default function CrmLeadCard({ lead }: CrmLeadCardProps) {
               <MessageCircle className="h-3.5 w-3.5" /> {comments.length}
             </div>
           )}
+          {isSubscriber ? (
+            <div className="flex items-center gap-1 text-xs font-medium text-amber-400" title="Channel subscriber">
+              <Bell className="h-3.5 w-3.5" /> Sub
+            </div>
+          ) : null}
         </div>
 
         <button
@@ -118,6 +124,12 @@ export default function CrmLeadCard({ lead }: CrmLeadCardProps) {
 
       {expanded && (
         <div className="mt-4 flex flex-col gap-3 border-t border-white/[0.06] pt-4">
+          {isSubscriber ? (
+            <p className="text-xs text-amber-400/90">
+              <Bell className="mb-0.5 mr-1 inline h-3.5 w-3.5" />
+              Subscribed to your channel — high-intent lead.
+            </p>
+          ) : null}
           {likes.length > 0 && (
             <div>
               <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">Liked Videos</p>

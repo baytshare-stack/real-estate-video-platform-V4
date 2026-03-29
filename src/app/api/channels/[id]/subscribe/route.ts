@@ -3,7 +3,11 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import prisma from "@/lib/prisma";
 import { safeCount, safeFindFirst } from "@/lib/safePrisma";
-import { toggleChannelSubscription } from "@/lib/channel-subscription";
+import {
+  parseNotificationPreference,
+  toggleChannelSubscription,
+  updateSubscriptionPreference,
+} from "@/lib/channel-subscription";
 
 /** Current user's subscription status for this channel (for client hydration). */
 export async function GET(_req: Request, context: { params: Promise<{ id: string }> }) {
@@ -20,18 +24,25 @@ export async function GET(_req: Request, context: { params: Promise<{ id: string
     );
 
     if (!subscriberId) {
-      return NextResponse.json({ subscribed: false, subscriberCount }, { status: 200 });
+      return NextResponse.json(
+        { subscribed: false, subscriberCount, notificationPreference: null },
+        { status: 200 }
+      );
     }
 
     const existing = await safeFindFirst(() =>
       prisma.subscription.findFirst({
         where: { subscriberId, channelId },
-        select: { id: true },
+        select: { id: true, notificationPreference: true },
       })
     );
 
     return NextResponse.json(
-      { subscribed: Boolean(existing), subscriberCount },
+      {
+        subscribed: Boolean(existing),
+        subscriberCount,
+        notificationPreference: existing?.notificationPreference ?? null,
+      },
       { status: 200 }
     );
   } catch (err: unknown) {
@@ -60,11 +71,50 @@ export async function POST(_req: Request, context: { params: Promise<{ id: strin
     }
 
     return NextResponse.json(
-      { subscribed: result.subscribed, subscriberCount: result.subscriberCount },
+      {
+        subscribed: result.subscribed,
+        subscriberCount: result.subscriberCount,
+        notificationPreference: result.notificationPreference,
+      },
       { status: 200 }
     );
   } catch (err: unknown) {
     console.error("[POST /api/channels/[id]/subscribe]", err);
     return NextResponse.json({ error: "Failed to update subscription" }, { status: 500 });
+  }
+}
+
+/** Update YouTube-style notification preference (subscribed users only). */
+export async function PATCH(req: Request, context: { params: Promise<{ id: string }> }) {
+  try {
+    const session = await getServerSession(authOptions);
+    const subscriberId = session?.user?.id as string | undefined;
+    if (!subscriberId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { id: channelId } = await context.params;
+    if (!channelId) {
+      return NextResponse.json({ error: "Missing channel id" }, { status: 400 });
+    }
+
+    const body = await req.json().catch(() => ({}));
+    const pref = parseNotificationPreference(body?.notificationPreference);
+    if (!pref) {
+      return NextResponse.json(
+        { error: "Invalid notificationPreference (use ALL, PERSONALIZED, or NONE)" },
+        { status: 400 }
+      );
+    }
+
+    const result = await updateSubscriptionPreference(subscriberId, channelId, pref);
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error }, { status: result.status });
+    }
+
+    return NextResponse.json({ notificationPreference: result.notificationPreference }, { status: 200 });
+  } catch (err: unknown) {
+    console.error("[PATCH /api/channels/[id]/subscribe]", err);
+    return NextResponse.json({ error: "Failed to update preference" }, { status: 500 });
   }
 }

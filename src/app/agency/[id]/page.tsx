@@ -63,6 +63,7 @@ export default async function AgencyProfilePage({ params }: Props) {
 
   const channelId = channel?.id;
   let initialSubscribed = false;
+  let initialNotificationPreference: "ALL" | "PERSONALIZED" | "NONE" | null = null;
   let subscriberCount = channel?.subscribersCount ?? 0;
   const disabledSelf = Boolean(channelId && me?.channel?.id === channelId);
 
@@ -70,10 +71,11 @@ export default async function AgencyProfilePage({ params }: Props) {
     const existing = await safeFindFirst(() =>
       prisma.subscription.findFirst({
         where: { subscriberId, channelId },
-        select: { id: true },
+        select: { id: true, notificationPreference: true },
       })
     );
     initialSubscribed = Boolean(existing);
+    initialNotificationPreference = existing?.notificationPreference ?? null;
     subscriberCount = await safeCount(() =>
       prisma.subscription.count({ where: { channelId } })
     );
@@ -165,6 +167,7 @@ export default async function AgencyProfilePage({ params }: Props) {
                 channelId={channelId}
                 initialSubscribed={initialSubscribed}
                 initialSubscriberCount={subscriberCount}
+                initialNotificationPreference={initialNotificationPreference}
                 disabledSelf={disabledSelf}
                 isLoggedIn={Boolean(subscriberId)}
               />
