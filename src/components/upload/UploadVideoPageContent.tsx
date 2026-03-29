@@ -108,7 +108,29 @@ function parseApiError(data: unknown): string {
   return parts.length ? parts.join(" — ") : "Request failed";
 }
 
-export default function UploadVideoPageContent() {
+type LoadedVideoPayload = {
+  id: string;
+  title: string;
+  description: string;
+  videoUrl: string;
+  thumbnail: string;
+  videoType: "long" | "short";
+  propertyType: string;
+  status: string;
+  price: string;
+  bedrooms: string;
+  bathrooms: string;
+  sizeSqm: string;
+  currency: string;
+  country: string;
+  city: string;
+  address: string;
+  latitude: string;
+  longitude: string;
+  createdAt?: string;
+};
+
+export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: string }) {
   const router = useRouter();
   const { data: session, status } = useSession();
 
@@ -117,6 +139,10 @@ export default function UploadVideoPageContent() {
   const [successMessage, setSuccessMessage] = useState("");
   const [preview, setPreview] = useState<string | null>(null);
   const [combinedUploadProgress, setCombinedUploadProgress] = useState(0);
+  const [editLoadState, setEditLoadState] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [editListedAt, setEditListedAt] = useState<string | null>(null);
+
+  const loadedMediaRef = useRef({ videoUrl: "", thumbnail: "" });
 
   const [videoUpload, setVideoUpload] = useState<UploadState>(initialUploadState);
   const [thumbnailUpload, setThumbnailUpload] = useState<UploadState>(initialUploadState);
@@ -144,15 +170,29 @@ export default function UploadVideoPageContent() {
 
   const isUploading = videoUpload.uploading || thumbnailUpload.uploading;
   const isYoutubeMode = Boolean(formData.videoUrl.trim()) && !Boolean(videoUpload.file);
-  const countries = useMemo(() => Object.keys(COUNTRY_CONFIG), []);
-  const cities = useMemo(
-    () => (formData.country ? COUNTRY_CONFIG[formData.country]?.cities ?? [] : []),
-    [formData.country]
-  );
+  const countries = useMemo(() => {
+    const keys = Object.keys(COUNTRY_CONFIG);
+    if (formData.country && !keys.includes(formData.country)) {
+      return [formData.country, ...keys];
+    }
+    return keys;
+  }, [formData.country]);
+  const cities = useMemo(() => {
+    const base = formData.country ? COUNTRY_CONFIG[formData.country]?.cities ?? [] : [];
+    if (formData.city && !base.includes(formData.city)) {
+      return [formData.city, ...base];
+    }
+    return base;
+  }, [formData.country, formData.city]);
   const thumbnailPreviewUrl = useMemo(
     () => (thumbnailUpload.file ? URL.createObjectURL(thumbnailUpload.file) : ""),
     [thumbnailUpload.file]
   );
+  const thumbnailDisplayUrl = useMemo(() => {
+    if (thumbnailUpload.file) return thumbnailPreviewUrl;
+    const t = formData.thumbnail.trim();
+    return t || "";
+  }, [thumbnailUpload.file, thumbnailPreviewUrl, formData.thumbnail]);
 
   const videoPreviewSrc = useMemo(() => {
     if (preview) return preview;
@@ -160,7 +200,13 @@ export default function UploadVideoPageContent() {
     return "";
   }, [preview, formData.videoUrl, videoUpload.file]);
 
-  const canSubmit = useMemo(() => !isUploading && !loading, [isUploading, loading]);
+  const canSubmit = useMemo(
+    () =>
+      !isUploading &&
+      !loading &&
+      !(editVideoId && editLoadState !== "ready"),
+    [isUploading, loading, editVideoId, editLoadState]
+  );
 
   const handleLocationPatch = useCallback((patch: LocationPatch) => {
     setFormData((prev) => ({
@@ -188,9 +234,66 @@ export default function UploadVideoPageContent() {
       ...prev,
       currency: countryData.currency,
       sizeUnit: countryData.areaUnit,
-      city: countryData.cities.includes(prev.city) ? prev.city : "",
     }));
   }, [formData.country]);
+
+  useEffect(() => {
+    if (!editVideoId) {
+      setEditLoadState("idle");
+      return;
+    }
+    let cancelled = false;
+    setEditLoadState("loading");
+    setError("");
+
+    fetch(`/api/videos/${editVideoId}`)
+      .then(async (res) => {
+        const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+        if (!res.ok) {
+          throw new Error(parseApiError(data));
+        }
+        return data as LoadedVideoPayload;
+      })
+      .then((data) => {
+        if (cancelled) return;
+        loadedMediaRef.current = {
+          videoUrl: data.videoUrl ?? "",
+          thumbnail: data.thumbnail ?? "",
+        };
+        setFormData({
+          title: data.title ?? "",
+          description: data.description ?? "",
+          videoUrl: data.videoUrl ?? "",
+          thumbnail: data.thumbnail ?? "",
+          propertyType: data.propertyType || "APARTMENT",
+          status: data.status || "FOR_SALE",
+          price: data.price ?? "",
+          bedrooms: data.bedrooms ?? "",
+          bathrooms: data.bathrooms ?? "",
+          sizeSqm: data.sizeSqm ?? "",
+          sizeUnit: COUNTRY_CONFIG[data.country]?.areaUnit ?? "sqm",
+          currency: data.currency || "USD",
+          country: data.country ?? "",
+          city: data.city ?? "",
+          address: data.address ?? "",
+          latitude: data.latitude ?? "",
+          longitude: data.longitude ?? "",
+          videoType: data.videoType === "short" ? "short" : "long",
+        });
+        setEditListedAt(data.createdAt ? new Date(data.createdAt).toLocaleString() : null);
+        setEditLoadState("ready");
+      })
+      .catch((e) => {
+        if (!cancelled) {
+          setEditLoadState("error");
+          setError(e instanceof Error ? e.message : "Could not load video for editing.");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [editVideoId]);
 
   if (status === "loading") {
     return (
@@ -224,6 +327,36 @@ export default function UploadVideoPageContent() {
     );
   }
 
+  if (editVideoId && editLoadState === "loading") {
+    return (
+      <div className={`flex min-h-screen items-center justify-center ${uiTokens.background}`}>
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-10 w-10 animate-spin text-indigo-600" />
+          <p className={`text-sm ${uiTokens.textSecondary}`}>Loading video…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (editVideoId && editLoadState === "error") {
+    return (
+      <div className={`flex min-h-screen flex-col items-center justify-center px-4 ${uiTokens.background}`}>
+        <AlertCircle className="mb-4 h-12 w-12 text-amber-500" />
+        <h1 className={`mb-2 text-xl font-bold ${uiTokens.textPrimary}`}>Could not open editor</h1>
+        <p className={`mb-6 max-w-md text-center ${uiTokens.textSecondary}`}>
+          {error || "Video not found or access denied."}
+        </p>
+        <button
+          type="button"
+          onClick={() => router.push("/studio")}
+          className="rounded-lg bg-indigo-600 px-6 py-2 text-white transition hover:bg-indigo-700 active:bg-indigo-800"
+        >
+          Back to studio
+        </button>
+      </div>
+    );
+  }
+
   const handleChange = (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = event.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -232,7 +365,10 @@ export default function UploadVideoPageContent() {
   const handleVideoFileSelect = (file: File | null) => {
     if (!file) {
       setVideoUpload(initialUploadState);
-      setFormData((prev) => ({ ...prev, videoUrl: "" }));
+      setFormData((prev) => ({
+        ...prev,
+        videoUrl: editVideoId ? loadedMediaRef.current.videoUrl : "",
+      }));
       setPreview((prev) => {
         if (prev) URL.revokeObjectURL(prev);
         return null;
@@ -253,7 +389,10 @@ export default function UploadVideoPageContent() {
   const handleThumbnailSelect = (file: File | null) => {
     if (!file) {
       setThumbnailUpload(initialUploadState);
-      setFormData((prev) => ({ ...prev, thumbnail: "" }));
+      setFormData((prev) => ({
+        ...prev,
+        thumbnail: editVideoId ? loadedMediaRef.current.thumbnail : "",
+      }));
       return;
     }
 
@@ -275,7 +414,8 @@ export default function UploadVideoPageContent() {
     const hasVideoFile = Boolean(videoUpload.file);
     const hasVideoRemote = Boolean(formData.videoUrl.trim()) && !hasVideoFile;
     const hasThumbFile = Boolean(thumbnailUpload.file);
-    const hasVideo = hasVideoFile || hasVideoRemote;
+    const hasVideo =
+      hasVideoFile || hasVideoRemote || Boolean(editVideoId && loadedMediaRef.current.videoUrl.trim());
     const hasLocation = Boolean(formData.address.trim() || (formData.latitude.trim() && formData.longitude.trim()));
     if (!formData.title.trim() || !formData.price.trim() || !hasVideo || !hasLocation) {
       setError("Please fill required fields: title, video, location, and price.");
@@ -345,6 +485,8 @@ export default function UploadVideoPageContent() {
           }));
         } else if (hasVideoRemote) {
           videoUrlFinal = formData.videoUrl.trim();
+        } else if (editVideoId && loadedMediaRef.current.videoUrl.trim()) {
+          videoUrlFinal = loadedMediaRef.current.videoUrl.trim();
         }
 
         if (uploadedThumbUrl) {
@@ -370,6 +512,13 @@ export default function UploadVideoPageContent() {
         videoUrlFinal = formData.videoUrl.trim();
       }
 
+      if (!videoUrlFinal.trim() && editVideoId) {
+        videoUrlFinal = loadedMediaRef.current.videoUrl.trim();
+      }
+      if (!thumbnailFinal.trim() && editVideoId) {
+        thumbnailFinal = loadedMediaRef.current.thumbnail.trim();
+      }
+
       const payload = {
         title: formData.title.trim(),
         description: formData.description.trim(),
@@ -390,19 +539,20 @@ export default function UploadVideoPageContent() {
         longitude: formData.longitude || undefined,
       };
 
-      const createRes = await fetch("/api/videos/create", {
-        method: "POST",
+      const isEdit = Boolean(editVideoId);
+      const saveRes = await fetch(isEdit ? `/api/videos/${editVideoId}` : "/api/videos/create", {
+        method: isEdit ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
-      const createData = (await createRes.json().catch(() => ({}))) as Record<string, unknown>;
-      if (!createRes.ok) {
-        setError(parseApiError(createData));
+      const saveData = (await saveRes.json().catch(() => ({}))) as Record<string, unknown>;
+      if (!saveRes.ok) {
+        setError(parseApiError(saveData));
         return;
       }
 
-      setSuccessMessage("Video published successfully.");
+      setSuccessMessage(isEdit ? "Video updated successfully." : "Video published successfully.");
       const role = session?.user?.role;
       router.push(role === "ADMIN" || role === "SUPER_ADMIN" ? "/studio" : "/");
     } catch (e) {
@@ -421,11 +571,16 @@ export default function UploadVideoPageContent() {
         <div className={`border-b px-6 py-6 sm:px-8 ${uiTokens.border} ${uiTokens.surfaceMuted}`}>
           <h1 className={`flex items-center gap-2 text-2xl font-bold ${uiTokens.textPrimary}`}>
             <Upload className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
-            Upload Property Video
+            {editVideoId ? "Edit Property Video" : "Upload Property Video"}
           </h1>
           <p className={`mt-1 text-sm ${uiTokens.textSecondary}`}>
-            Create a clean, complete listing with video, property details, and exact location.
+            {editVideoId
+              ? "Update your listing, media, and location. Existing video and thumbnail are kept unless you replace them."
+              : "Create a clean, complete listing with video, property details, and exact location."}
           </p>
+          {editVideoId && editListedAt && (
+            <p className={`mt-2 text-xs ${uiTokens.textSecondary}`}>Originally listed {editListedAt}</p>
+          )}
         </div>
 
         {(error || successMessage) && (
@@ -572,7 +727,7 @@ export default function UploadVideoPageContent() {
                 uploading={thumbnailUpload.uploading}
                 uploaded={Boolean(thumbnailUpload.uploadedUrl)}
                 helperText="Optional — JPG or PNG"
-                previewSrc={thumbnailPreviewUrl}
+                previewSrc={thumbnailDisplayUrl}
                 onChange={(event) => handleThumbnailSelect(event.target.files?.[0] || null)}
                 dropzoneHeight="min-h-[11rem]"
                 wrapperClassName="w-full"
@@ -744,7 +899,15 @@ export default function UploadVideoPageContent() {
               className="flex w-full max-w-sm items-center justify-center gap-2 rounded-xl bg-indigo-600 px-6 py-4 text-base font-semibold text-white shadow-sm transition hover:bg-indigo-700 active:bg-indigo-800 disabled:cursor-not-allowed disabled:opacity-70"
             >
               {(loading || isUploading) && <Loader2 className="h-5 w-5 animate-spin" />}
-              {loading ? "Publishing..." : isUploading ? "Uploading..." : "Publish Video"}
+              {loading
+                ? editVideoId
+                  ? "Updating..."
+                  : "Publishing..."
+                : isUploading
+                  ? "Uploading..."
+                  : editVideoId
+                    ? "Update Video"
+                    : "Publish Video"}
             </button>
           </div>
         </form>

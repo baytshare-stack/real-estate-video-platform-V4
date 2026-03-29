@@ -96,7 +96,7 @@ export default function VideoRow({ video, onDeleted }: VideoRowProps) {
               )}
               <div className="mt-1 flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100">
                 <Link
-                  href={`/upload?edit=${video.id}`}
+                  href={`/studio/videos/edit/${video.id}`}
                   className="flex items-center gap-1 text-xs text-gray-400 transition-colors hover:text-blue-400"
                 >
                   <Edit2 className="h-3.5 w-3.5" /> Edit
@@ -160,7 +160,7 @@ export default function VideoRow({ video, onDeleted }: VideoRowProps) {
         <td className="py-4 align-top">
           <div className="flex items-center gap-2">
             <Link
-              href={`/upload?edit=${video.id}`}
+              href={`/studio/videos/edit/${video.id}`}
               className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-blue-500/10 hover:text-blue-400"
               title="Edit"
             >
