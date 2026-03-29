@@ -45,7 +45,10 @@ export async function GET() {
     const x = d.replace(/\D/g, "");
     return x ? `+${x}` : null;
   };
-
+const totalSubscribers = await prisma.subscription.count({
+  where: { channelId: user.channel.id,
+   },
+});
   return NextResponse.json({
     channel: {
       id: user.channel.id,
