@@ -24,11 +24,25 @@ async function loadProfileUser(userId: string) {
         fullPhoneNumber: true,
         whatsapp: true,
         country: true,
+        city: true,
         phoneVerified: true,
         role: true,
         image: true,
         createdAt: true,
         profile: true,
+        channel: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            avatar: true,
+            profileImage: true,
+            phone: true,
+            websiteUrl: true,
+            country: true,
+            whatsapp: true,
+          },
+        },
       },
     })
   );

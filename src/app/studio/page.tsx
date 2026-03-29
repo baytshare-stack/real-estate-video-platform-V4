@@ -184,6 +184,13 @@ export default function StudioPage() {
               <p className="text-gray-500 text-xs">Creator Studio</p>
             </div>
           </div>
+          <Link
+            href="/studio/profile"
+            className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] py-2.5 text-sm font-semibold text-white/90 transition hover:bg-white/[0.08]"
+          >
+            <User className="h-4 w-4 text-blue-400" />
+            My Profile
+          </Link>
         </div>
 
         {/* Nav */}
@@ -236,6 +243,15 @@ export default function StudioPage() {
 
       {/* ── Main Content ── */}
       <main className="flex-1 overflow-y-auto p-4 pb-[calc(8.5rem+env(safe-area-inset-bottom,0px))] md:p-6 xl:pb-8 xl:p-8">
+        <div className="mb-3 xl:hidden">
+          <Link
+            href="/studio/profile"
+            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/[0.08]"
+          >
+            <User className="h-4 w-4 text-blue-400" />
+            My Profile
+          </Link>
+        </div>
 
         {/* ════ TAB: OVERVIEW ════ */}
         {activeTab === 'overview' && (
