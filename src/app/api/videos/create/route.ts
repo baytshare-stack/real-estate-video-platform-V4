@@ -29,6 +29,12 @@ type CreateBody = {
   address?: string;
   latitude?: unknown;
   longitude?: unknown;
+  isTemplate?: boolean;
+  templateId?: string;
+  templatePayload?: {
+    images?: string[];
+    audioUrl?: string;
+  };
 };
 
 export async function POST(req: Request) {
@@ -77,6 +83,9 @@ export async function POST(req: Request) {
       address,
       latitude,
       longitude,
+      isTemplate,
+      templateId,
+      templatePayload,
     } = body;
 
     type VideoPropertyType =
@@ -146,8 +155,24 @@ export async function POST(req: Request) {
     };
 
     const missingFields: string[] = [];
+    const isTemplateMode = Boolean(isTemplate);
+    let templateRecord: { id: string; type: "SHORT" | "LONG"; previewImage: string | null } | null = null;
+    if (isTemplateMode) {
+      const templateKey = typeof templateId === "string" ? templateId.trim() : "";
+      if (!templateKey) missingFields.push("templateId");
+      if (templateKey) {
+        templateRecord = await prisma.videoTemplate.findFirst({
+          where: { isActive: true, OR: [{ id: templateKey }, { slug: templateKey }] },
+          select: { id: true, type: true, previewImage: true },
+        });
+        if (!templateRecord) {
+          return NextResponse.json({ error: "Template not found" }, { status: 404 });
+        }
+      }
+    }
+
     if (!title?.trim()) missingFields.push("title");
-    if (!videoUrl?.trim()) missingFields.push("videoUrl");
+    if (!isTemplateMode && !videoUrl?.trim()) missingFields.push("videoUrl");
     if (!videoType) missingFields.push("videoType");
     const videoTypeValue = String(videoType).toLowerCase();
     if (videoTypeValue !== "short" && videoTypeValue !== "long") {
@@ -254,8 +279,15 @@ export async function POST(req: Request) {
       );
     }
 
-    const videoUrlStr = String(videoUrl).trim();
+    const videoUrlStr = isTemplateMode ? null : String(videoUrl).trim();
     let thumbnailFinal = thumbnail?.trim() || "";
+    if (isTemplateMode && !thumbnailFinal) {
+      const firstImage =
+        Array.isArray(templatePayload?.images) && templatePayload?.images.length
+          ? String(templatePayload.images[0] || "").trim()
+          : "";
+      thumbnailFinal = firstImage || templateRecord?.previewImage || "";
+    }
     if (!thumbnailFinal) {
       thumbnailFinal = FALLBACK_THUMBNAIL;
     }
@@ -266,8 +298,11 @@ export async function POST(req: Request) {
         description: description ? String(description) : undefined,
         videoUrl: videoUrlStr,
         thumbnail: thumbnailFinal,
-        isShort: videoTypeValue === "short",
+        isShort: isTemplateMode ? templateRecord?.type === "SHORT" : videoTypeValue === "short",
         isDemo: false,
+        isTemplate: isTemplateMode,
+        templateId: isTemplateMode ? templateRecord?.id : null,
+        templatePayload: isTemplateMode && templatePayload ? (templatePayload as object) : null,
         channelId: channel.id,
         // Used for auto-generated playlists on the channel page.
         propertyType: videoPropertyTypeValue,

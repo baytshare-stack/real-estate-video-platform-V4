@@ -12,23 +12,28 @@ import {
   useState,
 } from "react";
 import dynamic from "next/dynamic";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
   AlertCircle,
   CheckCircle2,
+  ImagePlus,
   FileImage,
   FileVideo,
   Home,
   Loader2,
   MapPin,
+  Music2,
+  Sparkles,
   Upload,
   Video,
+  X,
   Youtube,
 } from "lucide-react";
 import type { LocationPatch } from "@/components/upload/MapLeafletPicker";
 import { uploadUnsignedToCloudinary } from "@/lib/cloudinaryDirectUpload";
+import { VIDEO_TEMPLATE_CATALOG } from "@/lib/video-templates/catalog";
+import type { TemplateEngineConfig } from "@/lib/video-templates/types";
 
 const MapLeafletPicker = dynamic(() => import("@/components/upload/MapLeafletPicker"), {
   ssr: false,
@@ -68,6 +73,13 @@ type FormDataState = {
   videoType: "long" | "short";
 };
 
+type TemplateSourceMode = "upload" | "youtube" | "template";
+
+type LocalTemplateMedia = {
+  images: (File | null)[];
+  audioFile: File | null;
+};
+
 const initialUploadState: UploadState = {
   file: null,
   progress: 0,
@@ -97,6 +109,16 @@ const uiTokens = {
     "w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-black shadow-sm focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100",
   buttonPrimary:
     "rounded-xl bg-blue-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-blue-700 active:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-70",
+};
+
+const TRANSITION_STYLES: Record<string, string> = {
+  "zoom-fade": "transition-all duration-700 ease-out scale-100 opacity-100",
+  "slide-fade": "transition-all duration-700 ease-out translate-x-0 opacity-100",
+  "blur-slide": "transition-all duration-700 ease-out blur-0 opacity-100",
+  "gold-fade": "transition-all duration-1000 ease-in-out opacity-100",
+  "cinematic-dissolve": "transition-all duration-1000 ease-in-out opacity-100",
+  "soft-fade": "transition-all duration-700 ease-in-out opacity-100",
+  "elegant-slide": "transition-all duration-800 ease-in-out translate-y-0 opacity-100",
 };
 
 function parseApiError(data: unknown): string {
@@ -168,8 +190,24 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
     longitude: "",
     videoType: "long",
   });
+  const [sourceMode, setSourceMode] = useState<TemplateSourceMode>("upload");
+  const [templateModalOpen, setTemplateModalOpen] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
+  const [templateMedia, setTemplateMedia] = useState<LocalTemplateMedia>({ images: Array(10).fill(null), audioFile: null });
+  const [templateImageUploading, setTemplateImageUploading] = useState(false);
+  const [templateAudioUploading, setTemplateAudioUploading] = useState(false);
 
   const isUploading = videoUpload.uploading || thumbnailUpload.uploading;
+  const isTemplateMode = sourceMode === "template";
+  const selectedTemplate = useMemo(
+    () => VIDEO_TEMPLATE_CATALOG.find((t) => t.slug === selectedTemplateId) ?? null,
+    [selectedTemplateId]
+  );
+  const templateSlots = selectedTemplate?.config.imageSlots ?? (formData.videoType === "short" ? 6 : 8);
+  const templateImageFiles = useMemo(
+    () => templateMedia.images.slice(0, templateSlots).filter((f): f is File => Boolean(f)),
+    [templateMedia.images, templateSlots]
+  );
   const isYoutubeMode = Boolean(formData.videoUrl.trim()) && !Boolean(videoUpload.file);
   const countries = useMemo(() => {
     const keys = Object.keys(COUNTRY_CONFIG);
@@ -200,13 +238,23 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
     if (formData.videoUrl.trim() && !videoUpload.file) return formData.videoUrl.trim();
     return "";
   }, [preview, formData.videoUrl, videoUpload.file]);
+  const templatePreviewUrls = useMemo(
+    () => templateMedia.images.slice(0, templateSlots).map((f) => (f ? URL.createObjectURL(f) : "")),
+    [templateMedia.images, templateSlots]
+  );
+  const templateAudioPreviewUrl = useMemo(
+    () => (templateMedia.audioFile ? URL.createObjectURL(templateMedia.audioFile) : ""),
+    [templateMedia.audioFile]
+  );
 
   const canSubmit = useMemo(
     () =>
       !isUploading &&
       !loading &&
+      !templateImageUploading &&
+      !templateAudioUploading &&
       !(editVideoId && editLoadState !== "ready"),
-    [isUploading, loading, editVideoId, editLoadState]
+    [isUploading, loading, templateImageUploading, templateAudioUploading, editVideoId, editLoadState]
   );
 
   const handleLocationPatch = useCallback((patch: LocationPatch) => {
@@ -226,6 +274,19 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
     if (!thumbnailPreviewUrl) return;
     return () => URL.revokeObjectURL(thumbnailPreviewUrl);
   }, [thumbnailPreviewUrl]);
+
+  useEffect(() => {
+    return () => {
+      for (const url of templatePreviewUrls) {
+        if (url) URL.revokeObjectURL(url);
+      }
+    };
+  }, [templatePreviewUrls]);
+
+  useEffect(() => {
+    if (!templateAudioPreviewUrl) return;
+    return () => URL.revokeObjectURL(templateAudioPreviewUrl);
+  }, [templateAudioPreviewUrl]);
 
   useEffect(() => {
     if (!formData.country) return;
@@ -416,11 +477,21 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
     const hasVideoRemote = Boolean(formData.videoUrl.trim()) && !hasVideoFile;
     const hasThumbFile = Boolean(thumbnailUpload.file);
     const hasVideo =
-      hasVideoFile || hasVideoRemote || Boolean(editVideoId && loadedMediaRef.current.videoUrl.trim());
+      isTemplateMode || hasVideoFile || hasVideoRemote || Boolean(editVideoId && loadedMediaRef.current.videoUrl.trim());
     const hasLocation = Boolean(formData.address.trim() || (formData.latitude.trim() && formData.longitude.trim()));
     if (!formData.title.trim() || !formData.price.trim() || !hasVideo || !hasLocation) {
       setError("Please fill required fields: title, video, location, and price.");
       return;
+    }
+    if (isTemplateMode) {
+      if (!selectedTemplate) {
+        setError("Please select a template.");
+        return;
+      }
+      if (!templateImageFiles.length) {
+        setError("Please upload at least one template image.");
+        return;
+      }
     }
 
     const addressFinal =
@@ -432,9 +503,11 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
 
     let videoUrlFinal = "";
     let thumbnailFinal = formData.thumbnail.trim();
+    let templateUploadedImages: string[] = [];
+    let templateUploadedAudio = "";
 
     try {
-      const needsMultipart = hasVideoFile || hasThumbFile;
+      const needsMultipart = hasVideoFile || hasThumbFile || isTemplateMode;
 
       if (needsMultipart) {
         setCombinedUploadProgress(0);
@@ -445,6 +518,21 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
         let uploadedThumbUrl = "";
 
         try {
+          if (isTemplateMode) {
+            setTemplateImageUploading(true);
+            const uploadedImages = await Promise.all(
+              templateImageFiles.map((img) => uploadUnsignedToCloudinary(img, "image"))
+            );
+            templateUploadedImages = uploadedImages.filter(Boolean);
+            setTemplateImageUploading(false);
+
+            if (templateMedia.audioFile) {
+              setTemplateAudioUploading(true);
+              templateUploadedAudio = await uploadUnsignedToCloudinary(templateMedia.audioFile, "video");
+              setTemplateAudioUploading(false);
+            }
+          }
+
           if (videoUpload.file) {
             const scale = hasThumbFile ? 0.5 : 1;
             uploadedVideoUrl = await uploadUnsignedToCloudinary(videoUpload.file, "video", (pct) => {
@@ -486,7 +574,7 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
           }));
         } else if (hasVideoRemote) {
           videoUrlFinal = formData.videoUrl.trim();
-        } else if (editVideoId && loadedMediaRef.current.videoUrl.trim()) {
+        } else if (!isTemplateMode && editVideoId && loadedMediaRef.current.videoUrl.trim()) {
           videoUrlFinal = loadedMediaRef.current.videoUrl.trim();
         }
 
@@ -503,7 +591,7 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
           setThumbnailUpload((prev) => ({ ...prev, uploading: false }));
         }
 
-        if (!videoUrlFinal) {
+        if (!isTemplateMode && !videoUrlFinal) {
           setError("Could not determine video URL after upload.");
           return;
         }
@@ -513,7 +601,7 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
         videoUrlFinal = formData.videoUrl.trim();
       }
 
-      if (!videoUrlFinal.trim() && editVideoId) {
+      if (!isTemplateMode && !videoUrlFinal.trim() && editVideoId) {
         videoUrlFinal = loadedMediaRef.current.videoUrl.trim();
       }
       if (!thumbnailFinal.trim() && editVideoId) {
@@ -523,7 +611,7 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
       const payload = {
         title: formData.title.trim(),
         description: formData.description.trim(),
-        videoUrl: videoUrlFinal,
+        videoUrl: isTemplateMode ? "" : videoUrlFinal,
         thumbnail: thumbnailFinal || undefined,
         videoType: formData.videoType,
         propertyType: formData.propertyType,
@@ -538,6 +626,14 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
         address: addressFinal,
         latitude: formData.latitude || undefined,
         longitude: formData.longitude || undefined,
+        isTemplate: isTemplateMode,
+        templateId: isTemplateMode ? selectedTemplate?.slug : undefined,
+        templatePayload: isTemplateMode
+          ? {
+              images: templateUploadedImages,
+              audioUrl: templateUploadedAudio || undefined,
+            }
+          : undefined,
       };
 
       const isEdit = Boolean(editVideoId);
@@ -563,6 +659,8 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
       setCombinedUploadProgress(0);
       setVideoUpload((prev) => ({ ...prev, uploading: false }));
       setThumbnailUpload((prev) => ({ ...prev, uploading: false }));
+      setTemplateImageUploading(false);
+      setTemplateAudioUploading(false);
     }
   };
 
@@ -579,18 +677,6 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
               ? "Update your listing, media, and location. Existing video and thumbnail are kept unless you replace them."
               : "Create a clean, complete listing with video, property details, and exact location."}
           </p>
-          {!editVideoId ? (
-            <p className={`mt-2 text-sm ${uiTokens.textSecondary}`}>
-              Prefer a premium slideshow listing?{" "}
-              <Link
-                href="/upload/template"
-                className="font-semibold text-indigo-600 underline underline-offset-2 dark:text-indigo-400"
-              >
-                Build from a template
-              </Link>
-              .
-            </p>
-          ) : null}
           {editVideoId && editListedAt && (
             <p className={`mt-2 text-xs ${uiTokens.textSecondary}`}>Originally listed {editListedAt}</p>
           )}
@@ -660,6 +746,29 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
               />
             </div>
             <div className="space-y-4">
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Source</label>
+                <div className={`inline-flex w-full rounded-xl border p-1 shadow-sm ${uiTokens.border} ${uiTokens.surface}`}>
+                  {(["upload", "youtube", "template"] as TemplateSourceMode[]).map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => {
+                        setSourceMode(mode);
+                        if (mode === "template") setTemplateModalOpen(true);
+                      }}
+                      className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition ${
+                        sourceMode === mode
+                          ? "bg-indigo-600 text-white"
+                          : "text-slate-800 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-700"
+                      }`}
+                    >
+                      {mode === "upload" ? "Upload Video" : mode === "youtube" ? "YouTube URL" : "Create Template"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="w-full max-w-xs">
                 <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Video Type</label>
                 <div className={`inline-flex w-full rounded-xl border p-1 shadow-sm ${uiTokens.border} ${uiTokens.surface}`}>
@@ -692,43 +801,116 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
                 </div>
               </div>
 
-              <UploadCard
-                title="Upload Video"
-                icon={<FileVideo className="h-5 w-5 text-indigo-500" />}
-                accept="video/mp4,.mp4"
-                disabled={isYoutubeMode || isUploading}
-                fileName={videoUpload.file?.name || ""}
-                progress={videoUpload.progress}
-                uploading={videoUpload.uploading}
-                uploaded={Boolean(videoUpload.uploadedUrl)}
-                helperText="MP4 — uploads when you publish"
-                previewSrc={videoPreviewSrc}
-                previewAsVideo
-                videoVariant={formData.videoType}
-                onChange={(event) => handleVideoFileSelect(event.target.files?.[0] || null)}
-                dropzoneHeight="min-h-[14rem]"
-                wrapperClassName="w-full"
-              />
+              {!isTemplateMode ? (
+                <>
+                  {sourceMode === "upload" ? (
+                    <UploadCard
+                      title="Upload Video"
+                      icon={<FileVideo className="h-5 w-5 text-indigo-500" />}
+                      accept="video/mp4,.mp4"
+                      disabled={isYoutubeMode || isUploading}
+                      fileName={videoUpload.file?.name || ""}
+                      progress={videoUpload.progress}
+                      uploading={videoUpload.uploading}
+                      uploaded={Boolean(videoUpload.uploadedUrl)}
+                      helperText="MP4 - uploads when you publish"
+                      previewSrc={videoPreviewSrc}
+                      previewAsVideo
+                      videoVariant={formData.videoType}
+                      onChange={(event) => handleVideoFileSelect(event.target.files?.[0] || null)}
+                      dropzoneHeight="min-h-[14rem]"
+                      wrapperClassName="w-full"
+                    />
+                  ) : (
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        YouTube URL
+                      </label>
+                      <div className="relative">
+                        <Youtube className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-gray-400" />
+                        <input
+                          type="url"
+                          name="videoUrl"
+                          value={videoUpload.file ? "" : formData.videoUrl}
+                          onChange={(event) => {
+                            setFormData((prev) => ({ ...prev, videoUrl: event.target.value }));
+                          }}
+                          disabled={Boolean(videoUpload.file) || isUploading}
+                          className={`${uiTokens.input} py-3 pl-10 pr-4 disabled:cursor-not-allowed disabled:opacity-60`}
+                          placeholder="https://www.youtube.com/watch?v=..."
+                        />
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="space-y-4 rounded-2xl border border-slate-300 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Template</p>
+                    <button
+                      type="button"
+                      onClick={() => setTemplateModalOpen(true)}
+                      className="inline-flex items-center gap-2 rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 dark:border-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300"
+                    >
+                      <Sparkles className="h-4 w-4" />
+                      {selectedTemplate ? "Change Template" : "Select Template"}
+                    </button>
+                  </div>
 
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  YouTube URL
-                </label>
-                <div className="relative">
-                  <Youtube className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-gray-400" />
-                  <input
-                    type="url"
-                    name="videoUrl"
-                    value={videoUpload.file ? "" : formData.videoUrl}
-                    onChange={(event) => {
-                      setFormData((prev) => ({ ...prev, videoUrl: event.target.value }));
-                    }}
-                    disabled={Boolean(videoUpload.file) || isUploading}
-                    className={`${uiTokens.input} py-3 pl-10 pr-4 disabled:cursor-not-allowed disabled:opacity-60`}
-                    placeholder="https://www.youtube.com/watch?v=..."
+                  {selectedTemplate ? (
+                    <p className="text-xs text-slate-600 dark:text-slate-300">
+                      {selectedTemplate.name} ({selectedTemplate.type.toLowerCase()})
+                    </p>
+                  ) : (
+                    <p className="text-xs text-amber-600 dark:text-amber-400">Choose a template to continue.</p>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+                    {Array.from({ length: templateSlots }).map((_, i) => (
+                      <TemplateImageSlot
+                        key={i}
+                        index={i}
+                        file={templateMedia.images[i]}
+                        preview={templatePreviewUrls[i]}
+                        disabled={isUploading}
+                        onPick={(file) =>
+                          setTemplateMedia((prev) => {
+                            const next = [...prev.images];
+                            next[i] = file;
+                            return { ...prev, images: next };
+                          })
+                        }
+                      />
+                    ))}
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Audio (optional)
+                    </label>
+                    <input
+                      type="file"
+                      accept="audio/mpeg,audio/mp3,audio/wav,audio/aac,audio/ogg"
+                      onChange={(event) =>
+                        setTemplateMedia((prev) => ({ ...prev, audioFile: event.target.files?.[0] || null }))
+                      }
+                      className={uiTokens.input}
+                    />
+                    {templateMedia.audioFile ? (
+                      <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">{templateMedia.audioFile.name}</p>
+                    ) : null}
+                  </div>
+
+                  <TemplateInlinePreview
+                    config={selectedTemplate?.config}
+                    images={templatePreviewUrls.filter(Boolean)}
+                    audioUrl={templateAudioPreviewUrl}
+                    title={formData.title}
+                    price={formData.price}
+                    location={`${formData.city || ""}${formData.country ? `, ${formData.country}` : ""}`}
                   />
                 </div>
-              </div>
+              )}
 
               <UploadCard
                 title="Thumbnail"
@@ -924,6 +1106,58 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
             </button>
           </div>
         </form>
+        {templateModalOpen ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">
+            <div className="max-h-[85vh] w-full max-w-5xl overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+              <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-slate-700">
+                <h3 className="text-base font-semibold text-slate-900 dark:text-white">Choose Template</h3>
+                <button
+                  type="button"
+                  onClick={() => setTemplateModalOpen(false)}
+                  className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="max-h-[calc(85vh-64px)] overflow-y-auto p-5">
+                {(["SHORT", "LONG"] as const).map((kind) => {
+                  const items = VIDEO_TEMPLATE_CATALOG.filter((t) => t.type === kind);
+                  return (
+                    <div key={kind} className="mb-6">
+                      <p className="mb-3 text-sm font-bold text-slate-700 dark:text-slate-200">{kind} Templates</p>
+                      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
+                        {items.map((tpl) => (
+                          <button
+                            type="button"
+                            key={tpl.slug}
+                            onClick={() => {
+                              setSelectedTemplateId(tpl.slug);
+                              setFormData((prev) => ({ ...prev, videoType: tpl.type === "SHORT" ? "short" : "long" }));
+                              setSourceMode("template");
+                              setTemplateModalOpen(false);
+                            }}
+                            className="overflow-hidden rounded-xl border border-slate-300 text-left transition hover:border-indigo-500 dark:border-slate-700"
+                          >
+                            {tpl.previewImage ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={tpl.previewImage} alt={tpl.name} className="h-28 w-full object-cover" loading="lazy" />
+                            ) : (
+                              <div className="h-28 w-full bg-slate-200 dark:bg-slate-800" />
+                            )}
+                            <div className="p-2">
+                              <p className="line-clamp-1 text-xs font-semibold text-slate-800 dark:text-slate-100">{tpl.name}</p>
+                              <p className="text-[11px] text-slate-500 dark:text-slate-400">{tpl.type.toLowerCase()}</p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -1051,6 +1285,120 @@ function UploadCard({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function TemplateImageSlot({
+  index,
+  file,
+  preview,
+  disabled,
+  onPick,
+}: {
+  index: number;
+  file: File | null;
+  preview: string;
+  disabled: boolean;
+  onPick: (file: File | null) => void;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  return (
+    <div className="rounded-xl border border-slate-300 p-2 dark:border-slate-700">
+      <input
+        ref={ref}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+        disabled={disabled}
+        onChange={(e) => onPick(e.target.files?.[0] || null)}
+        className="sr-only"
+      />
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => ref.current?.click()}
+        className="flex w-full flex-col items-center gap-2 rounded-lg bg-slate-50 p-2 text-xs hover:bg-slate-100 disabled:opacity-60 dark:bg-slate-800 dark:hover:bg-slate-700"
+      >
+        {preview ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={preview} alt={`Template slot ${index + 1}`} className="h-20 w-full rounded object-cover" loading="lazy" />
+        ) : (
+          <div className="flex h-20 w-full items-center justify-center rounded bg-slate-200 text-slate-500 dark:bg-slate-700 dark:text-slate-300">
+            <ImagePlus className="h-4 w-4" />
+          </div>
+        )}
+        <span className="font-medium text-slate-600 dark:text-slate-300">{file ? "Replace image" : `Image ${index + 1}`}</span>
+      </button>
+    </div>
+  );
+}
+
+function TemplateInlinePreview({
+  config,
+  images,
+  audioUrl,
+  title,
+  price,
+  location,
+}: {
+  config?: TemplateEngineConfig;
+  images: string[];
+  audioUrl: string;
+  title: string;
+  price: string;
+  location: string;
+}) {
+  const [idx, setIdx] = useState(0);
+  useEffect(() => {
+    if (images.length <= 1) return;
+    const t = window.setInterval(() => {
+      setIdx((n) => (n + 1) % images.length);
+    }, config?.slideDurationMs ?? 3000);
+    return () => window.clearInterval(t);
+  }, [images.length, config?.slideDurationMs]);
+
+  if (!images.length) {
+    return (
+      <div className="flex h-56 items-center justify-center rounded-xl border border-dashed border-slate-300 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-300">
+        Add template images to preview.
+      </div>
+    );
+  }
+
+  const src = images[idx] || images[0];
+  const position = config?.overlay?.titlePosition ?? "bottom";
+  const transition = TRANSITION_STYLES[config?.transition ?? "soft-fade"] ?? TRANSITION_STYLES["soft-fade"];
+  const textTone =
+    config?.textStyle === "luxury"
+      ? "font-serif text-amber-100"
+      : config?.textStyle === "minimal"
+        ? "font-sans font-medium text-white"
+        : "font-sans font-extrabold uppercase text-white";
+
+  return (
+    <div className="space-y-2">
+      <div className="relative aspect-[9/16] w-full max-w-[320px] overflow-hidden rounded-xl bg-black">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={src} alt="" className={`absolute inset-0 h-full w-full object-cover ${transition}`} loading="lazy" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/40" />
+        <div
+          className={`absolute inset-x-0 flex px-3 ${
+            position === "top" ? "top-3" : position === "center" ? "top-1/2 -translate-y-1/2" : "bottom-3"
+          }`}
+        >
+          <div className="space-y-1">
+            <p className={`text-sm ${textTone}`}>{title || "Listing title"}</p>
+            <p className="text-xs text-white/95">{price ? `$${price}` : "Price"}</p>
+            <p className="text-xs text-white/85">{location || "Location"}</p>
+          </div>
+        </div>
+      </div>
+      {audioUrl ? (
+        <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+          <Music2 className="h-3.5 w-3.5" />
+          <audio src={audioUrl} controls className="h-8 w-full max-w-xs" />
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -10,16 +10,25 @@ export type TemplateThemeConfig = {
 /** Stored in VideoTemplate.config (JSON). Consumed by TemplateSlideshow. */
 export type TemplateEngineConfig = {
   engineVersion?: number;
+  duration?: number;
   slideDurationMs?: number;
   transition?: string;
+  animation?: "scale-in" | "scale-out" | "fade" | "blur" | "slide-left" | "slide-right";
+  textStyle?: "bold-center" | "minimal" | "luxury";
   kenBurns?: boolean;
   grainOpacity?: number;
+  overlay?: {
+    titlePosition?: "top" | "center" | "bottom";
+    pricePosition?: "top" | "center" | "bottom";
+    locationPosition?: "top" | "center" | "bottom";
+  };
   theme?: TemplateThemeConfig;
   audio?: { loop?: boolean; volume?: number };
   /** Fallback images when listing has none */
   defaultPlaceholders?: string[];
   showPriceBadge?: boolean;
   showChannelBranding?: boolean;
+  imageSlots?: number;
 };
 
 export type TemplatePayload = {
