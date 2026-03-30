@@ -1,8 +1,25 @@
 "use client";
 
-import { Bell, Heart, MessageCircle, Mail, Phone, ChevronDown, ChevronUp } from "lucide-react";
+import {
+  Bell,
+  Heart,
+  MessageCircle,
+  Mail,
+  Phone,
+  ChevronDown,
+  ChevronUp,
+  Sparkles,
+  Eye,
+  MousePointerClick,
+} from "lucide-react";
 import { useState } from "react";
 import { mailtoInquiryUrl, telHref, whatsappDigits, whatsappUrl } from "@/lib/crmContactLinks";
+
+export interface CrmTemplateEvent {
+  type: string;
+  videoTitle: string;
+  createdAt: string;
+}
 
 export interface CrmInteractor {
   user: {
@@ -20,6 +37,24 @@ export interface CrmInteractor {
   comments: { videoTitle: string }[];
   totalInteractions: number;
   isSubscriber?: boolean;
+  templateEvents?: CrmTemplateEvent[];
+  /** Logged-out template traffic rolled into one row */
+  isAnonymousAggregate?: boolean;
+}
+
+function templateEventLabel(type: string): string {
+  switch (type) {
+    case "TEMPLATE_VIEW":
+      return "Slideshow view";
+    case "TEMPLATE_WHATSAPP_CLICK":
+      return "WhatsApp tap";
+    case "TEMPLATE_CALL_CLICK":
+      return "Call tap";
+    case "TEMPLATE_EMAIL_CLICK":
+      return "Email tap";
+    default:
+      return "Template activity";
+  }
 }
 
 interface CrmLeadCardProps {
@@ -39,7 +74,15 @@ function WhatsAppIcon({ className }: { className?: string }) {
 
 export default function CrmLeadCard({ lead }: CrmLeadCardProps) {
   const [expanded, setExpanded] = useState(false);
-  const { user, likes, comments, totalInteractions, isSubscriber } = lead;
+  const {
+    user,
+    likes,
+    comments,
+    totalInteractions,
+    isSubscriber,
+    templateEvents = [],
+    isAnonymousAggregate,
+  } = lead;
   const initials = user.fullName
     .split(" ")
     .map((n) => n[0])
@@ -54,11 +97,14 @@ export default function CrmLeadCard({ lead }: CrmLeadCardProps) {
   const waDigits = whatsappDigits(user);
   const phoneHref = telHref(user);
   const waPrefill = `Hello ${user.fullName}, I am interested in your property listing on RealEstateTV.`;
-  const mailHref = mailtoInquiryUrl(user.email, {
-    leadName: user.fullName,
-    subject: "Property inquiry — RealEstateTV",
-    bodyIntro: `Hello ${user.fullName},\n\nI am reaching out regarding your interest in our real estate listings on RealEstateTV.\n\nBest regards`,
-  });
+  const mailHref =
+    user.email.trim().length > 0
+      ? mailtoInquiryUrl(user.email, {
+          leadName: user.fullName,
+          subject: "Property inquiry — RealEstateTV",
+          bodyIntro: `Hello ${user.fullName},\n\nI am reaching out regarding your interest in our real estate listings on RealEstateTV.\n\nBest regards`,
+        })
+      : null;
 
   const btnClass =
     "flex min-h-[44px] flex-1 min-w-[6.5rem] items-center justify-center gap-2 rounded-xl border px-2 py-2.5 text-xs font-semibold transition-colors sm:text-sm";
@@ -77,7 +123,11 @@ export default function CrmLeadCard({ lead }: CrmLeadCardProps) {
               {user.role}
             </span>
           </div>
-          <p className="truncate text-xs text-gray-500">{user.email}</p>
+          {user.email ? (
+            <p className="truncate text-xs text-gray-500">{user.email}</p>
+          ) : (
+            <p className="truncate text-xs text-gray-600 italic">No email on file</p>
+          )}
           {user.country ? <p className="text-xs text-gray-600">{user.country}</p> : null}
         </div>
 
@@ -97,6 +147,14 @@ export default function CrmLeadCard({ lead }: CrmLeadCardProps) {
               <Bell className="h-3.5 w-3.5" /> Sub
             </div>
           ) : null}
+          {templateEvents.length > 0 && (
+            <div
+              className="flex items-center gap-1 text-xs font-medium text-violet-400"
+              title="Template / slideshow engagement"
+            >
+              <Sparkles className="h-3.5 w-3.5" /> {templateEvents.length}
+            </div>
+          )}
         </div>
 
         <button
@@ -150,9 +208,44 @@ export default function CrmLeadCard({ lead }: CrmLeadCardProps) {
               ))}
             </div>
           )}
+          {templateEvents.length > 0 && (
+            <div>
+              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                Template listings
+              </p>
+              {templateEvents.slice(0, 6).map((ev, i) => (
+                <p
+                  key={`${ev.createdAt}-${i}`}
+                  className="line-clamp-2 flex items-start gap-1.5 text-xs text-gray-400"
+                >
+                  {ev.type === "TEMPLATE_VIEW" ? (
+                    <Eye className="mt-0.5 h-3 w-3 flex-shrink-0 text-violet-400" />
+                  ) : (
+                    <MousePointerClick className="mt-0.5 h-3 w-3 flex-shrink-0 text-fuchsia-400" />
+                  )}
+                  <span>
+                    <span className="font-medium text-gray-300">{templateEventLabel(ev.type)}</span>
+                    {" · "}
+                    {ev.videoTitle}
+                  </span>
+                </p>
+              ))}
+              {templateEvents.length > 6 ? (
+                <p className="mt-1 text-[10px] text-gray-600">
+                  +{templateEvents.length - 6} more (newest first)
+                </p>
+              ) : null}
+            </div>
+          )}
+          {isAnonymousAggregate ? (
+            <p className="text-xs text-gray-500">
+              These actions had no logged-in user. Encourage sign-in or lead forms to attach identity.
+            </p>
+          ) : null}
         </div>
       )}
 
+      {isAnonymousAggregate ? null : (
       <div className="mt-4 flex flex-col gap-2 border-t border-white/[0.06] pt-3 sm:flex-row sm:flex-wrap">
         {phoneHref ? (
           <a
@@ -192,14 +285,25 @@ export default function CrmLeadCard({ lead }: CrmLeadCardProps) {
           </span>
         )}
 
-        <a
-          href={mailHref}
-          className={`${btnClass} border-sky-500/25 bg-sky-500/10 text-sky-300 hover:bg-sky-500/20`}
-        >
-          <Mail className="h-4 w-4 shrink-0" />
-          <span>Email</span>
-        </a>
+        {mailHref ? (
+          <a
+            href={mailHref}
+            className={`${btnClass} border-sky-500/25 bg-sky-500/10 text-sky-300 hover:bg-sky-500/20`}
+          >
+            <Mail className="h-4 w-4 shrink-0" />
+            <span>Email</span>
+          </a>
+        ) : (
+          <span
+            className={`${btnClass} cursor-not-allowed border-white/10 bg-white/[0.02] text-gray-600`}
+            title="No email on file"
+          >
+            <Mail className="h-4 w-4 shrink-0 opacity-50" />
+            <span>Email</span>
+          </span>
+        )}
       </div>
+      )}
     </div>
   );
 }

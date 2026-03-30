@@ -4,6 +4,10 @@ import prisma from "@/lib/prisma";
 import { safeFindFirst, safeFindUnique } from "@/lib/safePrisma";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
+function digitsOnly(s: string) {
+  return s.replace(/\D/g, "");
+}
+
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
@@ -18,6 +22,7 @@ export async function GET(req: Request) {
         where: { id: videoId },
         include: {
           property: true,
+          template: true,
           channel: {
             select: {
               id: true,
@@ -69,20 +74,66 @@ export async function GET(req: Request) {
     const contactPhoneCode = video.channel?.owner?.phoneCode || "";
     const contactPhoneNumber = video.channel?.owner?.phoneNumber || "";
 
-    let contactInfo = null;
+    const pay =
+      video.templatePayload && typeof video.templatePayload === "object"
+        ? (video.templatePayload as Record<string, unknown>)
+        : {};
+
+    let rawPhone: string | null = null;
     if (contactPhoneNumber) {
-      const waLink = `https://wa.me/${contactPhoneCode.replace('+', '')}${contactPhoneNumber}?text=I%20am%20interested%20in%20this%20property%20and%20would%20like%20more%20information.`;
+      rawPhone = `+${contactPhoneCode.replace("+", "")} ${contactPhoneNumber}`;
+    }
+    if (typeof pay.contactPhone === "string" && pay.contactPhone.trim()) {
+      rawPhone = pay.contactPhone.trim();
+    }
+
+    let whatsappLink: string | null = null;
+    if (contactPhoneNumber) {
+      whatsappLink = `https://wa.me/${contactPhoneCode.replace("+", "")}${contactPhoneNumber}?text=I%20am%20interested%20in%20this%20property%20and%20would%20like%20more%20information.`;
+    }
+    if (typeof pay.contactWhatsapp === "string" && pay.contactWhatsapp.trim()) {
+      const d = digitsOnly(pay.contactWhatsapp);
+      if (d) {
+        whatsappLink = `https://wa.me/${d}?text=I%20am%20interested%20in%20this%20property%20and%20would%20like%20more%20information.`;
+      }
+    }
+
+    const contactEmail = typeof pay.contactEmail === "string" && pay.contactEmail.trim() ? pay.contactEmail.trim() : null;
+
+    let contactInfo: {
+      rawPhone: string | null;
+      whatsappLink: string | null;
+      email: string | null;
+    } | null = null;
+    if (rawPhone || whatsappLink || contactEmail) {
       contactInfo = {
-        rawPhone: `+${contactPhoneCode.replace('+', '')} ${contactPhoneNumber}`,
-        whatsappLink: waLink,
+        rawPhone,
+        whatsappLink,
+        email: contactEmail,
       };
     }
+
+    const tpl = video.template;
+    const templateDto = tpl
+      ? {
+          id: tpl.id,
+          slug: tpl.slug,
+          name: tpl.name,
+          type: tpl.type,
+          previewImage: tpl.previewImage,
+          config: tpl.config,
+        }
+      : null;
 
     const watchData = {
       id: video.id,
       videoUrl: video.videoUrl,
       thumbnailUrl: video.thumbnail,
       isShort: video.isShort,
+      isTemplate: video.isTemplate,
+      templateId: video.templateId,
+      templatePayload: video.templatePayload,
+      template: templateDto,
       playbackId: "",
       title: video.title,
       description: video.description,
@@ -98,7 +149,8 @@ export async function GET(req: Request) {
       latitude: 0,
       longitude: 0,
       status: video.property?.status,
-      viewsCount: 0,
+      viewsCount: video.viewsCount ?? 0,
+      createdAt: video.createdAt.toISOString(),
       likesCount: video.likesCount,
       userReaction,
       subscribedToChannel,

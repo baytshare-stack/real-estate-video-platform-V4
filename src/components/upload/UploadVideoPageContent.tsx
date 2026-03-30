@@ -12,6 +12,7 @@ import {
   useState,
 } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
@@ -578,6 +579,18 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
               ? "Update your listing, media, and location. Existing video and thumbnail are kept unless you replace them."
               : "Create a clean, complete listing with video, property details, and exact location."}
           </p>
+          {!editVideoId ? (
+            <p className={`mt-2 text-sm ${uiTokens.textSecondary}`}>
+              Prefer a premium slideshow listing?{" "}
+              <Link
+                href="/upload/template"
+                className="font-semibold text-indigo-600 underline underline-offset-2 dark:text-indigo-400"
+              >
+                Build from a template
+              </Link>
+              .
+            </p>
+          ) : null}
           {editVideoId && editListedAt && (
             <p className={`mt-2 text-xs ${uiTokens.textSecondary}`}>Originally listed {editListedAt}</p>
           )}

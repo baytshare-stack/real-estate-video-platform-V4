@@ -103,10 +103,17 @@ export default function StudioPage() {
 
   const handleVideoDeleted = (id: string) => setVideos(prev => prev.filter(v => v.id !== id));
 
-  const filteredCrm = (crm ?? []).filter(lead =>
-    lead.user.fullName.toLowerCase().includes(crmSearch.toLowerCase()) ||
-    lead.user.email.toLowerCase().includes(crmSearch.toLowerCase())
-  );
+  const q = crmSearch.toLowerCase().trim();
+  const filteredCrm = (crm ?? []).filter(lead => {
+    if (!q) return true;
+    const name = lead.user.fullName.toLowerCase();
+    const email = lead.user.email.toLowerCase();
+    if (name.includes(q) || email.includes(q)) return true;
+    const tpl = lead.templateEvents ?? [];
+    return tpl.some(
+      ev => ev.videoTitle.toLowerCase().includes(q) || ev.type.toLowerCase().includes(q)
+    );
+  });
 
   // ─── Error / Loading states ─────────────────────────────────────────────────
   if (loadingOverview) {
@@ -453,8 +460,8 @@ export default function StudioPage() {
                 </p>
                 <p className="text-gray-600 text-sm">
                   {crmSearch
-                    ? 'Try a different name or email.'
-                    : 'When users subscribe, like, or comment on your videos, they appear here as leads.'}
+                    ? 'Try a different name, email, listing title, or “anonymous”.'
+                    : 'Subscribers, likers, and commenters show up here. Template / slideshow views and contact taps (logged-in or anonymous) are tracked too.'}
                 </p>
               </div>
             ) : (

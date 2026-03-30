@@ -5,7 +5,26 @@ import prisma from '@/lib/prisma';
 import { safeFindMany, safeFindUnique } from '@/lib/safePrisma';
 import type { Prisma } from '@prisma/client';
 
+const TEMPLATE_CRM_TYPES = [
+  'TEMPLATE_VIEW',
+  'TEMPLATE_WHATSAPP_CLICK',
+  'TEMPLATE_CALL_CLICK',
+  'TEMPLATE_EMAIL_CLICK',
+] as const;
+
 type UserWithChannel = Prisma.UserGetPayload<{ include: { channel: true } }>;
+
+const userSelect = {
+  id: true,
+  fullName: true,
+  email: true,
+  country: true,
+  phoneNumber: true,
+  phoneCode: true,
+  phone: true,
+  fullPhoneNumber: true,
+  role: true,
+} as const;
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -31,19 +50,7 @@ export async function GET() {
     prisma.videoReaction.findMany({
       where: { video: { channelId }, type: "LIKE" },
       include: {
-        user: {
-          select: {
-            id: true,
-            fullName: true,
-            email: true,
-            country: true,
-            phoneNumber: true,
-            phoneCode: true,
-            phone: true,
-            fullPhoneNumber: true,
-            role: true,
-          },
-        },
+        user: { select: { ...userSelect } },
         video: { select: { id: true, title: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -54,24 +61,18 @@ export async function GET() {
     prisma.comment.findMany({
       where: { video: { channelId } },
       include: {
-        user: {
-          select: {
-            id: true,
-            fullName: true,
-            email: true,
-            country: true,
-            phoneNumber: true,
-            phoneCode: true,
-            phone: true,
-            fullPhoneNumber: true,
-            role: true,
-          },
-        },
+        user: { select: { ...userSelect } },
         video: { select: { id: true, title: true } },
       },
       orderBy: { createdAt: 'desc' },
     })
   );
+
+  type TemplateEventRow = {
+    type: string;
+    videoTitle: string;
+    createdAt: string;
+  };
 
   type MapEntry = {
     user: {
@@ -88,6 +89,17 @@ export async function GET() {
     likes: { videoTitle: string }[];
     comments: { videoTitle: string; content?: string }[];
     isSubscriber: boolean;
+    templateEvents: TemplateEventRow[];
+  };
+
+  type CrmInteractorResponse = {
+    user: MapEntry["user"];
+    likes: MapEntry["likes"];
+    comments: MapEntry["comments"];
+    isSubscriber: boolean;
+    templateEvents: TemplateEventRow[];
+    totalInteractions: number;
+    isAnonymousAggregate?: boolean;
   };
 
   const interactorMap = new Map<string, MapEntry>();
@@ -102,6 +114,7 @@ export async function GET() {
         likes: [{ videoTitle: l.video.title }],
         comments: [],
         isSubscriber: false,
+        templateEvents: [],
       });
     }
   }
@@ -116,6 +129,7 @@ export async function GET() {
         likes: [],
         comments: [{ videoTitle: c.video.title }],
         isSubscriber: false,
+        templateEvents: [],
       });
     }
   }
@@ -124,19 +138,7 @@ export async function GET() {
     prisma.subscription.findMany({
       where: { channelId },
       include: {
-        subscriber: {
-          select: {
-            id: true,
-            fullName: true,
-            email: true,
-            country: true,
-            phoneNumber: true,
-            phoneCode: true,
-            phone: true,
-            fullPhoneNumber: true,
-            role: true,
-          },
-        },
+        subscriber: { select: { ...userSelect } },
       },
     })
   );
@@ -151,15 +153,125 @@ export async function GET() {
         likes: [],
         comments: [],
         isSubscriber: true,
+        templateEvents: [],
       });
     }
   }
 
-  const interactors = Array.from(interactorMap.values()).map((entry) => ({
+  for (const entry of interactorMap.values()) {
+    if (!entry.templateEvents) entry.templateEvents = [];
+  }
+
+  const templateCrmRows = await safeFindMany(() =>
+    prisma.crmEvent.findMany({
+      where: {
+        channelId,
+        type: { in: [...TEMPLATE_CRM_TYPES] },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 800,
+      select: {
+        type: true,
+        userId: true,
+        videoId: true,
+        createdAt: true,
+      },
+    })
+  );
+
+  const tplVideoIds = [
+    ...new Set(
+      templateCrmRows.map((r) => r.videoId).filter((id): id is string => Boolean(id))
+    ),
+  ];
+  const tplVideos =
+    tplVideoIds.length === 0
+      ? []
+      : await safeFindMany(() =>
+          prisma.video.findMany({
+            where: { id: { in: tplVideoIds }, channelId },
+            select: { id: true, title: true },
+          })
+        );
+  const videoTitleById = new Map(tplVideos.map((v) => [v.id, v.title]));
+
+  const templateUserIds = [
+    ...new Set(
+      templateCrmRows.map((r) => r.userId).filter((id): id is string => Boolean(id))
+    ),
+  ];
+  const missingUserIds = templateUserIds.filter((id) => !interactorMap.has(id));
+  const templateUsers =
+    missingUserIds.length === 0
+      ? []
+      : await safeFindMany(() =>
+          prisma.user.findMany({
+            where: { id: { in: missingUserIds } },
+            select: { ...userSelect },
+          })
+        );
+  for (const u of templateUsers) {
+    interactorMap.set(u.id, {
+      user: u,
+      likes: [],
+      comments: [],
+      isSubscriber: false,
+      templateEvents: [],
+    });
+  }
+
+  const anonymousTemplateEvents: TemplateEventRow[] = [];
+
+  for (const row of templateCrmRows) {
+    const videoTitle = row.videoId
+      ? videoTitleById.get(row.videoId) ?? 'Template listing'
+      : 'Template listing';
+    const ev: TemplateEventRow = {
+      type: row.type,
+      videoTitle,
+      createdAt: row.createdAt.toISOString(),
+    };
+    if (row.userId) {
+      const existing = interactorMap.get(row.userId);
+      if (existing) {
+        existing.templateEvents.push(ev);
+      }
+    } else {
+      anonymousTemplateEvents.push(ev);
+    }
+  }
+
+  const interactors: CrmInteractorResponse[] = Array.from(interactorMap.values()).map((entry) => ({
     ...entry,
+    templateEvents: entry.templateEvents ?? [],
     totalInteractions:
-      entry.likes.length + entry.comments.length + (entry.isSubscriber ? 1 : 0),
+      entry.likes.length +
+      entry.comments.length +
+      (entry.isSubscriber ? 1 : 0) +
+      (entry.templateEvents?.length ?? 0),
   }));
+
+  if (anonymousTemplateEvents.length > 0) {
+    interactors.push({
+      user: {
+        id: '__crm_anonymous_template__',
+        fullName: 'Anonymous template visitors',
+        email: '',
+        country: null,
+        phoneNumber: null,
+        phoneCode: null,
+        phone: null,
+        fullPhoneNumber: null,
+        role: 'VISITOR',
+      },
+      likes: [],
+      comments: [],
+      isSubscriber: false,
+      templateEvents: anonymousTemplateEvents,
+      totalInteractions: anonymousTemplateEvents.length,
+      isAnonymousAggregate: true,
+    });
+  }
 
   interactors.sort((a, b) => b.totalInteractions - a.totalInteractions);
 

@@ -5,6 +5,7 @@ import {
   ModerationStatus,
 } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { VIDEO_TEMPLATE_CATALOG } from "../src/lib/video-templates/catalog";
 
 const prisma = new PrismaClient();
 
@@ -287,6 +288,29 @@ async function main() {
     },
     update: { name: "Sara — Dubai Listings" },
   });
+
+  for (const t of VIDEO_TEMPLATE_CATALOG) {
+    await prisma.videoTemplate.upsert({
+      where: { slug: t.slug },
+      create: {
+        slug: t.slug,
+        name: t.name,
+        type: t.type,
+        previewImage: t.previewImage,
+        config: t.config as object,
+        sortOrder: t.sortOrder,
+        isActive: true,
+      },
+      update: {
+        name: t.name,
+        type: t.type,
+        previewImage: t.previewImage,
+        config: t.config as object,
+        sortOrder: t.sortOrder,
+      },
+    });
+  }
+  console.log(`Video templates: ${VIDEO_TEMPLATE_CATALOG.length} upserted.`);
 
   console.log("Seed complete.");
   console.log(`ADMIN: ${bytEmail} / ${bytPassword}`);

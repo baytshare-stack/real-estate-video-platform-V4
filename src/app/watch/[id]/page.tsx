@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, use } from 'react';
-import { ThumbsUp, Share2, PhoneCall, MessageCircle, MapPin, Bed, Bath, Maximize } from 'lucide-react';
+import { ThumbsUp, Share2, PhoneCall, MessageCircle, MapPin, Bed, Bath, Maximize, Mail } from 'lucide-react';
 import VideoCard from '@/components/VideoCard';
 import ShareModal from '@/components/ShareModal';
 import Link from 'next/link';
@@ -12,6 +12,9 @@ import { getYouTubeEmbedUrl } from '@/lib/youtube';
 import WatchPageComments from '@/components/watch/WatchPageComments';
 import SubscriptionNotifyDropdown, { type NotifyPref } from '@/components/channel/SubscriptionNotifyDropdown';
 import { formatSubscriberCount } from '@/lib/formatSubscribers';
+import TemplateSlideshow from '@/components/watch/TemplateSlideshow';
+import { trackTemplateInteraction } from '@/lib/video-templates/track';
+import type { TemplateEngineConfig } from '@/lib/video-templates/types';
 
 function isNotifyPref(v: unknown): v is NotifyPref {
   return v === 'ALL' || v === 'PERSONALIZED' || v === 'NONE';
@@ -45,7 +48,17 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
         setLikesCount(data.likesCount || 0);
         setIsLiked(data.userReaction === "LIKE");
         setIsSubscribed(Boolean(data.subscribedToChannel));
-        
+        const sc =
+          typeof data.channel?.subscribersCount === 'number'
+            ? data.channel.subscribersCount
+            : typeof data.channel?.followersCount === 'number'
+              ? data.channel.followersCount
+              : 0;
+        setSubscriberCount(sc);
+        if (isNotifyPref(data.subscriptionNotificationPreference)) {
+          setNotifyPref(data.subscriptionNotificationPreference);
+        }
+
         // Fetch recommendations asynchronously
         fetch(`/api/recommendations/similar?videoId=${videoId}`)
           .then(r => r.json())
@@ -133,6 +146,17 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
   const formattedPrice = `${new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(video.price || 0)} ${video.currency || 'USD'}`;
   const locationString = video.location || `${video.city || ''}, ${video.country || ''}`.replace(/^,\s*|\s*,$/g, '');
 
+  const payload = (video.templatePayload && typeof video.templatePayload === 'object'
+    ? video.templatePayload
+    : {}) as { images?: unknown; audioUrl?: unknown };
+  const templateImages = Array.isArray(payload.images)
+    ? payload.images.filter((u): u is string => typeof u === 'string' && u.length > 0)
+    : [];
+  const templateAudio =
+    typeof payload.audioUrl === 'string' && payload.audioUrl.trim() ? payload.audioUrl.trim() : null;
+  const templateConfig = video.template?.config as TemplateEngineConfig | undefined;
+  const chIdForTrack = video.channelId || channel.id;
+
   return (
     <>
     <div className="mx-auto grid max-w-[1600px] gap-4 px-2 py-3 sm:gap-6 sm:p-4 lg:grid lg:grid-cols-[1fr_400px] lg:p-6">
@@ -149,9 +173,22 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
               : "w-full aspect-video",
           ].join(" ")}
         >
-            {video.videoUrl ? (
+            {video.isTemplate && templateConfig ? (
+              <TemplateSlideshow
+                videoId={videoId}
+                channelId={chIdForTrack}
+                config={templateConfig}
+                images={templateImages}
+                audioUrl={templateAudio}
+                title={video.title}
+                priceLine={formattedPrice}
+                locationLine={locationString || 'Prime location'}
+                channelName={channel.channelName || 'Channel'}
+                channelAvatarUrl={channel.avatarUrl}
+                isShort={Boolean(video.isShort)}
+              />
+            ) : video.videoUrl ? (
                 getYouTubeEmbedUrl(video.videoUrl) ? (
-                  /* YouTube: embed iframe; invalid / non-YouTube URLs still use native <video> below */
                   <YouTubePlayer watchUrl={video.videoUrl} title={video.title} className="w-full h-full min-h-0" />
                 ) : (
                   <video src={video.videoUrl} controls className="w-full h-full object-contain" poster={video.thumbnailUrl} />
@@ -262,22 +299,49 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
             </p>
 
             {/* Contact Action Buttons */}
-            {contact.rawPhone && (
-                <div className="mt-6 md:mt-8 flex flex-col sm:flex-row gap-3">
+            {(contact?.whatsappLink || contact?.rawPhone || contact?.email) && (
+                <div className="mt-6 md:mt-8 flex flex-col sm:flex-row flex-wrap gap-3">
+                    {contact.whatsappLink ? (
                     <a 
-                        href={contact.whatsappLink || '#'} 
+                        href={contact.whatsappLink} 
                         target="_blank" 
                         rel="noreferrer"
+                        onClick={() => {
+                          if (video.isTemplate && chIdForTrack) {
+                            trackTemplateInteraction(videoId, chIdForTrack, 'whatsapp');
+                          }
+                        }}
                         className="flex-1 bg-[#25D366] hover:bg-[#20bd5a] text-white flex items-center justify-center gap-2 py-3 px-4 md:px-6 rounded-xl font-bold text-base md:text-lg transition-colors shadow-lg shadow-[#25D366]/20"
                     >
                         <MessageCircle className="w-5 h-5 md:w-6 md:h-6" /> WhatsApp
                     </a>
+                    ) : null}
+                    {contact.rawPhone ? (
                     <a 
-                        href={`tel:${contact.rawPhone.replace(/\s+/g, '')}`} 
+                        href={`tel:${String(contact.rawPhone).replace(/\s+/g, '')}`} 
+                        onClick={() => {
+                          if (video.isTemplate && chIdForTrack) {
+                            trackTemplateInteraction(videoId, chIdForTrack, 'call');
+                          }
+                        }}
                         className="flex-1 bg-white hover:bg-gray-200 text-black flex items-center justify-center gap-2 py-3 px-4 md:px-6 rounded-xl font-bold text-base md:text-lg transition-colors shadow-lg shadow-white/10"
                     >
                         <PhoneCall className="w-5 h-5 md:w-6 md:h-6" /> {contact.rawPhone}
                     </a>
+                    ) : null}
+                    {contact.email ? (
+                    <a 
+                        href={`mailto:${encodeURIComponent(contact.email)}?subject=${encodeURIComponent('Inquiry: ' + (video.title || 'Listing'))}`}
+                        onClick={() => {
+                          if (video.isTemplate && chIdForTrack) {
+                            trackTemplateInteraction(videoId, chIdForTrack, 'email');
+                          }
+                        }}
+                        className="flex-1 border border-gray-600 bg-gray-800 hover:bg-gray-700 text-white flex items-center justify-center gap-2 py-3 px-4 md:px-6 rounded-xl font-bold text-base md:text-lg transition-colors"
+                    >
+                        <Mail className="w-5 h-5 md:w-6 md:h-6" /> Email
+                    </a>
+                    ) : null}
                 </div>
             )}
         </div>
