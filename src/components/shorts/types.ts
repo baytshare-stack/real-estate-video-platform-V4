@@ -3,6 +3,19 @@ export type ShortVideoPayload = {
   title: string;
   videoUrl: string | null;
   thumbnail: string | null;
+  isTemplate?: boolean;
+  templateId?: string | null;
+  template?: {
+    id: string;
+    name: string;
+    type: string;
+    previewImage: string;
+    previewVideo: string | null;
+    defaultAudio: string | null;
+    config: unknown;
+  } | null;
+  images?: string[];
+  audio?: string | null;
   channelId: string;
   channelName: string;
   channelAvatar: string | null;

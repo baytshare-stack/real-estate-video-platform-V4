@@ -9,6 +9,7 @@ import SubscriptionNotifyDropdown, {
   type NotifyPref,
 } from "@/components/channel/SubscriptionNotifyDropdown";
 import YouTubePlayer from "@/components/video/YouTubePlayer";
+import TemplateMotionPlayer from "@/components/video/TemplateMotionPlayer";
 import { getYouTubeEmbedUrl } from "@/lib/youtube";
 import { useShortsPlayback } from "./ShortsPlaybackContext";
 
@@ -265,12 +266,32 @@ export default function ShortVideoPlayer({
 
   const youtubeEmbed = initial.videoUrl ? getYouTubeEmbedUrl(initial.videoUrl) : null;
   const feedVideoPreload = isFeedMode ? (isPlaybackActive ? "metadata" : "none") : "metadata";
+  const templateImages = Array.isArray(initial.images)
+    ? initial.images.filter((u): u is string => typeof u === "string" && u.trim().length > 0)
+    : [];
+  const isTemplateShort = Boolean(initial.isTemplate && initial.template?.config);
+  const locationLine = "Prime location";
 
   if (!isFeedMode) {
     return (
       <article className={className}>
         <div className="relative aspect-[9/16] w-full overflow-hidden rounded-2xl border border-white/10 bg-black">
-          {initial.videoUrl ? (
+          {isTemplateShort ? (
+            <TemplateMotionPlayer
+              previewMode
+              isPlaying={true}
+              config={initial.template?.config}
+              images={templateImages}
+              audioUrl={initial.audio}
+              fallbackAudioUrl={initial.template?.defaultAudio}
+              title={initial.title}
+              priceLine="Property listing"
+              locationLine={locationLine}
+              isShort
+              channelName={initial.channelName}
+              channelAvatarUrl={initial.channelAvatar}
+            />
+          ) : initial.videoUrl ? (
             youtubeEmbed ? (
               <div className="absolute inset-0 h-full w-full bg-black">
                 <YouTubePlayer
@@ -380,7 +401,22 @@ export default function ShortVideoPlayer({
       className={`relative flex h-[calc(100dvh-4rem-3.5rem-env(safe-area-inset-bottom,0px))] min-h-[min(520px,100dvh)] w-full shrink-0 snap-start snap-always justify-center xl:h-[calc(100vh-4rem)] ${className ?? ""}`}
     >
       <div className="relative mx-auto aspect-[9/16] h-full w-full max-h-[calc(100dvh-4rem-3.5rem-env(safe-area-inset-bottom,0px))] max-w-[420px] overflow-hidden rounded-none bg-black sm:rounded-2xl xl:max-h-[calc(100vh-4rem)]">
-        {initial.videoUrl ? (
+        {isTemplateShort ? (
+          <TemplateMotionPlayer
+            previewMode
+            isPlaying={isPlaybackActive}
+            config={initial.template?.config}
+            images={templateImages}
+            audioUrl={initial.audio}
+            fallbackAudioUrl={initial.template?.defaultAudio}
+            title={initial.title}
+            priceLine="Property listing"
+            locationLine={locationLine}
+            isShort
+            channelName={initial.channelName}
+            channelAvatarUrl={initial.channelAvatar}
+          />
+        ) : initial.videoUrl ? (
           youtubeEmbed ? (
             <div className="absolute inset-0 h-full w-full bg-black">
               <YouTubePlayer

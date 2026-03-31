@@ -1,5 +1,8 @@
 import type {
+  TemplateFontConfig,
   TemplateMotionConfig,
+  TemplateSceneDef,
+  TemplateSceneTextLayer,
   TemplateSlideAnimation,
   TemplateSlideDef,
 } from "./types";
@@ -67,14 +70,105 @@ function parseSlideEntry(entry: unknown): TemplateSlideDef | null {
   return { duration, animation };
 }
 
+function parseSceneTextLayer(entry: unknown): TemplateSceneTextLayer | null {
+  const o = asRecord(entry);
+  if (!o) return null;
+  if (typeof o.text !== "string" || !o.text.trim()) return null;
+  const animation =
+    o.animation === "fade-in" || o.animation === "slide-up" || o.animation === "zoom-in"
+      ? o.animation
+      : undefined;
+  const position =
+    o.position === "top" || o.position === "center" || o.position === "bottom"
+      ? o.position
+      : undefined;
+  return {
+    text: o.text.trim(),
+    animation,
+    position,
+  };
+}
+
+function parseSceneEntry(entry: unknown): TemplateSceneDef | null {
+  const o = asRecord(entry);
+  if (!o) return null;
+  const duration = typeof o.duration === "number" && o.duration > 0 ? o.duration : 2;
+  const transition = o.transition === "blur" || o.transition === "fade" ? o.transition : undefined;
+  const textLayers = Array.isArray(o.textLayers)
+    ? o.textLayers.map(parseSceneTextLayer).filter((x): x is TemplateSceneTextLayer => Boolean(x))
+    : typeof o.text === "string" && o.text.trim()
+      ? [
+          {
+            text: o.text.trim(),
+            animation: (
+              o.animation === "fade-in" || o.animation === "slide-up" || o.animation === "zoom-in"
+                ? o.animation
+                : "fade-in"
+            ) as "fade-in" | "slide-up" | "zoom-in",
+            position: (
+              o.position === "top" || o.position === "center" || o.position === "bottom"
+                ? o.position
+                : "center"
+            ) as "top" | "center" | "bottom",
+          },
+        ]
+      : [];
+  return {
+    duration,
+    image: typeof o.image === "string" && o.image.trim() ? o.image.trim() : undefined,
+    video: typeof o.video === "string" && o.video.trim() ? o.video.trim() : undefined,
+    transition,
+    textLayers,
+  };
+}
+
+function parseFont(raw: unknown): TemplateFontConfig | undefined {
+  const o = asRecord(raw);
+  if (!o) return undefined;
+  const family =
+    o.family === "Cairo" ||
+    o.family === "Tajawal" ||
+    o.family === "Almarai" ||
+    o.family === "Poppins" ||
+    o.family === "Inter" ||
+    o.family === "Montserrat"
+      ? o.family
+      : undefined;
+  const size = typeof o.size === "number" && o.size > 0 ? o.size : undefined;
+  const color = typeof o.color === "string" && o.color.trim() ? o.color.trim() : undefined;
+  const weight =
+    o.weight === "normal" ||
+    o.weight === "medium" ||
+    o.weight === "semibold" ||
+    o.weight === "bold" ||
+    o.weight === "800" ||
+    o.weight === "900"
+      ? o.weight
+      : undefined;
+  const align = o.align === "left" || o.align === "center" || o.align === "right" ? o.align : undefined;
+  if (!family && !size && !color && !weight && !align) return undefined;
+  return { family, size, color, weight, align };
+}
+
 /** Normalize DB / API JSON into a motion config the player understands. */
 export function normalizeTemplateConfig(raw: unknown): TemplateMotionConfig {
   const base = asRecord(raw) ?? {};
   const slidesRaw = base.slides;
+  const scenesRaw = base.scenes;
   let slides: TemplateSlideDef[] = [];
+  let scenes: TemplateSceneDef[] = [];
 
   if (Array.isArray(slidesRaw) && slidesRaw.length > 0) {
     slides = slidesRaw.map(parseSlideEntry).filter((s): s is TemplateSlideDef => Boolean(s));
+  }
+  if (Array.isArray(scenesRaw) && scenesRaw.length > 0) {
+    scenes = scenesRaw.map(parseSceneEntry).filter((s): s is TemplateSceneDef => Boolean(s));
+    if (scenes.length && slides.length === 0) {
+      slides = scenes.map((scene, idx) => ({
+        duration: scene.duration,
+        animation: idx % 2 === 0 ? "zoom-in" : "pan-left",
+      }));
+    }
   }
   if (slides.length === 0) {
     slides = buildLegacySlides(base);
@@ -85,7 +179,9 @@ export function normalizeTemplateConfig(raw: unknown): TemplateMotionConfig {
 
   const motion: TemplateMotionConfig = {
     slides,
+    scenes,
     transition,
+    font: parseFont(base.font),
     theme: asRecord(base.theme) as TemplateMotionConfig["theme"],
     grainOpacity: typeof base.grainOpacity === "number" ? base.grainOpacity : undefined,
     showPriceBadge: base.showPriceBadge !== false,

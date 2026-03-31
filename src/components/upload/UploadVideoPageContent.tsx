@@ -35,6 +35,7 @@ import TemplateMotionPlayer from "@/components/video/TemplateMotionPlayer";
 import TemplateGallery from "@/components/upload/TemplateGallery";
 import TemplateCinematicPreviewModal from "@/components/upload/TemplateCinematicPreviewModal";
 import { normalizeTemplateConfig } from "@/lib/video-templates/normalize-config";
+import { TEMPLATE_MUSIC_LIBRARY } from "@/lib/video-templates/music-library";
 import type { TemplateListItemDto } from "@/lib/video-templates/types";
 
 const MapLeafletPicker = dynamic(() => import("@/components/upload/MapLeafletPicker"), {
@@ -82,6 +83,25 @@ type LocalTemplateMedia = {
   audioFile: File | null;
 };
 
+type TemplateFontFamily = "Cairo" | "Tajawal" | "Almarai" | "Poppins" | "Inter" | "Montserrat";
+type TemplateFontWeight = "normal" | "medium" | "semibold" | "bold" | "800" | "900";
+type TemplateTextAlign = "left" | "center" | "right";
+type SceneAnim = "fade-in" | "slide-up" | "zoom-in";
+type ScenePos = "top" | "center" | "bottom";
+
+type TemplateEditorState = {
+  fontFamily: TemplateFontFamily;
+  fontSize: number;
+  fontWeight: TemplateFontWeight;
+  color: string;
+  align: TemplateTextAlign;
+  sceneText: string;
+  sceneAnimation: SceneAnim;
+  scenePosition: ScenePos;
+  sceneDuration: number;
+  selectedMusicTrackUrl: string;
+};
+
 const initialUploadState: UploadState = {
   file: null,
   progress: 0,
@@ -121,6 +141,36 @@ function parseApiError(data: unknown): string {
   if (o.detail) parts.push(o.detail);
   if (o.missingFields?.length) parts.push(`Missing: ${o.missingFields.join(", ")}`);
   return parts.length ? parts.join(" — ") : "Request failed";
+}
+
+function buildRuntimeTemplateConfig(raw: unknown, editor: TemplateEditorState): unknown {
+  const base = raw && typeof raw === "object" ? { ...(raw as Record<string, unknown>) } : {};
+  const scenes = Array.isArray(base.scenes) ? [...(base.scenes as unknown[])] : [];
+  if (editor.sceneText.trim()) {
+    scenes[0] = {
+      ...(scenes[0] && typeof scenes[0] === "object" ? (scenes[0] as Record<string, unknown>) : {}),
+      duration: editor.sceneDuration,
+      textLayers: [
+        {
+          text: editor.sceneText.trim(),
+          animation: editor.sceneAnimation,
+          position: editor.scenePosition,
+        },
+      ],
+    };
+  }
+  const next = {
+    ...base,
+    ...(scenes.length ? { scenes } : {}),
+    font: {
+      family: editor.fontFamily,
+      size: editor.fontSize,
+      color: editor.color,
+      weight: editor.fontWeight,
+      align: editor.align,
+    },
+  };
+  return next;
 }
 
 type LoadedVideoPayload = {
@@ -199,6 +249,18 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
   const [templateRetainUrls, setTemplateRetainUrls] = useState<(string | null)[]>(() => Array(12).fill(null));
   const [templateRemoteAudio, setTemplateRemoteAudio] = useState<string | null>(null);
   const [editIsTemplate, setEditIsTemplate] = useState(false);
+  const [templateEditor, setTemplateEditor] = useState<TemplateEditorState>({
+    fontFamily: "Cairo",
+    fontSize: 34,
+    fontWeight: "bold",
+    color: "#ffffff",
+    align: "center",
+    sceneText: "",
+    sceneAnimation: "fade-in",
+    scenePosition: "center",
+    sceneDuration: 3,
+    selectedMusicTrackUrl: "",
+  });
 
   const isUploading = videoUpload.uploading || thumbnailUpload.uploading;
   const isTemplateMode = sourceMode === "template";
@@ -211,6 +273,10 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
     const n = normalizeTemplateConfig(selectedTemplate.config).slides.length;
     return Math.min(12, Math.max(1, n));
   }, [selectedTemplate, formData.videoType]);
+  const runtimeTemplateConfig = useMemo(
+    () => (selectedTemplate ? buildRuntimeTemplateConfig(selectedTemplate.config, templateEditor) : null),
+    [selectedTemplate, templateEditor]
+  );
   const isYoutubeMode = Boolean(formData.videoUrl.trim()) && !Boolean(videoUpload.file);
   const countries = useMemo(() => {
     const keys = Object.keys(COUNTRY_CONFIG);
@@ -368,11 +434,16 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
             setTemplateRetainUrls(next);
           }
           setTemplateRemoteAudio(typeof data.audio === "string" && data.audio.trim() ? data.audio.trim() : null);
+          setTemplateEditor((prev) => ({
+            ...prev,
+            selectedMusicTrackUrl: typeof data.audio === "string" && data.audio.trim() ? data.audio.trim() : "",
+          }));
           setTemplateMedia({ images: Array(10).fill(null), audioFile: null });
         } else {
           setSelectedTemplateId("");
           setTemplateRetainUrls(Array(12).fill(null));
           setTemplateRemoteAudio(null);
+          setTemplateEditor((prev) => ({ ...prev, selectedMusicTrackUrl: "" }));
         }
         setEditLoadState("ready");
       })
@@ -597,6 +668,8 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
               setTemplateAudioUploading(true);
               templateUploadedAudio = await uploadUnsignedToCloudinary(templateMedia.audioFile, "video");
               setTemplateAudioUploading(false);
+            } else if (templateEditor.selectedMusicTrackUrl.trim()) {
+              templateUploadedAudio = templateEditor.selectedMusicTrackUrl.trim();
             } else if (templateRemoteAudio?.trim()) {
               templateUploadedAudio = templateRemoteAudio.trim();
             }
@@ -974,6 +1047,8 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
                     />
                     {templateMedia.audioFile ? (
                       <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">{templateMedia.audioFile.name}</p>
+                    ) : templateEditor.selectedMusicTrackUrl ? (
+                      <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">Using selected library track</p>
                     ) : templateRemoteAudio ? (
                       <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">Using saved listing audio</p>
                     ) : selectedTemplate?.defaultAudio ? (
@@ -983,13 +1058,156 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
                     ) : null}
                   </div>
 
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Music library
+                      </label>
+                      <select
+                        value={templateEditor.selectedMusicTrackUrl}
+                        onChange={(event) => {
+                          const value = event.target.value;
+                          setTemplateMedia((prev) => ({ ...prev, audioFile: null }));
+                          setTemplateRemoteAudio(null);
+                          setTemplateEditor((prev) => ({ ...prev, selectedMusicTrackUrl: value }));
+                        }}
+                        className={uiTokens.select}
+                      >
+                        <option value="">Use template default music</option>
+                        {TEMPLATE_MUSIC_LIBRARY.map((track) => (
+                          <option key={track.id} value={track.url}>
+                            {track.title} - {track.mood}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 p-3 text-xs text-slate-600 dark:border-slate-700 dark:text-slate-300">
+                      TikTok-style audio: uploaded music overrides library, then default template audio is used as fallback.
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Font settings (Arabic + English)</p>
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                      <select
+                        value={templateEditor.fontFamily}
+                        onChange={(event) =>
+                          setTemplateEditor((prev) => ({ ...prev, fontFamily: event.target.value as TemplateFontFamily }))
+                        }
+                        className={uiTokens.select}
+                      >
+                        {(["Cairo", "Tajawal", "Almarai", "Poppins", "Inter", "Montserrat"] as const).map((f) => (
+                          <option key={f} value={f}>
+                            {f}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        type="number"
+                        min={14}
+                        max={72}
+                        value={templateEditor.fontSize}
+                        onChange={(event) =>
+                          setTemplateEditor((prev) => ({ ...prev, fontSize: Number(event.target.value) || 34 }))
+                        }
+                        className={uiTokens.input}
+                        placeholder="Font size"
+                      />
+                      <select
+                        value={templateEditor.fontWeight}
+                        onChange={(event) =>
+                          setTemplateEditor((prev) => ({ ...prev, fontWeight: event.target.value as TemplateFontWeight }))
+                        }
+                        className={uiTokens.select}
+                      >
+                        {(["normal", "medium", "semibold", "bold", "800", "900"] as const).map((w) => (
+                          <option key={w} value={w}>
+                            {w}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                      <input
+                        type="color"
+                        value={templateEditor.color}
+                        onChange={(event) => setTemplateEditor((prev) => ({ ...prev, color: event.target.value }))}
+                        className="h-11 w-full rounded-xl border border-slate-300 bg-white p-1 dark:border-slate-600 dark:bg-slate-800"
+                      />
+                      <select
+                        value={templateEditor.align}
+                        onChange={(event) =>
+                          setTemplateEditor((prev) => ({ ...prev, align: event.target.value as TemplateTextAlign }))
+                        }
+                        className={uiTokens.select}
+                      >
+                        {(["left", "center", "right"] as const).map((a) => (
+                          <option key={a} value={a}>
+                            {a}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        value={templateEditor.sceneText}
+                        onChange={(event) => setTemplateEditor((prev) => ({ ...prev, sceneText: event.target.value }))}
+                        className={uiTokens.input}
+                        placeholder="Scene headline text"
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                      <select
+                        value={templateEditor.sceneAnimation}
+                        onChange={(event) =>
+                          setTemplateEditor((prev) => ({ ...prev, sceneAnimation: event.target.value as SceneAnim }))
+                        }
+                        className={uiTokens.select}
+                      >
+                        {(["fade-in", "slide-up", "zoom-in"] as const).map((a) => (
+                          <option key={a} value={a}>
+                            {a}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="grid grid-cols-2 gap-2">
+                        <select
+                          value={templateEditor.scenePosition}
+                          onChange={(event) =>
+                            setTemplateEditor((prev) => ({ ...prev, scenePosition: event.target.value as ScenePos }))
+                          }
+                          className={uiTokens.select}
+                        >
+                          {(["top", "center", "bottom"] as const).map((p) => (
+                            <option key={p} value={p}>
+                              {p}
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          type="number"
+                          min={1}
+                          max={8}
+                          step={0.5}
+                          value={templateEditor.sceneDuration}
+                          onChange={(event) =>
+                            setTemplateEditor((prev) => ({
+                              ...prev,
+                              sceneDuration: Math.max(1, Number(event.target.value) || 3),
+                            }))
+                          }
+                          className={uiTokens.input}
+                          placeholder="Duration"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
                   {selectedTemplate ? (
                     <TemplateMotionPlayer
                       previewMode
                       isPlaying={!cinematicPreviewOpen}
-                      config={selectedTemplate.config}
+                      config={runtimeTemplateConfig ?? selectedTemplate.config}
                       images={templateLivePreviewImages}
-                      audioUrl={templateAudioPreviewUrl || null}
+                      audioUrl={templateAudioPreviewUrl || templateEditor.selectedMusicTrackUrl || null}
                       fallbackAudioUrl={selectedTemplate.defaultAudio}
                       title={formData.title || "Listing title"}
                       priceLine={

@@ -25,6 +25,17 @@ export default async function ShortsPage() {
       },
       orderBy: { createdAt: "desc" },
       include: {
+        template: {
+          select: {
+            id: true,
+            name: true,
+            type: true,
+            previewImage: true,
+            previewVideo: true,
+            defaultAudio: true,
+            config: true,
+          },
+        },
         channel: { select: { id: true, name: true, avatar: true, subscribersCount: true } },
       },
       take: 40,
@@ -64,6 +75,21 @@ export default async function ShortsPage() {
     title: v.title,
     videoUrl: v.videoUrl,
     thumbnail: v.thumbnail,
+    isTemplate: v.isTemplate,
+    templateId: v.templateId,
+    template: v.template
+      ? {
+          id: v.template.id,
+          name: v.template.name,
+          type: v.template.type,
+          previewImage: v.template.previewImage,
+          previewVideo: v.template.previewVideo,
+          defaultAudio: v.template.defaultAudio,
+          config: v.template.config,
+        }
+      : null,
+    images: v.images ?? [],
+    audio: v.audio ?? null,
     channelId: v.channelId,
     channelName: v.channel.name,
     channelAvatar: v.channel.avatar,

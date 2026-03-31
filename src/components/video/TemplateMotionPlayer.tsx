@@ -8,6 +8,7 @@ import {
   useState,
   type CSSProperties,
 } from "react";
+import { Almarai, Cairo, Inter, Montserrat, Poppins, Tajawal } from "next/font/google";
 import { normalizeTemplateConfig } from "@/lib/video-templates/normalize-config";
 import type { TemplateSlideAnimation } from "@/lib/video-templates/types";
 import { trackTemplateInteraction } from "@/lib/video-templates/track";
@@ -30,6 +31,13 @@ const TRANS_MS: Record<string, number> = {
   blur: 900,
 };
 
+const cairo = Cairo({ subsets: ["latin", "arabic"], weight: ["400", "600", "700", "800"] });
+const tajawal = Tajawal({ subsets: ["latin", "arabic"], weight: ["400", "500", "700", "800"] });
+const almarai = Almarai({ subsets: ["arabic"], weight: ["400", "700", "800"] });
+const poppins = Poppins({ subsets: ["latin"], weight: ["400", "500", "600", "700", "800"] });
+const inter = Inter({ subsets: ["latin"], weight: ["400", "500", "600", "700", "800", "900"] });
+const montserrat = Montserrat({ subsets: ["latin"], weight: ["400", "500", "600", "700", "800", "900"] });
+
 function typoClass(t?: string) {
   if (t === "serif-elegant") return "font-serif tracking-wide";
   if (t === "display-gold") return "font-serif font-bold text-amber-200 drop-shadow-lg";
@@ -46,6 +54,50 @@ function blockAnimClass(anim?: string) {
   if (anim === "fade-down") return "animate-[tmplFadeDown_0.7s_ease-out_both]";
   if (anim === "scale-in") return "animate-[tmplScaleIn_0.65s_ease-out_both]";
   return "animate-[tmplFadeUp_0.75s_ease-out_both]";
+}
+
+function sceneTextAnimClass(anim?: string) {
+  if (anim === "zoom-in") return "animate-[tmplScaleIn_0.6s_ease-out_both]";
+  if (anim === "slide-up") return "animate-[tmplFadeUp_0.6s_ease-out_both]";
+  return "animate-[tmplFadeStill_0.55s_ease-out_both]";
+}
+
+function fontClass(family?: string) {
+  switch (family) {
+    case "Cairo":
+      return cairo.className;
+    case "Tajawal":
+      return tajawal.className;
+    case "Almarai":
+      return almarai.className;
+    case "Poppins":
+      return poppins.className;
+    case "Inter":
+      return inter.className;
+    case "Montserrat":
+      return montserrat.className;
+    default:
+      return "";
+  }
+}
+
+function fontWeightValue(weight?: string): CSSProperties["fontWeight"] {
+  switch (weight) {
+    case "normal":
+      return 400;
+    case "medium":
+      return 500;
+    case "semibold":
+      return 600;
+    case "bold":
+      return 700;
+    case "800":
+      return 800;
+    case "900":
+      return 900;
+    default:
+      return undefined;
+  }
 }
 
 function slideMotionStyle(anim: TemplateSlideAnimation, durationSec: number): React.CSSProperties {
@@ -247,7 +299,18 @@ export default function TemplateMotionPlayer({
 
   const src = displayImages[slideIdx % displayImages.length] ?? displayImages[0];
   const slide = slides[slideIdx] ?? slides[0];
+  const scene = cfg.scenes?.[slideIdx] ?? cfg.scenes?.[slideIdx % (cfg.scenes?.length || 1)];
+  const sceneSrc = scene?.image?.trim() || src;
   const motionStyle = slide ? slideMotionStyle(slide.animation, slide.duration) : {};
+  const fontCfg = cfg.font;
+  const fontCls = fontClass(fontCfg?.family);
+  const textAlignClass =
+    fontCfg?.align === "left" ? "text-left" : fontCfg?.align === "right" ? "text-right" : "text-center";
+  const fontStyle: CSSProperties = {
+    fontSize: typeof fontCfg?.size === "number" ? `${fontCfg.size}px` : undefined,
+    color: fontCfg?.color,
+    fontWeight: fontWeightValue(fontCfg?.weight),
+  };
 
   if (!displayImages.length) {
     return (
@@ -292,8 +355,8 @@ export default function TemplateMotionPlayer({
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            key={`${slideIdx}-${src}`}
-            src={src}
+            key={`${slideIdx}-${sceneSrc}`}
+            src={sceneSrc}
             alt=""
             sizes={isShort ? "(max-width:768px) 100vw, 420px" : "(max-width:768px) 100vw, min(1200px, 90vw)"}
             className="h-full w-full object-cover"
@@ -336,6 +399,33 @@ export default function TemplateMotionPlayer({
         ) : null}
 
         <div className="pointer-events-none absolute inset-0 z-[3] flex flex-col justify-between px-4 md:px-8">
+          {scene?.textLayers?.length ? (
+            <div className="absolute inset-0 z-[6] flex flex-col px-4 md:px-8">
+              {scene.textLayers.map((layer, idx) => {
+                const posCls =
+                  layer.position === "top"
+                    ? "pt-8 items-center"
+                    : layer.position === "bottom"
+                      ? "mt-auto pb-12 items-center"
+                      : "my-auto items-center";
+                return (
+                  <div key={`${slideIdx}-${idx}-${layer.text}`} className={`flex ${posCls}`}>
+                    <p
+                      className={[
+                        "max-w-[92%] text-balance drop-shadow-2xl",
+                        sceneTextAnimClass(layer.animation),
+                        textAlignClass,
+                        fontCls,
+                      ].join(" ")}
+                      style={fontStyle}
+                    >
+                      {layer.text}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
           <div className={`flex min-h-0 flex-1 flex-col ${blockPositionClass(titlePos, "title")}`}>
             <div
               key={`t-${slideIdx}`}
