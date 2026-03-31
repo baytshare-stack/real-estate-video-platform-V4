@@ -23,7 +23,6 @@ import {
   Home,
   Loader2,
   MapPin,
-  Music2,
   Sparkles,
   Upload,
   Video,
@@ -32,8 +31,11 @@ import {
 } from "lucide-react";
 import type { LocationPatch } from "@/components/upload/MapLeafletPicker";
 import { uploadUnsignedToCloudinary } from "@/lib/cloudinaryDirectUpload";
-import { VIDEO_TEMPLATE_CATALOG } from "@/lib/video-templates/catalog";
-import type { TemplateEngineConfig } from "@/lib/video-templates/types";
+import TemplateMotionPlayer from "@/components/video/TemplateMotionPlayer";
+import TemplateGallery from "@/components/upload/TemplateGallery";
+import TemplateCinematicPreviewModal from "@/components/upload/TemplateCinematicPreviewModal";
+import { normalizeTemplateConfig } from "@/lib/video-templates/normalize-config";
+import type { TemplateListItemDto } from "@/lib/video-templates/types";
 
 const MapLeafletPicker = dynamic(() => import("@/components/upload/MapLeafletPicker"), {
   ssr: false,
@@ -111,16 +113,6 @@ const uiTokens = {
     "rounded-xl bg-blue-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-blue-700 active:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-70",
 };
 
-const TRANSITION_STYLES: Record<string, string> = {
-  "zoom-fade": "transition-all duration-700 ease-out scale-100 opacity-100",
-  "slide-fade": "transition-all duration-700 ease-out translate-x-0 opacity-100",
-  "blur-slide": "transition-all duration-700 ease-out blur-0 opacity-100",
-  "gold-fade": "transition-all duration-1000 ease-in-out opacity-100",
-  "cinematic-dissolve": "transition-all duration-1000 ease-in-out opacity-100",
-  "soft-fade": "transition-all duration-700 ease-in-out opacity-100",
-  "elegant-slide": "transition-all duration-800 ease-in-out translate-y-0 opacity-100",
-};
-
 function parseApiError(data: unknown): string {
   if (!data || typeof data !== "object") return "Request failed";
   const o = data as { error?: string; detail?: string; missingFields?: string[] };
@@ -151,6 +143,10 @@ type LoadedVideoPayload = {
   latitude: string;
   longitude: string;
   createdAt?: string;
+  isTemplate?: boolean;
+  templateId?: string;
+  images?: string[];
+  audio?: string | null;
 };
 
 export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: string }) {
@@ -192,22 +188,29 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
   });
   const [sourceMode, setSourceMode] = useState<TemplateSourceMode>("upload");
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
+  const [cinematicPreviewOpen, setCinematicPreviewOpen] = useState(false);
+  const [cinematicPreviewTemplate, setCinematicPreviewTemplate] = useState<TemplateListItemDto | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
   const [templateMedia, setTemplateMedia] = useState<LocalTemplateMedia>({ images: Array(10).fill(null), audioFile: null });
   const [templateImageUploading, setTemplateImageUploading] = useState(false);
   const [templateAudioUploading, setTemplateAudioUploading] = useState(false);
+  const [dbTemplates, setDbTemplates] = useState<TemplateListItemDto[]>([]);
+  const [templateLoadError, setTemplateLoadError] = useState("");
+  const [templateRetainUrls, setTemplateRetainUrls] = useState<(string | null)[]>(() => Array(12).fill(null));
+  const [templateRemoteAudio, setTemplateRemoteAudio] = useState<string | null>(null);
+  const [editIsTemplate, setEditIsTemplate] = useState(false);
 
   const isUploading = videoUpload.uploading || thumbnailUpload.uploading;
   const isTemplateMode = sourceMode === "template";
   const selectedTemplate = useMemo(
-    () => VIDEO_TEMPLATE_CATALOG.find((t) => t.slug === selectedTemplateId) ?? null,
-    [selectedTemplateId]
+    () => dbTemplates.find((t) => t.id === selectedTemplateId) ?? null,
+    [dbTemplates, selectedTemplateId]
   );
-  const templateSlots = selectedTemplate?.config.imageSlots ?? (formData.videoType === "short" ? 6 : 8);
-  const templateImageFiles = useMemo(
-    () => templateMedia.images.slice(0, templateSlots).filter((f): f is File => Boolean(f)),
-    [templateMedia.images, templateSlots]
-  );
+  const templateSlots = useMemo(() => {
+    if (!selectedTemplate) return formData.videoType === "short" ? 6 : 8;
+    const n = normalizeTemplateConfig(selectedTemplate.config).slides.length;
+    return Math.min(12, Math.max(1, n));
+  }, [selectedTemplate, formData.videoType]);
   const isYoutubeMode = Boolean(formData.videoUrl.trim()) && !Boolean(videoUpload.file);
   const countries = useMemo(() => {
     const keys = Object.keys(COUNTRY_CONFIG);
@@ -246,6 +249,15 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
     () => (templateMedia.audioFile ? URL.createObjectURL(templateMedia.audioFile) : ""),
     [templateMedia.audioFile]
   );
+
+  const templateLivePreviewImages = useMemo(() => {
+    return Array.from({ length: templateSlots }, (_, i) => {
+      const f = templateMedia.images[i];
+      if (f) return templatePreviewUrls[i];
+      const r = templateRetainUrls[i]?.trim();
+      return r || "";
+    }).filter(Boolean);
+  }, [templateSlots, templateMedia.images, templatePreviewUrls, templateRetainUrls]);
 
   const canSubmit = useMemo(
     () =>
@@ -343,6 +355,25 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
           videoType: data.videoType === "short" ? "short" : "long",
         });
         setEditListedAt(data.createdAt ? new Date(data.createdAt).toLocaleString() : null);
+        const tplEdit = Boolean(data.isTemplate);
+        setEditIsTemplate(tplEdit);
+        if (tplEdit) {
+          setSourceMode("template");
+          if (data.templateId) setSelectedTemplateId(data.templateId);
+          if (Array.isArray(data.images)) {
+            const next = Array(12).fill(null) as (string | null)[];
+            data.images.slice(0, 12).forEach((u, i) => {
+              next[i] = u;
+            });
+            setTemplateRetainUrls(next);
+          }
+          setTemplateRemoteAudio(typeof data.audio === "string" && data.audio.trim() ? data.audio.trim() : null);
+          setTemplateMedia({ images: Array(10).fill(null), audioFile: null });
+        } else {
+          setSelectedTemplateId("");
+          setTemplateRetainUrls(Array(12).fill(null));
+          setTemplateRemoteAudio(null);
+        }
         setEditLoadState("ready");
       })
       .catch((e) => {
@@ -356,6 +387,28 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
       cancelled = true;
     };
   }, [editVideoId]);
+
+  useEffect(() => {
+    if (status !== "authenticated") return;
+    let cancelled = false;
+    fetch("/api/templates")
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        if (Array.isArray(data)) {
+          setDbTemplates(data as TemplateListItemDto[]);
+          setTemplateLoadError("");
+        } else {
+          setTemplateLoadError("Could not load templates");
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setTemplateLoadError("Could not load templates");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [status]);
 
   if (status === "loading") {
     return (
@@ -477,18 +530,24 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
     const hasVideoRemote = Boolean(formData.videoUrl.trim()) && !hasVideoFile;
     const hasThumbFile = Boolean(thumbnailUpload.file);
     const hasVideo =
-      isTemplateMode || hasVideoFile || hasVideoRemote || Boolean(editVideoId && loadedMediaRef.current.videoUrl.trim());
+      isTemplateMode ||
+      hasVideoFile ||
+      hasVideoRemote ||
+      Boolean(editVideoId && (loadedMediaRef.current.videoUrl.trim() || editIsTemplate));
     const hasLocation = Boolean(formData.address.trim() || (formData.latitude.trim() && formData.longitude.trim()));
     if (!formData.title.trim() || !formData.price.trim() || !hasVideo || !hasLocation) {
       setError("Please fill required fields: title, video, location, and price.");
       return;
     }
     if (isTemplateMode) {
-      if (!selectedTemplate) {
+      if (!selectedTemplateId) {
         setError("Please select a template.");
         return;
       }
-      if (!templateImageFiles.length) {
+      const hasImg = Array.from({ length: templateSlots }).some(
+        (_, i) => Boolean(templateMedia.images[i]) || Boolean(templateRetainUrls[i]?.trim())
+      );
+      if (!hasImg) {
         setError("Please upload at least one template image.");
         return;
       }
@@ -520,16 +579,26 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
         try {
           if (isTemplateMode) {
             setTemplateImageUploading(true);
-            const uploadedImages = await Promise.all(
-              templateImageFiles.map((img) => uploadUnsignedToCloudinary(img, "image"))
-            );
-            templateUploadedImages = uploadedImages.filter(Boolean);
+            const ordered: string[] = [];
+            for (let i = 0; i < templateSlots; i++) {
+              const f = templateMedia.images[i];
+              const kept = templateRetainUrls[i]?.trim();
+              if (f) {
+                const u = await uploadUnsignedToCloudinary(f, "image");
+                if (u) ordered.push(u);
+              } else if (kept) {
+                ordered.push(kept);
+              }
+            }
+            templateUploadedImages = ordered.filter(Boolean);
             setTemplateImageUploading(false);
 
             if (templateMedia.audioFile) {
               setTemplateAudioUploading(true);
               templateUploadedAudio = await uploadUnsignedToCloudinary(templateMedia.audioFile, "video");
               setTemplateAudioUploading(false);
+            } else if (templateRemoteAudio?.trim()) {
+              templateUploadedAudio = templateRemoteAudio.trim();
             }
           }
 
@@ -627,13 +696,9 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
         latitude: formData.latitude || undefined,
         longitude: formData.longitude || undefined,
         isTemplate: isTemplateMode,
-        templateId: isTemplateMode ? selectedTemplate?.slug : undefined,
-        templatePayload: isTemplateMode
-          ? {
-              images: templateUploadedImages,
-              audioUrl: templateUploadedAudio || undefined,
-            }
-          : undefined,
+        templateId: isTemplateMode ? selectedTemplateId : undefined,
+        images: isTemplateMode ? templateUploadedImages : undefined,
+        audio: isTemplateMode && templateUploadedAudio ? templateUploadedAudio : undefined,
       };
 
       const isEdit = Boolean(editVideoId);
@@ -859,7 +924,11 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
 
                   {selectedTemplate ? (
                     <p className="text-xs text-slate-600 dark:text-slate-300">
-                      {selectedTemplate.name} ({selectedTemplate.type.toLowerCase()})
+                      {selectedTemplate.name} (
+                      {selectedTemplate.type.toLowerCase() === "short" || selectedTemplate.type === "SHORT"
+                        ? "short"
+                        : "long"}
+                      )
                     </p>
                   ) : (
                     <p className="text-xs text-amber-600 dark:text-amber-400">Choose a template to continue.</p>
@@ -872,14 +941,20 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
                         index={i}
                         file={templateMedia.images[i]}
                         preview={templatePreviewUrls[i]}
+                        remoteUrl={templateRetainUrls[i]}
                         disabled={isUploading}
-                        onPick={(file) =>
+                        onPick={(file) => {
+                          setTemplateRetainUrls((prev) => {
+                            const next = [...prev];
+                            next[i] = null;
+                            return next;
+                          });
                           setTemplateMedia((prev) => {
                             const next = [...prev.images];
                             next[i] = file;
                             return { ...prev, images: next };
-                          })
-                        }
+                          });
+                        }}
                       />
                     ))}
                   </div>
@@ -891,24 +966,41 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
                     <input
                       type="file"
                       accept="audio/mpeg,audio/mp3,audio/wav,audio/aac,audio/ogg"
-                      onChange={(event) =>
-                        setTemplateMedia((prev) => ({ ...prev, audioFile: event.target.files?.[0] || null }))
-                      }
+                      onChange={(event) => {
+                        setTemplateRemoteAudio(null);
+                        setTemplateMedia((prev) => ({ ...prev, audioFile: event.target.files?.[0] || null }));
+                      }}
                       className={uiTokens.input}
                     />
                     {templateMedia.audioFile ? (
                       <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">{templateMedia.audioFile.name}</p>
+                    ) : templateRemoteAudio ? (
+                      <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">Using saved listing audio</p>
+                    ) : selectedTemplate?.defaultAudio ? (
+                      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                        Default template music will be used if you skip upload.
+                      </p>
                     ) : null}
                   </div>
 
-                  <TemplateInlinePreview
-                    config={selectedTemplate?.config}
-                    images={templatePreviewUrls.filter(Boolean)}
-                    audioUrl={templateAudioPreviewUrl}
-                    title={formData.title}
-                    price={formData.price}
-                    location={`${formData.city || ""}${formData.country ? `, ${formData.country}` : ""}`}
-                  />
+                  {selectedTemplate ? (
+                    <TemplateMotionPlayer
+                      previewMode
+                      isPlaying={!cinematicPreviewOpen}
+                      config={selectedTemplate.config}
+                      images={templateLivePreviewImages}
+                      audioUrl={templateAudioPreviewUrl || null}
+                      fallbackAudioUrl={selectedTemplate.defaultAudio}
+                      title={formData.title || "Listing title"}
+                      priceLine={
+                        formData.price
+                          ? `${new Intl.NumberFormat("en-US").format(Number(formData.price))} ${formData.currency}`
+                          : "Price"
+                      }
+                      locationLine={`${formData.city || ""}${formData.country ? `, ${formData.country}` : ""}` || "Location"}
+                      isShort={formData.videoType === "short"}
+                    />
+                  ) : null}
                 </div>
               )}
 
@@ -1113,50 +1205,62 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
                 <h3 className="text-base font-semibold text-slate-900 dark:text-white">Choose Template</h3>
                 <button
                   type="button"
-                  onClick={() => setTemplateModalOpen(false)}
+                  onClick={() => {
+                    setTemplateModalOpen(false);
+                    setCinematicPreviewOpen(false);
+                    setCinematicPreviewTemplate(null);
+                  }}
                   className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
                 >
                   <X className="h-4 w-4" />
                 </button>
               </div>
               <div className="max-h-[calc(85vh-64px)] overflow-y-auto p-5">
-                {(["SHORT", "LONG"] as const).map((kind) => {
-                  const items = VIDEO_TEMPLATE_CATALOG.filter((t) => t.type === kind);
-                  return (
-                    <div key={kind} className="mb-6">
-                      <p className="mb-3 text-sm font-bold text-slate-700 dark:text-slate-200">{kind} Templates</p>
-                      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
-                        {items.map((tpl) => (
-                          <button
-                            type="button"
-                            key={tpl.slug}
-                            onClick={() => {
-                              setSelectedTemplateId(tpl.slug);
-                              setFormData((prev) => ({ ...prev, videoType: tpl.type === "SHORT" ? "short" : "long" }));
-                              setSourceMode("template");
-                              setTemplateModalOpen(false);
-                            }}
-                            className="overflow-hidden rounded-xl border border-slate-300 text-left transition hover:border-indigo-500 dark:border-slate-700"
-                          >
-                            {tpl.previewImage ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img src={tpl.previewImage} alt={tpl.name} className="h-28 w-full object-cover" loading="lazy" />
-                            ) : (
-                              <div className="h-28 w-full bg-slate-200 dark:bg-slate-800" />
-                            )}
-                            <div className="p-2">
-                              <p className="line-clamp-1 text-xs font-semibold text-slate-800 dark:text-slate-100">{tpl.name}</p>
-                              <p className="text-[11px] text-slate-500 dark:text-slate-400">{tpl.type.toLowerCase()}</p>
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
+                <TemplateGallery
+                  templates={dbTemplates}
+                  selectedTemplateId={selectedTemplateId}
+                  error={templateLoadError}
+                  onPreview={(tpl) => {
+                    const kind = tpl.type.toLowerCase() === "short" ? "short" : "long";
+                    setSelectedTemplateId(tpl.id);
+                    setFormData((prev) => ({ ...prev, videoType: kind }));
+                    setSourceMode("template");
+                    setTemplateRetainUrls(Array(12).fill(null));
+                    setCinematicPreviewTemplate(tpl);
+                    setCinematicPreviewOpen(true);
+                  }}
+                />
               </div>
             </div>
           </div>
+        ) : null}
+
+        {cinematicPreviewOpen && cinematicPreviewTemplate ? (
+          <TemplateCinematicPreviewModal
+            template={cinematicPreviewTemplate}
+            isOpen={cinematicPreviewOpen}
+            listingTitle={formData.title || "Listing title"}
+            priceLine={
+              formData.price
+                ? `${new Intl.NumberFormat("en-US").format(Number(formData.price))} ${formData.currency}`
+                : "Price"
+            }
+            locationLine={`${formData.city || ""}${formData.country ? `, ${formData.country}` : ""}` || "Location"}
+            onClose={() => {
+              setCinematicPreviewOpen(false);
+              setCinematicPreviewTemplate(null);
+            }}
+            onUseTemplate={(tpl) => {
+              const kind = tpl.type.toLowerCase() === "short" ? "short" : "long";
+              setSelectedTemplateId(tpl.id);
+              setFormData((prev) => ({ ...prev, videoType: kind }));
+              setSourceMode("template");
+              setTemplateRetainUrls(Array(12).fill(null));
+              setCinematicPreviewOpen(false);
+              setCinematicPreviewTemplate(null);
+              setTemplateModalOpen(false);
+            }}
+          />
         ) : null}
       </div>
     </div>
@@ -1293,16 +1397,19 @@ function TemplateImageSlot({
   index,
   file,
   preview,
+  remoteUrl,
   disabled,
   onPick,
 }: {
   index: number;
   file: File | null;
   preview: string;
+  remoteUrl?: string | null;
   disabled: boolean;
   onPick: (file: File | null) => void;
 }) {
   const ref = useRef<HTMLInputElement>(null);
+  const showSrc = preview || remoteUrl?.trim() || "";
   return (
     <div className="rounded-xl border border-slate-300 p-2 dark:border-slate-700">
       <input
@@ -1319,86 +1426,23 @@ function TemplateImageSlot({
         onClick={() => ref.current?.click()}
         className="flex w-full flex-col items-center gap-2 rounded-lg bg-slate-50 p-2 text-xs hover:bg-slate-100 disabled:opacity-60 dark:bg-slate-800 dark:hover:bg-slate-700"
       >
-        {preview ? (
+        {showSrc ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={preview} alt={`Template slot ${index + 1}`} className="h-20 w-full rounded object-cover" loading="lazy" />
+          <img
+            src={showSrc}
+            alt={`Template slot ${index + 1}`}
+            className="h-20 w-full rounded object-cover"
+            loading="lazy"
+          />
         ) : (
           <div className="flex h-20 w-full items-center justify-center rounded bg-slate-200 text-slate-500 dark:bg-slate-700 dark:text-slate-300">
             <ImagePlus className="h-4 w-4" />
           </div>
         )}
-        <span className="font-medium text-slate-600 dark:text-slate-300">{file ? "Replace image" : `Image ${index + 1}`}</span>
+        <span className="font-medium text-slate-600 dark:text-slate-300">
+          {file || remoteUrl ? "Replace image" : `Image ${index + 1}`}
+        </span>
       </button>
-    </div>
-  );
-}
-
-function TemplateInlinePreview({
-  config,
-  images,
-  audioUrl,
-  title,
-  price,
-  location,
-}: {
-  config?: TemplateEngineConfig;
-  images: string[];
-  audioUrl: string;
-  title: string;
-  price: string;
-  location: string;
-}) {
-  const [idx, setIdx] = useState(0);
-  useEffect(() => {
-    if (images.length <= 1) return;
-    const t = window.setInterval(() => {
-      setIdx((n) => (n + 1) % images.length);
-    }, config?.slideDurationMs ?? 3000);
-    return () => window.clearInterval(t);
-  }, [images.length, config?.slideDurationMs]);
-
-  if (!images.length) {
-    return (
-      <div className="flex h-56 items-center justify-center rounded-xl border border-dashed border-slate-300 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-300">
-        Add template images to preview.
-      </div>
-    );
-  }
-
-  const src = images[idx] || images[0];
-  const position = config?.overlay?.titlePosition ?? "bottom";
-  const transition = TRANSITION_STYLES[config?.transition ?? "soft-fade"] ?? TRANSITION_STYLES["soft-fade"];
-  const textTone =
-    config?.textStyle === "luxury"
-      ? "font-serif text-amber-100"
-      : config?.textStyle === "minimal"
-        ? "font-sans font-medium text-white"
-        : "font-sans font-extrabold uppercase text-white";
-
-  return (
-    <div className="space-y-2">
-      <div className="relative aspect-[9/16] w-full max-w-[320px] overflow-hidden rounded-xl bg-black">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={src} alt="" className={`absolute inset-0 h-full w-full object-cover ${transition}`} loading="lazy" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/40" />
-        <div
-          className={`absolute inset-x-0 flex px-3 ${
-            position === "top" ? "top-3" : position === "center" ? "top-1/2 -translate-y-1/2" : "bottom-3"
-          }`}
-        >
-          <div className="space-y-1">
-            <p className={`text-sm ${textTone}`}>{title || "Listing title"}</p>
-            <p className="text-xs text-white/95">{price ? `$${price}` : "Price"}</p>
-            <p className="text-xs text-white/85">{location || "Location"}</p>
-          </div>
-        </div>
-      </div>
-      {audioUrl ? (
-        <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
-          <Music2 className="h-3.5 w-3.5" />
-          <audio src={audioUrl} controls className="h-8 w-full max-w-xs" />
-        </div>
-      ) : null}
     </div>
   );
 }

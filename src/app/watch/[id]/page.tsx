@@ -12,9 +12,8 @@ import { getYouTubeEmbedUrl } from '@/lib/youtube';
 import WatchPageComments from '@/components/watch/WatchPageComments';
 import SubscriptionNotifyDropdown, { type NotifyPref } from '@/components/channel/SubscriptionNotifyDropdown';
 import { formatSubscriberCount } from '@/lib/formatSubscribers';
-import TemplateSlideshow from '@/components/watch/TemplateSlideshow';
+import TemplateMotionPlayer from '@/components/video/TemplateMotionPlayer';
 import { trackTemplateInteraction } from '@/lib/video-templates/track';
-import type { TemplateEngineConfig } from '@/lib/video-templates/types';
 
 function isNotifyPref(v: unknown): v is NotifyPref {
   return v === 'ALL' || v === 'PERSONALIZED' || v === 'NONE';
@@ -146,15 +145,15 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
   const formattedPrice = `${new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(video.price || 0)} ${video.currency || 'USD'}`;
   const locationString = video.location || `${video.city || ''}, ${video.country || ''}`.replace(/^,\s*|\s*,$/g, '');
 
-  const payload = (video.templatePayload && typeof video.templatePayload === 'object'
-    ? video.templatePayload
-    : {}) as { images?: unknown; audioUrl?: unknown };
-  const templateImages = Array.isArray(payload.images)
-    ? payload.images.filter((u): u is string => typeof u === 'string' && u.length > 0)
+  const templateImages = Array.isArray(video.images)
+    ? video.images.filter((u: unknown): u is string => typeof u === 'string' && u.length > 0)
     : [];
-  const templateAudio =
-    typeof payload.audioUrl === 'string' && payload.audioUrl.trim() ? payload.audioUrl.trim() : null;
-  const templateConfig = video.template?.config as TemplateEngineConfig | undefined;
+  const templateAudioUser =
+    typeof video.audio === 'string' && video.audio.trim() ? video.audio.trim() : null;
+  const templateDefaultAudio =
+    typeof video.template?.defaultAudio === 'string' && video.template.defaultAudio.trim()
+      ? video.template.defaultAudio.trim()
+      : null;
   const chIdForTrack = video.channelId || channel.id;
 
   return (
@@ -173,19 +172,19 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
               : "w-full aspect-video",
           ].join(" ")}
         >
-            {video.isTemplate && templateConfig ? (
-              <TemplateSlideshow
-                videoId={videoId}
-                channelId={chIdForTrack}
-                config={templateConfig}
+            {video.isTemplate && video.template?.config ? (
+              <TemplateMotionPlayer
+                config={video.template.config}
                 images={templateImages}
-                audioUrl={templateAudio}
+                audioUrl={templateAudioUser}
+                fallbackAudioUrl={templateDefaultAudio}
                 title={video.title}
                 priceLine={formattedPrice}
                 locationLine={locationString || 'Prime location'}
                 channelName={channel.channelName || 'Channel'}
                 channelAvatarUrl={channel.avatarUrl}
                 isShort={Boolean(video.isShort)}
+                trackView={{ videoId, channelId: chIdForTrack }}
               />
             ) : video.videoUrl ? (
                 getYouTubeEmbedUrl(video.videoUrl) ? (

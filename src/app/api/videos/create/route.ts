@@ -31,10 +31,8 @@ type CreateBody = {
   longitude?: unknown;
   isTemplate?: boolean;
   templateId?: string;
-  templatePayload?: {
-    images?: string[];
-    audioUrl?: string;
-  };
+  images?: unknown;
+  audio?: unknown;
 };
 
 export async function POST(req: Request) {
@@ -85,7 +83,8 @@ export async function POST(req: Request) {
       longitude,
       isTemplate,
       templateId,
-      templatePayload,
+      images: imagesField,
+      audio: audioField,
     } = body;
 
     type VideoPropertyType =
@@ -156,19 +155,32 @@ export async function POST(req: Request) {
 
     const missingFields: string[] = [];
     const isTemplateMode = Boolean(isTemplate);
-    let templateRecord: { id: string; type: "SHORT" | "LONG"; previewImage: string | null } | null = null;
+    let templateRecord: { id: string; type: string; previewImage: string } | null = null;
+
+    const imageList: string[] = Array.isArray(imagesField)
+      ? imagesField
+          .filter((u): u is string => typeof u === "string" && u.trim().length > 0)
+          .map((u) => u.trim())
+      : [];
+    const audioStr =
+      typeof audioField === "string" && audioField.trim() ? audioField.trim() : "";
+
     if (isTemplateMode) {
       const templateKey = typeof templateId === "string" ? templateId.trim() : "";
       if (!templateKey) missingFields.push("templateId");
       if (templateKey) {
-        templateRecord = await prisma.videoTemplate.findFirst({
-          where: { isActive: true, OR: [{ id: templateKey }, { slug: templateKey }] },
+        templateRecord = await prisma.template.findUnique({
+          where: { id: templateKey },
           select: { id: true, type: true, previewImage: true },
         });
         if (!templateRecord) {
-          return NextResponse.json({ error: "Template not found" }, { status: 404 });
+          return NextResponse.json(
+            { error: "Template not found. Run `npx prisma migrate deploy` and `npx prisma db seed`." },
+            { status: 404 }
+          );
         }
       }
+      if (!imageList.length) missingFields.push("images");
     }
 
     if (!title?.trim()) missingFields.push("title");
@@ -282,10 +294,7 @@ export async function POST(req: Request) {
     const videoUrlStr = isTemplateMode ? null : String(videoUrl).trim();
     let thumbnailFinal = thumbnail?.trim() || "";
     if (isTemplateMode && !thumbnailFinal) {
-      const firstImage =
-        Array.isArray(templatePayload?.images) && templatePayload?.images.length
-          ? String(templatePayload.images[0] || "").trim()
-          : "";
+      const firstImage = imageList.length ? imageList[0] : "";
       thumbnailFinal = firstImage || templateRecord?.previewImage || "";
     }
     if (!thumbnailFinal) {
@@ -298,11 +307,14 @@ export async function POST(req: Request) {
         description: description ? String(description) : undefined,
         videoUrl: videoUrlStr,
         thumbnail: thumbnailFinal,
-        isShort: isTemplateMode ? templateRecord?.type === "SHORT" : videoTypeValue === "short",
+        isShort: isTemplateMode
+          ? String(templateRecord?.type ?? "").toLowerCase() === "short"
+          : videoTypeValue === "short",
         isDemo: false,
         isTemplate: isTemplateMode,
         templateId: isTemplateMode ? templateRecord?.id : null,
-        templatePayload: isTemplateMode && templatePayload ? (templatePayload as object) : null,
+        images: isTemplateMode ? imageList : [],
+        audio: isTemplateMode && audioStr ? audioStr : null,
         channelId: channel.id,
         // Used for auto-generated playlists on the channel page.
         propertyType: videoPropertyTypeValue,

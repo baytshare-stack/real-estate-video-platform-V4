@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "prisma generate && next build",
     "postinstall": "prisma generate",
-    "start": "next start"
+    "start": "next start",
+    "prisma:generate": "prisma generate",
+    "prisma:seed": "tsx prisma/seed.ts",
+    "lint": "eslint . --ext .ts,.tsx,.js,.jsx"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

@@ -1,49 +1,64 @@
-import type { VideoTemplateType } from "@prisma/client";
+export type TemplateSlideAnimation =
+  | "zoom-in"
+  | "zoom-out"
+  | "pan-left"
+  | "pan-right"
+  | "fade"
+  | "blur";
 
-export type TemplateThemeConfig = {
-  overlay?: string;
-  titlePosition?: "top" | "center" | "bottom";
-  accent?: string;
-  typography?: "sans-bold" | "serif-elegant" | "display-gold";
+export type TemplateTransitionKind = "fade" | "blur";
+
+export type TemplateOverlayPosition = "top" | "center" | "bottom";
+
+export type TemplateOverlayAnim = "fade-up" | "fade-down" | "scale-in";
+
+export type TemplateSlideDef = {
+  duration: number;
+  animation: TemplateSlideAnimation;
 };
 
-/** Stored in VideoTemplate.config (JSON). Consumed by TemplateSlideshow. */
-export type TemplateEngineConfig = {
+export type TemplateOverlayBlock = {
+  position: TemplateOverlayPosition;
+  animation?: TemplateOverlayAnim;
+};
+
+/** Stored in Template.config (JSON). */
+export type TemplateMotionConfig = {
+  slides: TemplateSlideDef[];
+  transition?: TemplateTransitionKind | string;
+  overlay?: {
+    title?: TemplateOverlayBlock;
+    price?: TemplateOverlayBlock;
+    location?: TemplateOverlayBlock;
+  };
+  theme?: {
+    overlay?: string;
+    titlePosition?: TemplateOverlayPosition;
+    typography?: "sans-bold" | "serif-elegant" | "display-gold";
+    accent?: string;
+  };
+  /** 0–1 film grain */
+  grainOpacity?: number;
+  showPriceBadge?: boolean;
+  showChannelBranding?: boolean;
+  defaultPlaceholders?: string[];
+  audio?: { loop?: boolean; volume?: number };
+  /** Legacy catalog fields (ignored if slides present) */
   engineVersion?: number;
   duration?: number;
   slideDurationMs?: number;
-  transition?: string;
-  animation?: "scale-in" | "scale-out" | "fade" | "blur" | "slide-left" | "slide-right";
-  textStyle?: "bold-center" | "minimal" | "luxury";
+  animation?: string;
+  textStyle?: string;
   kenBurns?: boolean;
-  grainOpacity?: number;
-  overlay?: {
-    titlePosition?: "top" | "center" | "bottom";
-    pricePosition?: "top" | "center" | "bottom";
-    locationPosition?: "top" | "center" | "bottom";
-  };
-  theme?: TemplateThemeConfig;
-  audio?: { loop?: boolean; volume?: number };
-  /** Fallback images when listing has none */
-  defaultPlaceholders?: string[];
-  showPriceBadge?: boolean;
-  showChannelBranding?: boolean;
   imageSlots?: number;
 };
 
-export type TemplatePayload = {
-  images?: string[];
-  audioUrl?: string | null;
-  contactPhone?: string | null;
-  contactWhatsapp?: string | null;
-  contactEmail?: string | null;
-};
-
-export type CatalogTemplate = {
-  slug: string;
+export type TemplateListItemDto = {
+  id: string;
   name: string;
-  type: VideoTemplateType;
-  previewImage: string | null;
-  sortOrder: number;
-  config: TemplateEngineConfig;
+  type: string;
+  previewImage: string;
+  previewVideo: string | null;
+  defaultAudio: string | null;
+  config: unknown;
 };

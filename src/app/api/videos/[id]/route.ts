@@ -92,6 +92,9 @@ type Body = {
   address?: string;
   latitude?: unknown;
   longitude?: unknown;
+  templateId?: string;
+  images?: unknown;
+  audio?: unknown;
 };
 
 async function assertOwnerVideo(id: string, userId: string) {
@@ -99,6 +102,7 @@ async function assertOwnerVideo(id: string, userId: string) {
     where: { id },
     include: {
       property: true,
+      template: true,
       channel: { select: { ownerId: true } },
     },
   });
@@ -154,6 +158,21 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       latitude: p.latitude != null ? String(p.latitude) : "",
       longitude: p.longitude != null ? String(p.longitude) : "",
       createdAt: video.createdAt.toISOString(),
+      isTemplate: video.isTemplate,
+      templateId: video.templateId,
+      images: video.images ?? [],
+      audio: video.audio ?? null,
+      template: video.template
+        ? {
+            id: video.template.id,
+            name: video.template.name,
+            type: video.template.type,
+            previewImage: video.template.previewImage,
+            previewVideo: video.template.previewVideo,
+            defaultAudio: video.template.defaultAudio,
+            config: video.template.config,
+          }
+        : null,
     });
   } catch (e) {
     console.error("VIDEO GET ERROR:", e);
@@ -213,6 +232,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       address,
       latitude,
       longitude,
+      templateId: bodyTemplateId,
+      images: bodyImages,
+      audio: bodyAudio,
     } = body;
 
     const missingFields: string[] = [];
@@ -229,7 +251,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
     const incomingUrl = typeof videoUrl === "string" ? videoUrl.trim() : "";
     const mergedVideoUrl = incomingUrl || (existing.videoUrl?.trim() ?? "");
-    if (!mergedVideoUrl) missingFields.push("videoUrl");
+    if (!existing.isTemplate && !mergedVideoUrl) missingFields.push("videoUrl");
 
     if (missingFields.length > 0) {
       return NextResponse.json({ error: "Missing required fields", missingFields }, { status: 400 });
@@ -325,16 +347,67 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       ? `${rawAddress} (lat:${latitudeNumber}, lng:${longitudeNumber})`
       : rawAddress || undefined;
 
+    let templateIdFinal: string | null = existing.templateId;
+    if (existing.isTemplate && typeof bodyTemplateId === "string" && bodyTemplateId.trim()) {
+      const tpl = await prisma.template.findUnique({
+        where: { id: bodyTemplateId.trim() },
+        select: { id: true, type: true },
+      });
+      if (!tpl) {
+        return NextResponse.json({ error: "Template not found" }, { status: 404 });
+      }
+      templateIdFinal = tpl.id;
+    }
+
+    let imagesFinal = existing.images ?? [];
+    if (existing.isTemplate && Array.isArray(bodyImages)) {
+      imagesFinal = bodyImages
+        .filter((u): u is string => typeof u === "string" && u.trim().length > 0)
+        .map((u) => u.trim());
+      if (!imagesFinal.length) {
+        return NextResponse.json({ error: "Template listings require at least one image URL", missingFields: ["images"] }, { status: 400 });
+      }
+    }
+
+    let audioFinal: string | null = existing.audio ?? null;
+    if (existing.isTemplate && bodyAudio !== undefined) {
+      audioFinal =
+        typeof bodyAudio === "string" && bodyAudio.trim() ? bodyAudio.trim() : null;
+    }
+
+    let templateTypeForShort: string | undefined;
+    if (existing.isTemplate && templateIdFinal) {
+      const t = await prisma.template.findUnique({
+        where: { id: templateIdFinal },
+        select: { type: true },
+      });
+      templateTypeForShort = t?.type;
+    }
+    const isShortFinal = existing.isTemplate
+      ? String(templateTypeForShort ?? "").toLowerCase() === "short"
+      : videoTypeValue === "short";
+
+    if (existing.isTemplate && imagesFinal.length && (!thumbIncoming || !thumbIncoming.length)) {
+      thumbnailFinal = imagesFinal[0] || thumbnailFinal;
+    }
+
     const updated = await prisma.$transaction(async (tx) => {
       const v = await tx.video.update({
         where: { id },
         data: {
           title: String(title).trim(),
           description: description ? String(description).trim() : null,
-          videoUrl: mergedVideoUrl,
+          videoUrl: existing.isTemplate ? existing.videoUrl : mergedVideoUrl,
           thumbnail: thumbnailFinal,
-          isShort: videoTypeValue === "short",
+          isShort: isShortFinal,
           propertyType: videoPropertyTypeValue,
+          ...(existing.isTemplate
+            ? {
+                images: imagesFinal,
+                audio: audioFinal,
+                templateId: templateIdFinal,
+              }
+            : {}),
         },
       });
       await tx.property.update({

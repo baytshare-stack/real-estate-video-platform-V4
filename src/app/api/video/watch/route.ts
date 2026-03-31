@@ -4,10 +4,6 @@ import prisma from "@/lib/prisma";
 import { safeFindFirst, safeFindUnique } from "@/lib/safePrisma";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
-function digitsOnly(s: string) {
-  return s.replace(/\D/g, "");
-}
-
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
@@ -74,31 +70,17 @@ export async function GET(req: Request) {
     const contactPhoneCode = video.channel?.owner?.phoneCode || "";
     const contactPhoneNumber = video.channel?.owner?.phoneNumber || "";
 
-    const pay =
-      video.templatePayload && typeof video.templatePayload === "object"
-        ? (video.templatePayload as Record<string, unknown>)
-        : {};
-
     let rawPhone: string | null = null;
     if (contactPhoneNumber) {
       rawPhone = `+${contactPhoneCode.replace("+", "")} ${contactPhoneNumber}`;
-    }
-    if (typeof pay.contactPhone === "string" && pay.contactPhone.trim()) {
-      rawPhone = pay.contactPhone.trim();
     }
 
     let whatsappLink: string | null = null;
     if (contactPhoneNumber) {
       whatsappLink = `https://wa.me/${contactPhoneCode.replace("+", "")}${contactPhoneNumber}?text=I%20am%20interested%20in%20this%20property%20and%20would%20like%20more%20information.`;
     }
-    if (typeof pay.contactWhatsapp === "string" && pay.contactWhatsapp.trim()) {
-      const d = digitsOnly(pay.contactWhatsapp);
-      if (d) {
-        whatsappLink = `https://wa.me/${d}?text=I%20am%20interested%20in%20this%20property%20and%20would%20like%20more%20information.`;
-      }
-    }
 
-    const contactEmail = typeof pay.contactEmail === "string" && pay.contactEmail.trim() ? pay.contactEmail.trim() : null;
+    const contactEmail: string | null = null;
 
     let contactInfo: {
       rawPhone: string | null;
@@ -117,10 +99,11 @@ export async function GET(req: Request) {
     const templateDto = tpl
       ? {
           id: tpl.id,
-          slug: tpl.slug,
           name: tpl.name,
           type: tpl.type,
           previewImage: tpl.previewImage,
+          previewVideo: tpl.previewVideo,
+          defaultAudio: tpl.defaultAudio,
           config: tpl.config,
         }
       : null;
@@ -132,7 +115,8 @@ export async function GET(req: Request) {
       isShort: video.isShort,
       isTemplate: video.isTemplate,
       templateId: video.templateId,
-      templatePayload: video.templatePayload,
+      images: video.images ?? [],
+      audio: video.audio ?? null,
       template: templateDto,
       playbackId: "",
       title: video.title,

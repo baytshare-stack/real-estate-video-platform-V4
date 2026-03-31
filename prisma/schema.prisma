@@ -174,25 +174,21 @@ model Subscription {
   @@unique([subscriberId, channelId])
 }
 
-enum VideoTemplateType {
-  SHORT
-  LONG
-}
-
-/// Premium slideshow / motion templates (short + long). Referenced by Video.templateId when isTemplate is true.
-model VideoTemplate {
-  id           String            @id @default(cuid())
-  slug         String            @unique
+/// Data-driven motion templates (short / long). Referenced by Video.templateId when isTemplate is true.
+model Template {
+  id           String   @id @default(cuid())
   name         String
-  type         VideoTemplateType
-  previewImage String?
+  /// "short" | "long"
+  type         String
+  previewImage String
+  previewVideo String?
   config       Json
-  sortOrder    Int               @default(0)
-  isActive     Boolean           @default(true)
-  createdAt    DateTime          @default(now())
+  defaultAudio String?
+  createdAt    DateTime @default(now())
   videos       Video[]
 
-  @@index([type, isActive, sortOrder])
+  @@index([type])
+  @@map("Template")
 }
 
 model Video {
@@ -213,19 +209,21 @@ model Video {
   /// Denormalized field used for auto-generated property playlists.
   /// Optional for backwards compatibility with older videos.
   propertyType VideoPropertyType?
-  /// Slideshow / template-based listing (no traditional video file required).
-  isTemplate      Boolean        @default(false)
-  templateId      String?
-  /// Instance data: images[], audioUrl, optional contact overrides (phone, whatsapp, email).
-  templatePayload Json?
-  createdAt   DateTime  @default(now())
+  /// Template-based listing (no traditional video file required).
+  isTemplate Boolean @default(false)
+  templateId String?
+  /// Uploaded template frame URLs (ordered).
+  images     String[] @default([])
+  /// User-uploaded music URL; falls back to Template.defaultAudio when null.
+  audio      String?
+  createdAt  DateTime @default(now())
   comments    Comment[]
   videoReactions VideoReaction[]
   shares      VideoShare[]
   property    Property?
   adPlacements AdPlacement[]
   channel     Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  template    VideoTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  template Template? @relation(fields: [templateId], references: [id], onDelete: SetNull)
 
   @@index([channelId, moderationStatus])
   @@index([channelId, isShort])
