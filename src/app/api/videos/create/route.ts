@@ -31,6 +31,7 @@ type CreateBody = {
   longitude?: unknown;
   isTemplate?: boolean;
   templateId?: string;
+  templateConfig?: unknown;
   images?: unknown;
   audio?: unknown;
 };
@@ -83,6 +84,7 @@ export async function POST(req: Request) {
       longitude,
       isTemplate,
       templateId,
+      templateConfig,
       images: imagesField,
       audio: audioField,
     } = body;
@@ -171,7 +173,7 @@ export async function POST(req: Request) {
       if (templateKey) {
         templateRecord = await prisma.template.findUnique({
           where: { id: templateKey },
-          select: { id: true, type: true, previewImage: true },
+          select: { id: true, type: true, previewImage: true, config: true },
         });
         if (!templateRecord) {
           return NextResponse.json(
@@ -337,6 +339,13 @@ export async function POST(req: Request) {
       } as any),
       include: { property: true },
     });
+
+    if (isTemplateMode && templateRecord && templateConfig && typeof templateConfig === "object") {
+      await prisma.template.update({
+        where: { id: templateRecord.id },
+        data: { config: templateConfig as any },
+      });
+    }
 
     void notifySubscribersNewVideo({
       videoId: newVideo.id,

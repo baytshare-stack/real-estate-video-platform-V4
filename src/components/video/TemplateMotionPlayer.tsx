@@ -31,12 +31,12 @@ const TRANS_MS: Record<string, number> = {
   blur: 900,
 };
 
-const cairo = Cairo({ subsets: ["latin", "arabic"], weight: ["400", "600", "700", "800"] });
-const tajawal = Tajawal({ subsets: ["latin", "arabic"], weight: ["400", "500", "700", "800"] });
-const almarai = Almarai({ subsets: ["arabic"], weight: ["400", "700", "800"] });
-const poppins = Poppins({ subsets: ["latin"], weight: ["400", "500", "600", "700", "800"] });
-const inter = Inter({ subsets: ["latin"], weight: ["400", "500", "600", "700", "800", "900"] });
-const montserrat = Montserrat({ subsets: ["latin"], weight: ["400", "500", "600", "700", "800", "900"] });
+const cairo = Cairo({ subsets: ["latin", "arabic"], weight: ["400", "600", "700", "800"], variable: "--font-cairo" });
+const tajawal = Tajawal({ subsets: ["latin", "arabic"], weight: ["400", "500", "700", "800"], variable: "--font-tajawal" });
+const almarai = Almarai({ subsets: ["arabic"], weight: ["400", "700", "800"], variable: "--font-almarai" });
+const poppins = Poppins({ subsets: ["latin"], weight: ["400", "500", "600", "700", "800"], variable: "--font-poppins" });
+const inter = Inter({ subsets: ["latin"], weight: ["400", "500", "600", "700", "800", "900"], variable: "--font-inter" });
+const montserrat = Montserrat({ subsets: ["latin"], weight: ["400", "500", "600", "700", "800", "900"], variable: "--font-montserrat" });
 
 function typoClass(t?: string) {
   if (t === "serif-elegant") return "font-serif tracking-wide";
@@ -78,6 +78,25 @@ function fontClass(family?: string) {
       return montserrat.className;
     default:
       return "";
+  }
+}
+
+function fontFamilyValue(family?: string): string | undefined {
+  switch (family) {
+    case "Cairo":
+      return "var(--font-cairo), sans-serif";
+    case "Tajawal":
+      return "var(--font-tajawal), sans-serif";
+    case "Almarai":
+      return "var(--font-almarai), sans-serif";
+    case "Poppins":
+      return "var(--font-poppins), sans-serif";
+    case "Inter":
+      return "var(--font-inter), sans-serif";
+    case "Montserrat":
+      return "var(--font-montserrat), sans-serif";
+    default:
+      return undefined;
   }
 }
 
@@ -307,9 +326,11 @@ export default function TemplateMotionPlayer({
   const textAlignClass =
     fontCfg?.align === "left" ? "text-left" : fontCfg?.align === "right" ? "text-right" : "text-center";
   const fontStyle: CSSProperties = {
+    fontFamily: fontFamilyValue(fontCfg?.family),
     fontSize: typeof fontCfg?.size === "number" ? `${fontCfg.size}px` : undefined,
     color: fontCfg?.color,
     fontWeight: fontWeightValue(fontCfg?.weight),
+    textAlign: fontCfg?.align ?? undefined,
   };
 
   if (!displayImages.length) {
@@ -340,6 +361,12 @@ export default function TemplateMotionPlayer({
       <div
         className={[
           "relative w-full overflow-hidden bg-black",
+          cairo.variable,
+          tajawal.variable,
+          almarai.variable,
+          poppins.variable,
+          inter.variable,
+          montserrat.variable,
           isShort ? "aspect-[9/16] max-h-[min(88vh,820px)]" : "aspect-video max-h-[min(85vh,900px)]",
         ].join(" ")}
       >
@@ -436,7 +463,10 @@ export default function TemplateMotionPlayer({
                   typo,
                   "max-w-[95%] text-2xl leading-tight text-balance md:text-4xl",
                   minimal ? "text-zinc-900" : "text-white drop-shadow-xl",
+                  fontCls,
+                  textAlignClass,
                 ].join(" ")}
+                style={fontStyle}
               >
                 {title}
               </h2>
@@ -453,7 +483,10 @@ export default function TemplateMotionPlayer({
                   className={[
                     "inline-block rounded-full px-3 py-1 text-xs font-bold md:text-sm",
                     minimal ? "bg-black text-white" : "bg-white/15 text-white backdrop-blur-md",
+                    fontCls,
+                    textAlignClass,
                   ].join(" ")}
+                  style={fontStyle}
                 >
                   {priceLine}
                 </span>
@@ -467,7 +500,10 @@ export default function TemplateMotionPlayer({
                 className={[
                   "max-w-xl text-sm md:text-base",
                   minimal ? "text-zinc-600" : "text-white/85",
+                  fontCls,
+                  textAlignClass,
                 ].join(" ")}
+                style={fontStyle}
               >
                 {locationLine}
               </p>

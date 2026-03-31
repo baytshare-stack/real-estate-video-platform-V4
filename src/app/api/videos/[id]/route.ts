@@ -93,6 +93,7 @@ type Body = {
   latitude?: unknown;
   longitude?: unknown;
   templateId?: string;
+  templateConfig?: unknown;
   images?: unknown;
   audio?: unknown;
 };
@@ -233,6 +234,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       latitude,
       longitude,
       templateId: bodyTemplateId,
+      templateConfig: bodyTemplateConfig,
       images: bodyImages,
       audio: bodyAudio,
     } = body;
@@ -392,6 +394,12 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     }
 
     const updated = await prisma.$transaction(async (tx) => {
+      if (existing.isTemplate && templateIdFinal && bodyTemplateConfig && typeof bodyTemplateConfig === "object") {
+        await tx.template.update({
+          where: { id: templateIdFinal },
+          data: { config: bodyTemplateConfig as any },
+        });
+      }
       const v = await tx.video.update({
         where: { id },
         data: {

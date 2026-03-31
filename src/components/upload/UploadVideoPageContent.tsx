@@ -197,6 +197,9 @@ type LoadedVideoPayload = {
   templateId?: string;
   images?: string[];
   audio?: string | null;
+  template?: {
+    config?: unknown;
+  } | null;
 };
 
 export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: string }) {
@@ -480,6 +483,25 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
       cancelled = true;
     };
   }, [status]);
+
+  useEffect(() => {
+    if (!selectedTemplate) return;
+    const cfg = normalizeTemplateConfig(selectedTemplate.config);
+    const firstLayer = cfg.scenes?.[0]?.textLayers?.[0];
+    setTemplateEditor((prev) => ({
+      ...prev,
+      fontFamily: (cfg.font?.family as TemplateFontFamily) ?? prev.fontFamily,
+      fontSize: typeof cfg.font?.size === "number" ? cfg.font.size : prev.fontSize,
+      fontWeight: (cfg.font?.weight as TemplateFontWeight) ?? prev.fontWeight,
+      color: cfg.font?.color ?? prev.color,
+      align: (cfg.font?.align as TemplateTextAlign) ?? prev.align,
+      sceneText: firstLayer?.text ?? prev.sceneText,
+      sceneAnimation: (firstLayer?.animation as SceneAnim) ?? prev.sceneAnimation,
+      scenePosition: (firstLayer?.position as ScenePos) ?? prev.scenePosition,
+      sceneDuration:
+        typeof cfg.scenes?.[0]?.duration === "number" ? cfg.scenes[0].duration : prev.sceneDuration,
+    }));
+  }, [selectedTemplateId, selectedTemplate]);
 
   if (status === "loading") {
     return (
@@ -770,6 +792,7 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
         longitude: formData.longitude || undefined,
         isTemplate: isTemplateMode,
         templateId: isTemplateMode ? selectedTemplateId : undefined,
+        templateConfig: isTemplateMode ? runtimeTemplateConfig : undefined,
         images: isTemplateMode ? templateUploadedImages : undefined,
         audio: isTemplateMode && templateUploadedAudio ? templateUploadedAudio : undefined,
       };
@@ -1162,11 +1185,9 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
                         }
                         className={uiTokens.select}
                       >
-                        {(["fade-in", "slide-up", "zoom-in"] as const).map((a) => (
-                          <option key={a} value={a}>
-                            {a}
-                          </option>
-                        ))}
+                        <option value="fade-in">fade</option>
+                        <option value="slide-up">slide</option>
+                        <option value="zoom-in">zoom</option>
                       </select>
                       <div className="grid grid-cols-2 gap-2">
                         <select
