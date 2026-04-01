@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { Loader2, Search } from "lucide-react";
+import { useTranslation } from "@/i18n/LanguageProvider";
 
 const defaultCenter: L.LatLngExpression = [25.2048, 55.2708];
 
@@ -38,6 +39,9 @@ export default function MapLeafletPicker({
   longitude,
   onPatch,
 }: MapLeafletPickerProps) {
+  const { t } = useTranslation();
+  const pinnedPrefixRef = useRef(t("uploadPage", "pinnedAtPrefix"));
+  pinnedPrefixRef.current = t("uploadPage", "pinnedAtPrefix");
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markerRef = useRef<L.Marker | null>(null);
@@ -84,7 +88,7 @@ export default function MapLeafletPicker({
       onPatchRef.current({
         latitude: latS,
         longitude: lngS,
-        address: addr || `Pinned at ${latS}, ${lngS}`,
+        address: addr || `${pinnedPrefixRef.current} ${latS}, ${lngS}`,
       });
       if (markerRef.current) markerRef.current.setLatLng(event.latlng);
       else markerRef.current = L.marker(event.latlng).addTo(map);
@@ -136,7 +140,9 @@ export default function MapLeafletPicker({
   return (
     <div className="space-y-3 md:col-span-3">
       <div>
-        <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Search Location</label>
+        <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+          {t("uploadPage", "searchLocation")}
+        </label>
         <div className="flex flex-wrap gap-2">
           <div className="relative min-w-0 flex-1">
             <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-gray-400" />
@@ -144,11 +150,11 @@ export default function MapLeafletPicker({
               value={mapSearch}
               onChange={(e) => setMapSearch(e.target.value)}
               className={`${inputClass} py-3 pl-10 pr-4`}
-              placeholder="Search by place, district, or address"
+              placeholder={t("uploadPage", "searchPlaceholder")}
             />
           </div>
           <button type="button" onClick={handleMapSearch} className={btnClass} disabled={isMapSearching}>
-            {isMapSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : "Find"}
+            {isMapSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : t("uploadPage", "find")}
           </button>
         </div>
       </div>
@@ -163,8 +169,8 @@ export default function MapLeafletPicker({
 
       <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-black dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
         {latitude && longitude
-          ? `Selected Coordinates: ${latitude}, ${longitude}`
-          : "Click on the map to drop a marker and capture coordinates."}
+          ? `${t("uploadPage", "coordsSelected")} ${latitude}, ${longitude}`
+          : t("uploadPage", "coordsHint")}
       </div>
     </div>
   );

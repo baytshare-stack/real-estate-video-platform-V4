@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { User, Phone, MessageCircle, CheckCircle2, Loader2 } from "lucide-react";
+import { useTranslation } from "@/i18n/LanguageProvider";
 import CountrySelect, { COUNTRIES, getCountryByIso } from "./settings/CountrySelect";
 import SocialLinksForm, { type SocialLinks } from "./settings/SocialLinksForm";
 import ImageUploader from "./settings/ImageUploader";
@@ -67,6 +68,7 @@ function isIsoCountry(value: string | null | undefined): boolean {
 }
 
 export default function ChannelSettingsTab({ channel, ownerDefaults, onSaved }: Props) {
+  const { t } = useTranslation();
   const [name, setName] = useState(channel.name);
   const [description, setDescription] = useState(channel.description ?? "");
 
@@ -200,11 +202,11 @@ export default function ChannelSettingsTab({ channel, ownerDefaults, onSaved }: 
     for (const [key, v] of socialEntries) {
       const trimmed = v.trim();
       if (!trimmed) continue;
-      if (!isValidHttpUrl(trimmed)) nextErrors[key] = "Invalid URL (use http/https)";
+      if (!isValidHttpUrl(trimmed)) nextErrors[key] = t("studio", "settingsValidation.invalidUrl");
     }
 
     return nextErrors;
-  }, [countryIso, name, phoneRest, social, whatsappSameAsPhone, whatsappRest]);
+  }, [countryIso, name, phoneRest, social, whatsappSameAsPhone, whatsappRest, t]);
 
   const canSave = Object.keys(validation).length === 0 && !!countryIso && phoneFull.length > 0 && whatsappFull.length > 0;
 
@@ -214,7 +216,7 @@ export default function ChannelSettingsTab({ channel, ownerDefaults, onSaved }: 
     setSuccess(null);
 
     if (!canSave) {
-      setError("Please fix validation errors before saving.");
+      setError(t("studio", "settings.fixValidation"));
       return;
     }
 
@@ -242,11 +244,11 @@ export default function ChannelSettingsTab({ channel, ownerDefaults, onSaved }: 
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        setError(data?.error ?? "Failed to save channel settings.");
+        setError(typeof data?.error === "string" ? data.error : t("studio", "settings.saveFailed"));
         return;
       }
 
-      setSuccess("Channel settings saved successfully.");
+      setSuccess(t("studio", "settings.savedSuccess"));
       setSaveNonce((n) => n + 1);
 
       // Clear local selected files (ImageUploader will also reset).
@@ -255,7 +257,7 @@ export default function ChannelSettingsTab({ channel, ownerDefaults, onSaved }: 
 
       onSaved?.();
     } catch {
-      setError("Failed to save channel settings. Please try again.");
+      setError(t("studio", "settings.saveFailedRetry"));
     } finally {
       setSaving(false);
     }
@@ -265,7 +267,7 @@ export default function ChannelSettingsTab({ channel, ownerDefaults, onSaved }: 
     <form onSubmit={onSubmit} className="max-w-2xl mx-auto space-y-6">
       <div className="flex items-center gap-3">
         <User className="w-5 h-5 text-gray-400" />
-        <h1 className="text-2xl font-black text-white">Channel Settings</h1>
+        <h1 className="text-2xl font-black text-white">{t("studio", "settings.channelTitle")}</h1>
       </div>
 
       {error && (
@@ -281,12 +283,12 @@ export default function ChannelSettingsTab({ channel, ownerDefaults, onSaved }: 
 
       {/* Identity */}
       <div className="bg-gray-900/80 border border-white/[0.07] rounded-2xl p-6 shadow-xl space-y-5">
-        <h2 className="font-bold text-base text-white border-b border-white/[0.07] pb-3">Identity</h2>
+        <h2 className="border-b border-white/[0.07] pb-3 text-base font-bold text-white">{t("studio", "settings.identity")}</h2>
 
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
-              Channel Name <span className="text-red-500">*</span>
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-400">
+              {t("studio", "settings.channelName")} <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
@@ -300,7 +302,9 @@ export default function ChannelSettingsTab({ channel, ownerDefaults, onSaved }: 
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Description</label>
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-400">
+              {t("studio", "settings.description")}
+            </label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -313,18 +317,18 @@ export default function ChannelSettingsTab({ channel, ownerDefaults, onSaved }: 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <ImageUploader
             resetSignal={saveNonce}
-            label="Profile Image"
-            helpText="Recommended: 800x800"
-            buttonText="Change Photo"
+            label={t("studio", "settings.profileImage")}
+            helpText={t("studio", "settings.profileImageHelp")}
+            buttonText={t("studio", "settings.changePhoto")}
             currentUrl={channel.profileImage ?? channel.avatar ?? null}
             onFileChange={setProfileFile}
           />
 
           <ImageUploader
             resetSignal={saveNonce}
-            label="Banner Image"
-            helpText="Recommended: 1600x480"
-            buttonText="Change Banner"
+            label={t("studio", "settings.bannerImage")}
+            helpText={t("studio", "settings.bannerHelp")}
+            buttonText={t("studio", "settings.changeBanner")}
             currentUrl={channel.bannerImage ?? null}
             onFileChange={setBannerFile}
           />
@@ -333,19 +337,19 @@ export default function ChannelSettingsTab({ channel, ownerDefaults, onSaved }: 
 
       {/* Contact info */}
       <div className="bg-gray-900/80 border border-white/[0.07] rounded-2xl p-6 shadow-xl space-y-5">
-        <h2 className="font-bold text-base text-white border-b border-white/[0.07] pb-3 flex items-center gap-2">
-          <Phone className="w-4 h-4 text-gray-400" /> Contact Information
+        <h2 className="flex items-center gap-2 border-b border-white/[0.07] pb-3 text-base font-bold text-white">
+          <Phone className="h-4 w-4 text-gray-400" /> {t("studio", "settings.contactInfo")}
         </h2>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-3">
-            <CountrySelect value={countryIso} onChange={setCountryIso} />
+            <CountrySelect label={t("countrySelect", "label")} value={countryIso} onChange={setCountryIso} />
             {validation.country && <p className="text-xs text-red-400">{validation.country}</p>}
           </div>
 
           <div className="space-y-3">
-            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
-              Phone Number <span className="text-red-500">*</span>
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-400">
+              {t("studio", "settings.phoneNumber")} <span className="text-red-500">*</span>
             </label>
             <div className="flex items-center gap-3">
               <div className="px-3 py-3 rounded-xl bg-gray-800/60 border border-white/[0.08] text-white text-sm font-semibold whitespace-nowrap">
@@ -355,7 +359,7 @@ export default function ChannelSettingsTab({ channel, ownerDefaults, onSaved }: 
                 type="tel"
                 value={phoneRest}
                 onChange={(e) => setPhoneRest(digitsOnly(e.target.value).slice(0, restMaxLen))}
-                placeholder="1234567890"
+                placeholder={t("studio", "settings.phonePlaceholder")}
                 className={`flex-1 bg-gray-800/60 border rounded-xl px-4 py-3 text-white text-sm outline-none transition-colors ${
                   validation.phone ? "border-red-500/70 focus:border-red-500/70" : "border-white/[0.08] focus:border-blue-500/50"
                 }`}
@@ -366,8 +370,9 @@ export default function ChannelSettingsTab({ channel, ownerDefaults, onSaved }: 
         </div>
 
         <div className="pt-2 space-y-3">
-          <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5 flex items-center gap-2">
-            <MessageCircle className="w-4 h-4 text-gray-400" /> WhatsApp Number <span className="text-red-500">*</span>
+          <label className="mb-1.5 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+            <MessageCircle className="h-4 w-4 text-gray-400" /> {t("studio", "settings.whatsappNumber")}{" "}
+            <span className="text-red-500">*</span>
           </label>
 
           <label className="flex items-center gap-3 text-sm text-gray-300">
@@ -375,9 +380,9 @@ export default function ChannelSettingsTab({ channel, ownerDefaults, onSaved }: 
               type="checkbox"
               checked={whatsappSameAsPhone}
               onChange={(e) => setWhatsappSameAsPhone(e.target.checked)}
-              className="w-4 h-4"
+              className="h-4 w-4"
             />
-            Same as phone number
+            {t("studio", "settings.sameAsPhone")}
           </label>
 
           <div className="flex items-center gap-3">
@@ -389,7 +394,7 @@ export default function ChannelSettingsTab({ channel, ownerDefaults, onSaved }: 
               value={whatsappSameAsPhone ? phoneRest : whatsappRest}
               disabled={whatsappSameAsPhone}
               onChange={(e) => setWhatsappRest(digitsOnly(e.target.value).slice(0, restMaxLen))}
-              placeholder="1234567890"
+              placeholder={t("studio", "settings.phonePlaceholder")}
               className={`flex-1 bg-gray-800/60 border rounded-xl px-4 py-3 text-white text-sm outline-none transition-colors ${
                 validation.whatsapp && !whatsappSameAsPhone ? "border-red-500/70 focus:border-red-500/70" : "border-white/[0.08] focus:border-blue-500/50"
               } ${whatsappSameAsPhone ? "opacity-60" : ""}`}
@@ -401,7 +406,7 @@ export default function ChannelSettingsTab({ channel, ownerDefaults, onSaved }: 
 
       {/* Social links */}
       <div className="bg-gray-900/80 border border-white/[0.07] rounded-2xl p-6 shadow-xl space-y-5">
-        <h2 className="font-bold text-base text-white border-b border-white/[0.07] pb-3">Social Media Links</h2>
+        <h2 className="border-b border-white/[0.07] pb-3 text-base font-bold text-white">{t("studio", "settings.socialLinks")}</h2>
         <SocialLinksForm value={social} onChange={setSocial} />
       </div>
 
@@ -412,7 +417,7 @@ export default function ChannelSettingsTab({ channel, ownerDefaults, onSaved }: 
           className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-6 rounded-xl text-sm transition-colors disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-2"
         >
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-          {saving ? "Saving..." : "Save Changes"}
+          {saving ? t("studio", "settings.saving") : t("studio", "settings.saveChanges")}
         </button>
       </div>
     </form>

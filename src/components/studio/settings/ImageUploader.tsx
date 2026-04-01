@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "@/i18n/LanguageProvider";
 
 type ImageUploaderProps = {
   label: string;
@@ -21,6 +22,7 @@ export default function ImageUploader({
   resetSignal,
   onFileChange,
 }: ImageUploaderProps) {
+  const { t } = useTranslation();
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
@@ -101,7 +103,7 @@ export default function ImageUploader({
                 }}
                 className="text-gray-400 hover:text-white text-xs font-semibold transition-colors"
               >
-                Remove
+                {t("imageUploader", "remove")}
               </button>
             )}
           </div>

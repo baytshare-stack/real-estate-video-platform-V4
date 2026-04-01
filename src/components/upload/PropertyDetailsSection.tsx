@@ -34,14 +34,7 @@ export default function PropertyDetailsSection({ formData, onChange }: PropertyD
   const isRTL = locale === 'ar';
   const videoPropertyTypes = ["APARTMENT", "VILLA", "TOWNHOUSE", "STUDIO", "DUPLEX", "LAND", "OTHER"] as const;
 
-  const videoPropertyTypeLabel = (type: (typeof videoPropertyTypes)[number]) => {
-    const translationKey = `upload.types.${type}`;
-    const translated = t("upload", `types.${type}`);
-    // If key doesn't exist, fallback returns the full path (e.g. "upload.types.TOWNHOUSE")
-    if (!translated || translated === translationKey) return type.charAt(0) + type.slice(1).toLowerCase();
-    if (translated === `types.${type}`) return type.charAt(0) + type.slice(1).toLowerCase();
-    return translated;
-  };
+  const videoPropertyTypeLabel = (type: (typeof videoPropertyTypes)[number]) => t("upload", `types.${type}`);
 
   return (
     <div className={`space-y-8 bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm ${isRTL ? 'text-right' : 'text-left'}`} dir={isRTL ? 'rtl' : 'ltr'}>
@@ -51,7 +44,7 @@ export default function PropertyDetailsSection({ formData, onChange }: PropertyD
         </div>
         <div>
           <h2 className="text-xl font-bold text-gray-900 dark:text-white">{t('upload', 'propertyStep')}</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">{t('upload', 'propertyDescription') || 'Provide essential information about the property.'}</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{t("upload", "propertyDescription")}</p>
         </div>
       </div>
 
@@ -180,7 +173,7 @@ export default function PropertyDetailsSection({ formData, onChange }: PropertyD
             min="0"
             value={formData.bedrooms}
             onChange={onChange}
-            placeholder="e.g. 3"
+            placeholder={t("upload", "bedroomsPlaceholder")}
             className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder:text-gray-400"
           />
         </div>
@@ -199,7 +192,7 @@ export default function PropertyDetailsSection({ formData, onChange }: PropertyD
             step="0.5"
             value={formData.bathrooms}
             onChange={onChange}
-            placeholder="e.g. 2.5"
+            placeholder={t("upload", "bathroomsPlaceholder")}
             className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder:text-gray-400"
           />
         </div>

@@ -7,6 +7,7 @@ import Link from "next/link";
 import { getCountryByIso } from "@/lib/countriesData";
 import { Pencil, X, Loader2, ArrowLeft } from "lucide-react";
 import ProfileInbox from "@/components/profile/ProfileInbox";
+import { useTranslation } from "@/i18n/LanguageProvider";
 
 export type ChannelPayload = {
   id: string;
@@ -123,6 +124,7 @@ export default function ProfilePageClient({
 }) {
   const { data: session, update: updateSession } = useSession();
   const router = useRouter();
+  const { t, locale } = useTranslation();
   const [user, setUser] = useState<ProfileUserPayload>(initialUser);
   const [editOpen, setEditOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -170,21 +172,21 @@ export default function ProfilePageClient({
   const displayName =
     isAgency && user.channel?.name
       ? user.channel.name
-      : user.profile?.name?.trim() || user.fullName || user.name || user.username || "User";
-  const joined = new Date(user.createdAt).toLocaleDateString(undefined, {
+      : user.profile?.name?.trim() || user.fullName || user.name || user.username || t("profile", "userFallback");
+  const joined = new Date(user.createdAt).toLocaleDateString(locale === "ar" ? "ar-SA" : "en-US", {
     year: "numeric",
     month: "long",
     day: "numeric",
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const t = e.target;
-    if ("type" in t && t.type === "checkbox" && "checked" in t) {
-      const name = t.name as keyof ProfileForm;
-      setForm((prev) => ({ ...prev, [name]: t.checked }));
+    const input = e.target;
+    if ("type" in input && input.type === "checkbox" && "checked" in input) {
+      const name = input.name as keyof ProfileForm;
+      setForm((prev) => ({ ...prev, [name]: input.checked }));
       return;
     }
-    const { name, value } = e.target;
+    const { name, value } = input;
     setForm((prev) => ({ ...prev, [name]: value } as ProfileForm));
   };
 
@@ -204,7 +206,7 @@ export default function ProfilePageClient({
       }),
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Save failed");
+    if (!res.ok) throw new Error(data.error || t("profile", "saveFailed"));
     return data as { user?: ProfileUserPayload };
   };
 
@@ -236,19 +238,19 @@ export default function ProfilePageClient({
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || "Save failed");
+        setError(data.error || t("profile", "saveFailed"));
         return;
       }
       if (data.user) {
         setUser(data.user);
         setForm(buildForm(data.user));
       }
-      setSuccess("Profile saved");
+      setSuccess(t("profile", "profileSaved"));
       setEditOpen(false);
       router.refresh();
       await updateSession();
     } catch {
-      setError("Save failed");
+      setError(t("profile", "saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -279,7 +281,7 @@ export default function ProfilePageClient({
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || "Save failed");
+        setError(data.error || t("profile", "saveFailed"));
         return;
       }
 
@@ -290,12 +292,12 @@ export default function ProfilePageClient({
         setForm(buildForm(merged));
       }
 
-      setSuccess("Profile saved");
+      setSuccess(t("profile", "profileSaved"));
       setEditOpen(false);
       router.refresh();
       await updateSession();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Save failed");
+      setError(err instanceof Error ? err.message : t("profile", "saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -326,7 +328,7 @@ export default function ProfilePageClient({
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || "Save failed");
+        setError(data.error || t("profile", "saveFailed"));
         return;
       }
 
@@ -340,12 +342,12 @@ export default function ProfilePageClient({
         setForm(buildForm(merged));
       }
 
-      setSuccess("Agency profile saved");
+      setSuccess(t("profile", "agencySaved"));
       setEditOpen(false);
       router.refresh();
       await updateSession();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Save failed");
+      setError(err instanceof Error ? err.message : t("profile", "saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -365,13 +367,13 @@ export default function ProfilePageClient({
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || "Upload failed");
+        setError(data.error || t("profile", "uploadFailed"));
         return;
       }
-      setSuccess("Photo updated");
+      setSuccess(t("profile", "photoUpdated"));
       await refreshFromServer();
     } catch {
-      setError("Upload failed");
+      setError(t("profile", "uploadFailed"));
     } finally {
       setUploading(false);
     }
@@ -391,13 +393,13 @@ export default function ProfilePageClient({
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || "Upload failed");
+        setError(data.error || t("profile", "uploadFailed"));
         return;
       }
-      setSuccess("Logo updated");
+      setSuccess(t("profile", "logoUpdated"));
       await refreshFromServer();
     } catch {
-      setError("Upload failed");
+      setError(t("profile", "uploadFailed"));
     } finally {
       setUploadingLogo(false);
     }
@@ -411,6 +413,17 @@ export default function ProfilePageClient({
   };
 
   const studioRoles = ["AGENT", "AGENCY", "ADMIN", "SUPER_ADMIN"];
+
+  const roleDisplay = (role: string) => {
+    const map: Record<string, string> = {
+      USER: t("profile", "roleUSER"),
+      AGENT: t("profile", "roleAGENT"),
+      AGENCY: t("profile", "roleAGENCY"),
+      ADMIN: t("profile", "roleADMIN"),
+      SUPER_ADMIN: t("profile", "roleSUPER_ADMIN"),
+    };
+    return map[role] ?? role;
+  };
 
   return (
     <div className="min-h-[calc(100vh-64px)] pb-24 xl:pb-8">
@@ -428,9 +441,9 @@ export default function ProfilePageClient({
 
       <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white">Your profile</h1>
+          <h1 className="text-2xl font-bold text-white">{t("profile", "title")}</h1>
           <p className="mt-1 text-sm text-gray-400">
-            {isAgency ? "Agency branding and contact details" : "Manage how you appear on RealEstateTV"}
+            {isAgency ? t("profile", "subtitleAgency") : t("profile", "subtitleDefault")}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -439,7 +452,7 @@ export default function ProfilePageClient({
               href="/studio"
               className="rounded-xl border border-white/15 px-4 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/5"
             >
-              Studio
+              {t("profile", "studio")}
             </Link>
           ) : null}
           <button
@@ -448,7 +461,7 @@ export default function ProfilePageClient({
             className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-blue-500"
           >
             <Pencil className="h-4 w-4" />
-            Edit profile
+            {t("profile", "editProfile")}
           </button>
         </div>
       </div>
@@ -479,19 +492,19 @@ export default function ProfilePageClient({
             {user.username ? (
               <p className="text-sm text-gray-400">@{user.username}</p>
             ) : (
-              <p className="text-sm text-amber-400/90">Set a username in Edit profile</p>
+              <p className="text-sm text-amber-400/90">{t("profile", "setUsernameHint")}</p>
             )}
             {user.profile?.showEmailOnProfile ? (
               <p className="text-sm text-gray-300">{user.email}</p>
             ) : (
-              <p className="text-xs text-gray-500">Email hidden on profile summary (enable in edit)</p>
+              <p className="text-xs text-gray-500">{t("profile", "emailHiddenHint")}</p>
             )}
             {isAgency && user.channel?.description?.trim() ? (
               <p className="max-w-2xl text-sm leading-relaxed text-gray-300">{user.channel.description}</p>
             ) : user.profile?.bio?.trim() ? (
               <p className="max-w-2xl text-sm leading-relaxed text-gray-300">{user.profile.bio}</p>
             ) : (
-              <p className="text-sm text-gray-500">No description yet — add one when you edit.</p>
+              <p className="text-sm text-gray-500">{t("profile", "noDescription")}</p>
             )}
             {(isAgent || isAgency) && (user.city || user.country) ? (
               <p className="text-sm text-gray-400">
@@ -508,11 +521,13 @@ export default function ProfilePageClient({
                 {user.channel.websiteUrl}
               </a>
             ) : null}
-            <p className="text-xs text-gray-500">Joined {joined}</p>
+            <p className="text-xs text-gray-500">
+              {t("profile", "joined")} {joined}
+            </p>
           </div>
           <div className="w-full sm:w-auto">
             <label className="block text-sm text-gray-400">
-              <span className="mb-2 block">{isAgency ? "Update logo" : "Update photo"}</span>
+              <span className="mb-2 block">{isAgency ? t("profile", "updateLogo") : t("profile", "updatePhoto")}</span>
               <input
                 type="file"
                 accept="image/jpeg,image/png,.jpg,.jpeg,.png"
@@ -521,60 +536,61 @@ export default function ProfilePageClient({
                 disabled={uploading || uploadingLogo}
               />
             </label>
-            {(uploading || uploadingLogo) && <p className="mt-1 text-xs text-gray-500">Uploading...</p>}
+            {(uploading || uploadingLogo) && <p className="mt-1 text-xs text-gray-500">{t("profile", "uploadingPhoto")}</p>}
           </div>
         </div>
       </div>
 
       <div className="mb-6 rounded-2xl border border-gray-800 bg-gray-900 p-6">
-        <h3 className="mb-3 text-lg font-semibold text-white">Account &amp; contact</h3>
+        <h3 className="mb-3 text-lg font-semibold text-white">{t("profile", "accountContact")}</h3>
         <div className="space-y-1 text-sm text-gray-400">
           <p>
-            <span className="text-gray-500">Email (login):</span> {meta.email}
+            <span className="text-gray-500">{t("profile", "emailLogin")}</span> {meta.email}
           </p>
           <p>
-            <span className="text-gray-500">Username:</span> {meta.username || "—"}
+            <span className="text-gray-500">{t("profile", "username")}</span> {meta.username || "—"}
           </p>
           <p>
-            <span className="text-gray-500">Role:</span> {meta.role}
+            <span className="text-gray-500">{t("profile", "role")}</span> {roleDisplay(meta.role)}
           </p>
           {isAgency && user.channel?.phone ? (
             <p>
-              <span className="text-gray-500">Office phone:</span> {user.channel.phone}
+              <span className="text-gray-500">{t("profile", "officePhone")}</span> {user.channel.phone}
             </p>
           ) : null}
           {isAgency && user.profile?.contactEmail ? (
             <p>
-              <span className="text-gray-500">Contact email:</span> {user.profile.contactEmail}
+              <span className="text-gray-500">{t("profile", "contactEmail")}</span> {user.profile.contactEmail}
             </p>
           ) : null}
           <p>
-            <span className="text-gray-500">Country:</span> {meta.countryLabel || meta.country || "—"}
+            <span className="text-gray-500">{t("profile", "country")}</span> {meta.countryLabel || meta.country || "—"}
           </p>
           {user.city ? (
             <p>
-              <span className="text-gray-500">City:</span> {user.city}
+              <span className="text-gray-500">{t("profile", "city")}</span> {user.city}
             </p>
           ) : null}
           {meta.fullPhoneNumber && !isAgency ? (
             <p>
-              <span className="text-gray-500">Phone:</span> {meta.fullPhoneNumber}
+              <span className="text-gray-500">{t("profile", "phone")}</span> {meta.fullPhoneNumber}
             </p>
           ) : null}
           <p>
-            <span className="text-gray-500">Phone verified:</span> {meta.phoneVerified === false ? "No" : "Yes"}
+            <span className="text-gray-500">{t("profile", "phoneVerified")}</span>{" "}
+            {meta.phoneVerified === false ? t("profile", "phoneVerifiedNo") : t("profile", "phoneVerifiedYes")}
           </p>
         </div>
       </div>
 
       <section className="mb-8">
-        <h3 className="mb-3 text-lg font-semibold text-white">Messages</h3>
+        <h3 className="mb-3 text-lg font-semibold text-white">{t("profile", "messages")}</h3>
         <ProfileInbox currentUserId={user.id} sessionName={session?.user?.name ?? displayName} />
       </section>
 
       <p className="text-center text-sm text-gray-500">
         <Link href="/" className="text-blue-500 hover:text-blue-400">
-          Back to home
+          {t("profile", "backHome")}
         </Link>
       </p>
 
@@ -583,13 +599,13 @@ export default function ProfilePageClient({
           <button
             type="button"
             className="absolute inset-0 bg-black/70"
-            aria-label="Close"
+            aria-label={t("profile", "close")}
             onClick={() => setEditOpen(false)}
           />
           <div className="relative z-10 max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-2xl border border-gray-800 bg-[#141414] p-6 shadow-2xl sm:rounded-2xl">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-lg font-bold text-white">
-                {isAgent ? "Edit agent profile" : isAgency ? "Edit agency profile" : "Edit profile"}
+                {isAgent ? t("profile", "editAgentTitle") : isAgency ? t("profile", "editAgencyTitle") : t("profile", "editDefaultTitle")}
               </h3>
               <button
                 type="button"
@@ -608,7 +624,7 @@ export default function ProfilePageClient({
             {isAgent ? (
               <form onSubmit={handleSaveAgent} className="space-y-4">
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-400">Full name</label>
+                  <label className="mb-1 block text-sm font-medium text-gray-400">{t("profile", "fullName")}</label>
                   <input
                     name="name"
                     value={form.name}
@@ -618,17 +634,17 @@ export default function ProfilePageClient({
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-400">Username</label>
+                  <label className="mb-1 block text-sm font-medium text-gray-400">{t("profile", "usernameLabel")}</label>
                   <input
                     name="username"
                     value={form.username}
                     onChange={handleChange}
                     className="w-full rounded-xl border border-gray-700 bg-black/50 px-4 py-3 text-white focus:border-blue-500 focus:outline-none"
-                    placeholder="letters_numbers_only"
+                    placeholder={t("profile", "usernamePlaceholder")}
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-400">Email (login)</label>
+                  <label className="mb-1 block text-sm font-medium text-gray-400">{t("profile", "emailLoginLabel")}</label>
                   <input
                     name="email"
                     type="email"
@@ -639,19 +655,17 @@ export default function ProfilePageClient({
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-400">
-                    Phone (international, e.g. +971501234567)
-                  </label>
+                  <label className="mb-1 block text-sm font-medium text-gray-400">{t("profile", "phoneInternational")}</label>
                   <input
                     name="phoneE164"
                     value={form.phoneE164}
                     onChange={handleChange}
                     className="w-full rounded-xl border border-gray-700 bg-black/50 px-4 py-3 text-white focus:border-blue-500 focus:outline-none"
-                    placeholder="+..."
+                    placeholder={t("profile", "phonePlaceholder")}
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-400">Bio</label>
+                  <label className="mb-1 block text-sm font-medium text-gray-400">{t("profile", "bio")}</label>
                   <textarea
                     name="bio"
                     rows={4}
@@ -661,7 +675,7 @@ export default function ProfilePageClient({
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-400">City</label>
+                  <label className="mb-1 block text-sm font-medium text-gray-400">{t("profile", "cityField")}</label>
                   <input
                     name="city"
                     value={form.city}
@@ -670,19 +684,17 @@ export default function ProfilePageClient({
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-400">
-                    Country (ISO2, e.g. AE, EG, US)
-                  </label>
+                  <label className="mb-1 block text-sm font-medium text-gray-400">{t("profile", "countryIso")}</label>
                   <input
                     name="countryIso"
                     value={form.countryIso}
                     onChange={handleChange}
                     className="w-full rounded-xl border border-gray-700 bg-black/50 px-4 py-3 text-white focus:border-blue-500 focus:outline-none"
-                    placeholder="AE"
+                    placeholder={t("profile", "countryIsoPlaceholder")}
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-400">Location / area</label>
+                  <label className="mb-1 block text-sm font-medium text-gray-400">{t("profile", "locationArea")}</label>
                   <input
                     name="location"
                     value={form.location}
@@ -700,31 +712,24 @@ export default function ProfilePageClient({
                     className="h-4 w-4 rounded border-gray-600"
                   />
                   <label htmlFor="showEmail" className="text-sm text-gray-300">
-                    Show account email on profile summary
+                    {t("profile", "showEmailSummary")}
                   </label>
                 </div>
-                <p className="text-xs text-gray-500">Social links and public contact cards below apply to your public profile.</p>
-                {(
-                  [
-                    ["facebook", "Facebook"],
-                    ["instagram", "Instagram"],
-                    ["linkedin", "LinkedIn"],
-                    ["website", "Website"],
-                  ] as const
-                ).map(([key, label]) => (
+                <p className="text-xs text-gray-500">{t("profile", "socialHintAgent")}</p>
+                {(["facebook", "instagram", "linkedin", "website"] as const).map((key) => (
                   <div key={key}>
-                    <label className="mb-1 block text-xs text-gray-500">{label}</label>
+                    <label className="mb-1 block text-xs text-gray-500">{t("social", key)}</label>
                     <input
                       name={key}
                       value={form[key as keyof ProfileForm] as string}
                       onChange={handleChange}
                       className="w-full rounded-xl border border-gray-700 bg-black/50 px-4 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"
-                      placeholder="https://"
+                      placeholder={t("profile", "httpsPlaceholder")}
                     />
                   </div>
                 ))}
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-400">Public contact email</label>
+                  <label className="mb-1 block text-sm font-medium text-gray-400">{t("profile", "publicContactEmail")}</label>
                   <input
                     name="contactEmail"
                     type="email"
@@ -734,7 +739,7 @@ export default function ProfilePageClient({
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-400">Public contact phone</label>
+                  <label className="mb-1 block text-sm font-medium text-gray-400">{t("profile", "publicContactPhone")}</label>
                   <input
                     name="contactPhone"
                     type="tel"
@@ -749,13 +754,13 @@ export default function ProfilePageClient({
                   className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3 font-bold text-white transition hover:bg-blue-500 disabled:opacity-50"
                 >
                   {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : null}
-                  {saving ? "Saving..." : "Save changes"}
+                  {saving ? t("profile", "saving") : t("profile", "saveChanges")}
                 </button>
               </form>
             ) : isAgency ? (
               <form onSubmit={handleSaveAgency} className="space-y-4">
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-400">Username</label>
+                  <label className="mb-1 block text-sm font-medium text-gray-400">{t("profile", "usernameLabel")}</label>
                   <input
                     name="username"
                     value={form.username}
@@ -764,7 +769,7 @@ export default function ProfilePageClient({
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-400">Agency name</label>
+                  <label className="mb-1 block text-sm font-medium text-gray-400">{t("profile", "agencyName")}</label>
                   <input
                     name="agencyName"
                     value={form.agencyName}
@@ -774,7 +779,7 @@ export default function ProfilePageClient({
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-400">Description</label>
+                  <label className="mb-1 block text-sm font-medium text-gray-400">{t("profile", "description")}</label>
                   <textarea
                     name="agencyDescription"
                     rows={4}
@@ -784,19 +789,17 @@ export default function ProfilePageClient({
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-400">
-                    Contact phone (international)
-                  </label>
+                  <label className="mb-1 block text-sm font-medium text-gray-400">{t("profile", "contactPhoneIntl")}</label>
                   <input
                     name="agencyPhone"
                     value={form.agencyPhone}
                     onChange={handleChange}
                     className="w-full rounded-xl border border-gray-700 bg-black/50 px-4 py-3 text-white focus:border-blue-500 focus:outline-none"
-                    placeholder="+971..."
+                    placeholder={t("profile", "contactPhonePlaceholder")}
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-400">Contact email</label>
+                  <label className="mb-1 block text-sm font-medium text-gray-400">{t("profile", "contactEmailLabel")}</label>
                   <input
                     name="agencyContactEmail"
                     type="email"
@@ -806,7 +809,7 @@ export default function ProfilePageClient({
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-400">Office location</label>
+                  <label className="mb-1 block text-sm font-medium text-gray-400">{t("profile", "officeLocation")}</label>
                   <input
                     name="officeLocation"
                     value={form.officeLocation}
@@ -815,23 +818,23 @@ export default function ProfilePageClient({
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-400">Office country (ISO2)</label>
+                  <label className="mb-1 block text-sm font-medium text-gray-400">{t("profile", "officeCountryIso")}</label>
                   <input
                     name="officeCountry"
                     value={form.officeCountry}
                     onChange={handleChange}
                     className="w-full rounded-xl border border-gray-700 bg-black/50 px-4 py-3 text-white focus:border-blue-500 focus:outline-none"
-                    placeholder="AE"
+                    placeholder={t("profile", "countryIsoPlaceholder")}
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-400">Website (optional)</label>
+                  <label className="mb-1 block text-sm font-medium text-gray-400">{t("profile", "websiteOptional")}</label>
                   <input
                     name="agencyWebsite"
                     value={form.agencyWebsite}
                     onChange={handleChange}
                     className="w-full rounded-xl border border-gray-700 bg-black/50 px-4 py-3 text-white focus:border-blue-500 focus:outline-none"
-                    placeholder="https://"
+                    placeholder={t("profile", "httpsPlaceholder")}
                   />
                 </div>
                 <div className="flex items-center gap-2">
@@ -844,20 +847,13 @@ export default function ProfilePageClient({
                     className="h-4 w-4 rounded border-gray-600"
                   />
                   <label htmlFor="showEmailAg" className="text-sm text-gray-300">
-                    Show account email on profile summary
+                    {t("profile", "showEmailSummary")}
                   </label>
                 </div>
-                <p className="text-xs text-gray-500">Social links (optional)</p>
-                {(
-                  [
-                    ["facebook", "Facebook"],
-                    ["instagram", "Instagram"],
-                    ["linkedin", "LinkedIn"],
-                    ["website", "Website"],
-                  ] as const
-                ).map(([key, label]) => (
+                <p className="text-xs text-gray-500">{t("profile", "socialLinksOptional")}</p>
+                {(["facebook", "instagram", "linkedin", "website"] as const).map((key) => (
                   <div key={key}>
-                    <label className="mb-1 block text-xs text-gray-500">{label}</label>
+                    <label className="mb-1 block text-xs text-gray-500">{t("social", key)}</label>
                     <input
                       name={key}
                       value={form[key as keyof ProfileForm] as string}
@@ -872,13 +868,13 @@ export default function ProfilePageClient({
                   className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3 font-bold text-white transition hover:bg-blue-500 disabled:opacity-50"
                 >
                   {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : null}
-                  {saving ? "Saving..." : "Save changes"}
+                  {saving ? t("profile", "saving") : t("profile", "saveChanges")}
                 </button>
               </form>
             ) : (
               <form onSubmit={handleSaveDefault} className="space-y-4">
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-400">Display name</label>
+                  <label className="mb-1 block text-sm font-medium text-gray-400">{t("profile", "displayName")}</label>
                   <input
                     name="name"
                     value={form.name}
@@ -888,7 +884,7 @@ export default function ProfilePageClient({
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-400">Username</label>
+                  <label className="mb-1 block text-sm font-medium text-gray-400">{t("profile", "usernameLabel")}</label>
                   <input
                     name="username"
                     value={form.username}
@@ -897,7 +893,7 @@ export default function ProfilePageClient({
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-400">Bio</label>
+                  <label className="mb-1 block text-sm font-medium text-gray-400">{t("profile", "bio")}</label>
                   <textarea
                     name="bio"
                     rows={4}
@@ -907,7 +903,7 @@ export default function ProfilePageClient({
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-400">Location</label>
+                  <label className="mb-1 block text-sm font-medium text-gray-400">{t("profile", "locationArea")}</label>
                   <input
                     name="location"
                     value={form.location}
@@ -925,33 +921,26 @@ export default function ProfilePageClient({
                     className="h-4 w-4 rounded border-gray-600"
                   />
                   <label htmlFor="showEmailDef" className="text-sm text-gray-300">
-                    Show my account email on my public profile summary
+                    {t("profile", "showEmailSummaryDefault")}
                   </label>
                 </div>
                 <div>
-                  <p className="mb-2 text-sm font-medium text-gray-400">Social links</p>
-                  {(
-                    [
-                      ["facebook", "Facebook"],
-                      ["instagram", "Instagram"],
-                      ["linkedin", "LinkedIn"],
-                      ["website", "Website"],
-                    ] as const
-                  ).map(([key, label]) => (
+                  <p className="mb-2 text-sm font-medium text-gray-400">{t("profile", "socialLinks")}</p>
+                  {(["facebook", "instagram", "linkedin", "website"] as const).map((key) => (
                     <div key={key} className="mb-2">
-                      <label className="mb-1 block text-xs text-gray-500">{label}</label>
+                      <label className="mb-1 block text-xs text-gray-500">{t("social", key)}</label>
                       <input
                         name={key}
                         value={form[key as keyof ProfileForm] as string}
                         onChange={handleChange}
                         className="w-full rounded-xl border border-gray-700 bg-black/50 px-4 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"
-                        placeholder="https://"
+                        placeholder={t("profile", "httpsPlaceholder")}
                       />
                     </div>
                   ))}
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-400">Contact email (public)</label>
+                  <label className="mb-1 block text-sm font-medium text-gray-400">{t("profile", "contactEmailPublic")}</label>
                   <input
                     name="contactEmail"
                     type="email"
@@ -961,7 +950,7 @@ export default function ProfilePageClient({
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-400">Contact phone (public)</label>
+                  <label className="mb-1 block text-sm font-medium text-gray-400">{t("profile", "contactPhonePublic")}</label>
                   <input
                     name="contactPhone"
                     type="tel"
@@ -976,7 +965,7 @@ export default function ProfilePageClient({
                   className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3 font-bold text-white transition hover:bg-blue-500 disabled:opacity-50"
                 >
                   {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : null}
-                  {saving ? "Saving..." : "Save changes"}
+                  {saving ? t("profile", "saving") : t("profile", "saveChanges")}
                 </button>
               </form>
             )}

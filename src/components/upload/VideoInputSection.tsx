@@ -41,7 +41,7 @@ export default function VideoInputSection({
         </div>
         <div>
           <h2 className="text-xl font-bold text-gray-900 dark:text-white">{t('upload', 'videoStep')}</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">{t('upload', 'videoDescription') || 'Upload your property tour video and thumbnail.'}</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{t("upload", "videoDescription")}</p>
         </div>
       </div>
 
@@ -84,7 +84,7 @@ export default function VideoInputSection({
                 </div>
                 <div className="text-center">
                   <p className="text-sm font-medium text-gray-900 dark:text-white">{t('upload', 'dragDrop')}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">MP4, WebM up to 100MB</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t("upload", "videoFormatsHint")}</p>
                 </div>
               </>
             )}
@@ -95,7 +95,7 @@ export default function VideoInputSection({
               <span className="w-full border-t border-gray-200 dark:border-gray-700"></span>
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-white dark:bg-gray-800 px-2 text-gray-500">OR</span>
+              <span className="bg-white dark:bg-gray-800 px-2 text-gray-500">{t("upload", "orDivider")}</span>
             </div>
           </div>
 
@@ -147,7 +147,7 @@ export default function VideoInputSection({
                   className="absolute inset-0 w-full h-full object-cover"
                 />
                 <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity z-20">
-                  <p className="text-white text-sm font-medium">Change Image</p>
+                  <p className="text-white text-sm font-medium">{t("upload", "changeThumbnail")}</p>
                 </div>
               </>
             ) : (
@@ -157,7 +157,7 @@ export default function VideoInputSection({
                 </div>
                 <div className="text-center">
                   <p className="text-sm font-medium text-gray-900 dark:text-white">{t('upload', 'dragDrop')}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">PNG, JPG up to 5MB</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t("upload", "thumbnailFormatsHint")}</p>
                 </div>
               </>
             )}

@@ -37,6 +37,7 @@ import TemplateCinematicPreviewModal from "@/components/upload/TemplateCinematic
 import { normalizeTemplateConfig } from "@/lib/video-templates/normalize-config";
 import { TEMPLATE_MUSIC_LIBRARY } from "@/lib/video-templates/music-library";
 import type { TemplateListItemDto } from "@/lib/video-templates/types";
+import { useTranslation } from "@/i18n/LanguageProvider";
 
 const MapLeafletPicker = dynamic(() => import("@/components/upload/MapLeafletPicker"), {
   ssr: false,
@@ -133,14 +134,16 @@ const uiTokens = {
     "rounded-xl bg-blue-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-blue-700 active:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-70",
 };
 
-function parseApiError(data: unknown): string {
-  if (!data || typeof data !== "object") return "Request failed";
+function parseApiError(data: unknown, tr: (ns: string, key?: string) => string): string {
+  if (!data || typeof data !== "object") return tr("errors", "requestFailed");
   const o = data as { error?: string; detail?: string; missingFields?: string[] };
   const parts: string[] = [];
   if (o.error) parts.push(o.error);
   if (o.detail) parts.push(o.detail);
-  if (o.missingFields?.length) parts.push(`Missing: ${o.missingFields.join(", ")}`);
-  return parts.length ? parts.join(" — ") : "Request failed";
+  if (o.missingFields?.length) {
+    parts.push(tr("uploadPage", "missingFieldsDetail").replace("{{fields}}", o.missingFields.join(", ")));
+  }
+  return parts.length ? parts.join(" — ") : tr("errors", "requestFailed");
 }
 
 function buildRuntimeTemplateConfig(raw: unknown, editor: TemplateEditorState): unknown {
@@ -205,6 +208,8 @@ type LoadedVideoPayload = {
 export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: string }) {
   const router = useRouter();
   const { data: session, status } = useSession();
+  const { t, locale } = useTranslation();
+  const numberLocale = locale === "ar" ? "ar-SA" : "en-US";
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -393,7 +398,7 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
       .then(async (res) => {
         const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
         if (!res.ok) {
-          throw new Error(parseApiError(data));
+          throw new Error(parseApiError(data, t));
         }
         return data as LoadedVideoPayload;
       })
@@ -453,14 +458,14 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
       .catch((e) => {
         if (!cancelled) {
           setEditLoadState("error");
-          setError(e instanceof Error ? e.message : "Could not load video for editing.");
+          setError(e instanceof Error ? e.message : t("uploadPage", "editLoadFailed"));
         }
       });
 
     return () => {
       cancelled = true;
     };
-  }, [editVideoId]);
+  }, [editVideoId, t]);
 
   useEffect(() => {
     if (status !== "authenticated") return;
@@ -473,16 +478,16 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
           setDbTemplates(data as TemplateListItemDto[]);
           setTemplateLoadError("");
         } else {
-          setTemplateLoadError("Could not load templates");
+          setTemplateLoadError(t("uploadPage", "templateLoadError"));
         }
       })
       .catch(() => {
-        if (!cancelled) setTemplateLoadError("Could not load templates");
+        if (!cancelled) setTemplateLoadError(t("uploadPage", "templateLoadError"));
       });
     return () => {
       cancelled = true;
     };
-  }, [status]);
+  }, [status, t]);
 
   useEffect(() => {
     if (!selectedTemplate) return;
@@ -521,15 +526,13 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
     return (
       <div className={`flex min-h-screen flex-col items-center justify-center px-4 ${uiTokens.background}`}>
         <AlertCircle className="mb-4 h-16 w-16 text-amber-500" />
-        <h1 className={`mb-2 text-2xl font-bold ${uiTokens.textPrimary}`}>Access Denied</h1>
-        <p className={`mb-6 max-w-md text-center ${uiTokens.textSecondary}`}>
-          Only Real Estate Agents and Agencies can upload property videos.
-        </p>
+        <h1 className={`mb-2 text-2xl font-bold ${uiTokens.textPrimary}`}>{t("uploadPage", "accessDenied")}</h1>
+        <p className={`mb-6 max-w-md text-center ${uiTokens.textSecondary}`}>{t("uploadPage", "accessDeniedBody")}</p>
         <button
           onClick={() => router.push("/")}
           className="rounded-lg bg-indigo-600 px-6 py-2 text-white transition hover:bg-indigo-700 active:bg-indigo-800"
         >
-          Return Home
+          {t("uploadPage", "returnHome")}
         </button>
       </div>
     );
@@ -540,7 +543,7 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
       <div className={`flex min-h-screen items-center justify-center ${uiTokens.background}`}>
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="h-10 w-10 animate-spin text-indigo-600" />
-          <p className={`text-sm ${uiTokens.textSecondary}`}>Loading video…</p>
+          <p className={`text-sm ${uiTokens.textSecondary}`}>{t("uploadPage", "loadingVideo")}</p>
         </div>
       </div>
     );
@@ -550,16 +553,16 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
     return (
       <div className={`flex min-h-screen flex-col items-center justify-center px-4 ${uiTokens.background}`}>
         <AlertCircle className="mb-4 h-12 w-12 text-amber-500" />
-        <h1 className={`mb-2 text-xl font-bold ${uiTokens.textPrimary}`}>Could not open editor</h1>
+        <h1 className={`mb-2 text-xl font-bold ${uiTokens.textPrimary}`}>{t("uploadPage", "editOpenErrorTitle")}</h1>
         <p className={`mb-6 max-w-md text-center ${uiTokens.textSecondary}`}>
-          {error || "Video not found or access denied."}
+          {error || t("uploadPage", "editOpenErrorBody")}
         </p>
         <button
           type="button"
           onClick={() => router.push("/studio")}
           className="rounded-lg bg-indigo-600 px-6 py-2 text-white transition hover:bg-indigo-700 active:bg-indigo-800"
         >
-          Back to studio
+          {t("uploadPage", "backToStudio")}
         </button>
       </div>
     );
@@ -615,7 +618,7 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
     setSuccessMessage("");
 
     if (isUploading || loading) {
-      setError("Please wait for current processing to finish.");
+      setError(t("uploadPage", "waitProcessing"));
       return;
     }
 
@@ -629,19 +632,19 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
       Boolean(editVideoId && (loadedMediaRef.current.videoUrl.trim() || editIsTemplate));
     const hasLocation = Boolean(formData.address.trim() || (formData.latitude.trim() && formData.longitude.trim()));
     if (!formData.title.trim() || !formData.price.trim() || !hasVideo || !hasLocation) {
-      setError("Please fill required fields: title, video, location, and price.");
+      setError(t("uploadPage", "fillRequired"));
       return;
     }
     if (isTemplateMode) {
       if (!selectedTemplateId) {
-        setError("Please select a template.");
+        setError(t("upload", "selectTemplateRequired"));
         return;
       }
       const hasImg = Array.from({ length: templateSlots }).some(
         (_, i) => Boolean(templateMedia.images[i]) || Boolean(templateRetainUrls[i]?.trim())
       );
       if (!hasImg) {
-        setError("Please upload at least one template image.");
+        setError(t("upload", "templateImageRequired"));
         return;
       }
     }
@@ -714,17 +717,17 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
             });
           }
         } catch (uploadErr) {
-          const msg = uploadErr instanceof Error ? uploadErr.message : "Cloudinary upload failed";
+          const msg = uploadErr instanceof Error ? uploadErr.message : t("uploadPage", "cloudinaryFailed");
           setError(msg);
           return;
         }
 
         if (hasVideoFile && !uploadedVideoUrl) {
-          setError("Upload finished but no video URL was returned from Cloudinary.");
+          setError(t("uploadPage", "noVideoUrlCloudinary"));
           return;
         }
         if (hasThumbFile && !uploadedThumbUrl) {
-          setError("Upload finished but no thumbnail URL was returned from Cloudinary.");
+          setError(t("uploadPage", "noThumbUrlCloudinary"));
           return;
         }
 
@@ -756,7 +759,7 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
         }
 
         if (!isTemplateMode && !videoUrlFinal) {
-          setError("Could not determine video URL after upload.");
+          setError(t("uploadPage", "noVideoAfterUpload"));
           return;
         }
 
@@ -806,15 +809,15 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
 
       const saveData = (await saveRes.json().catch(() => ({}))) as Record<string, unknown>;
       if (!saveRes.ok) {
-        setError(parseApiError(saveData));
+        setError(parseApiError(saveData, t));
         return;
       }
 
-      setSuccessMessage(isEdit ? "Video updated successfully." : "Video published successfully.");
+      setSuccessMessage(isEdit ? t("uploadPage", "videoUpdated") : t("uploadPage", "successPublish"));
       const role = session?.user?.role;
       router.push(role === "ADMIN" || role === "SUPER_ADMIN" ? "/studio" : "/");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Network error while publishing video");
+      setError(e instanceof Error ? e.message : t("uploadPage", "networkError"));
     } finally {
       setLoading(false);
       setCombinedUploadProgress(0);
@@ -831,15 +834,15 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
         <div className={`border-b px-6 py-6 sm:px-8 ${uiTokens.border} ${uiTokens.surfaceMuted}`}>
           <h1 className={`flex items-center gap-2 text-2xl font-bold ${uiTokens.textPrimary}`}>
             <Upload className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
-            {editVideoId ? "Edit Property Video" : "Upload Property Video"}
+            {editVideoId ? t("uploadPage", "editTitle") : t("uploadPage", "heroTitle")}
           </h1>
           <p className={`mt-1 text-sm ${uiTokens.textSecondary}`}>
-            {editVideoId
-              ? "Update your listing, media, and location. Existing video and thumbnail are kept unless you replace them."
-              : "Create a clean, complete listing with video, property details, and exact location."}
+            {editVideoId ? t("uploadPage", "editSubtitle") : t("uploadPage", "heroSubtitle")}
           </p>
           {editVideoId && editListedAt && (
-            <p className={`mt-2 text-xs ${uiTokens.textSecondary}`}>Originally listed {editListedAt}</p>
+            <p className={`mt-2 text-xs ${uiTokens.textSecondary}`}>
+              {t("uploadPage", "listedAt").replace("{{date}}", editListedAt)}
+            </p>
           )}
         </div>
 
@@ -863,7 +866,7 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
         {(isUploading || combinedUploadProgress > 0) && (
           <div className="px-6 pt-4 sm:px-8">
             <div className="flex items-center justify-between text-xs font-medium text-slate-600 dark:text-slate-300">
-              <span>Uploading media…</span>
+              <span>{t("uploadPage", "uploadingMedia")}</span>
               <span>{combinedUploadProgress}%</span>
             </div>
             <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
@@ -879,11 +882,13 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
           <section className="space-y-5">
             <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
               <Video className="h-5 w-5 text-indigo-500" />
-              Video
+              {t("uploadPage", "sectionVideo")}
             </h2>
 
             <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Title</label>
+              <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                {t("uploadPage", "titleLabel")}
+              </label>
               <input
                 name="title"
                 type="text"
@@ -891,24 +896,28 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
                 value={formData.title}
                 onChange={handleChange}
                 className={uiTokens.input}
-                placeholder="Modern 3BR apartment with marina view"
+                placeholder={t("uploadPage", "titlePlaceholder")}
               />
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Description</label>
+              <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                {t("uploadPage", "descriptionLabel")}
+              </label>
               <textarea
                 name="description"
                 rows={4}
                 value={formData.description}
                 onChange={handleChange}
                 className={uiTokens.input}
-                placeholder="Highlight rooms, amenities, and neighborhood value."
+                placeholder={t("uploadPage", "descriptionPlaceholder")}
               />
             </div>
             <div className="space-y-4">
               <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Source</label>
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {t("uploadPage", "source")}
+                </label>
                 <div className={`inline-flex w-full rounded-xl border p-1 shadow-sm ${uiTokens.border} ${uiTokens.surface}`}>
                   {(["upload", "youtube", "template"] as TemplateSourceMode[]).map((mode) => (
                     <button
@@ -924,14 +933,20 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
                           : "text-slate-800 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-700"
                       }`}
                     >
-                      {mode === "upload" ? "Upload Video" : mode === "youtube" ? "YouTube URL" : "Create Template"}
+                      {mode === "upload"
+                        ? t("uploadPage", "sourceUpload")
+                        : mode === "youtube"
+                          ? t("uploadPage", "sourceYoutube")
+                          : t("uploadPage", "sourceTemplate")}
                     </button>
                   ))}
                 </div>
               </div>
 
               <div className="w-full max-w-xs">
-                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Video Type</label>
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {t("uploadPage", "videoType")}
+                </label>
                 <div className={`inline-flex w-full rounded-xl border p-1 shadow-sm ${uiTokens.border} ${uiTokens.surface}`}>
                   <button
                     type="button"
@@ -944,7 +959,7 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
                         : "text-slate-800 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-700"
                     }`}
                   >
-                    Long
+                    {t("uploadPage", "long")}
                   </button>
                   <button
                     type="button"
@@ -957,7 +972,7 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
                         : "text-slate-800 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-700"
                     }`}
                   >
-                    Short
+                    {t("uploadPage", "short")}
                   </button>
                 </div>
               </div>
@@ -966,7 +981,7 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
                 <>
                   {sourceMode === "upload" ? (
                     <UploadCard
-                      title="Upload Video"
+                      title={t("uploadPage", "uploadVideoTitle")}
                       icon={<FileVideo className="h-5 w-5 text-indigo-500" />}
                       accept="video/mp4,.mp4"
                       disabled={isYoutubeMode || isUploading}
@@ -974,7 +989,7 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
                       progress={videoUpload.progress}
                       uploading={videoUpload.uploading}
                       uploaded={Boolean(videoUpload.uploadedUrl)}
-                      helperText="MP4 - uploads when you publish"
+                      helperText={t("uploadPage", "uploadVideoHelp")}
                       previewSrc={videoPreviewSrc}
                       previewAsVideo
                       videoVariant={formData.videoType}
@@ -985,7 +1000,7 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
                   ) : (
                     <div>
                       <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                        YouTube URL
+                        {t("uploadPage", "youtubeLabel")}
                       </label>
                       <div className="relative">
                         <Youtube className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-gray-400" />
@@ -998,7 +1013,7 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
                           }}
                           disabled={Boolean(videoUpload.file) || isUploading}
                           className={`${uiTokens.input} py-3 pl-10 pr-4 disabled:cursor-not-allowed disabled:opacity-60`}
-                          placeholder="https://www.youtube.com/watch?v=..."
+                          placeholder={t("uploadPage", "youtubePlaceholder")}
                         />
                       </div>
                     </div>
@@ -1007,14 +1022,16 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
               ) : (
                 <div className="space-y-4 rounded-2xl border border-slate-300 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
                   <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Template</p>
+                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                      {t("uploadPage", "templateLabel")}
+                    </p>
                     <button
                       type="button"
                       onClick={() => setTemplateModalOpen(true)}
                       className="inline-flex items-center gap-2 rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 dark:border-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300"
                     >
                       <Sparkles className="h-4 w-4" />
-                      {selectedTemplate ? "Change Template" : "Select Template"}
+                      {selectedTemplate ? t("uploadPage", "changeTemplate") : t("uploadPage", "selectTemplate")}
                     </button>
                   </div>
 
@@ -1022,12 +1039,12 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
                     <p className="text-xs text-slate-600 dark:text-slate-300">
                       {selectedTemplate.name} (
                       {selectedTemplate.type.toLowerCase() === "short" || selectedTemplate.type === "SHORT"
-                        ? "short"
-                        : "long"}
+                        ? t("uploadPage", "templateTypeShort")
+                        : t("uploadPage", "templateTypeLong")}
                       )
                     </p>
                   ) : (
-                    <p className="text-xs text-amber-600 dark:text-amber-400">Choose a template to continue.</p>
+                    <p className="text-xs text-amber-600 dark:text-amber-400">{t("uploadPage", "chooseTemplateContinue")}</p>
                   )}
 
                   <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
@@ -1057,7 +1074,7 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
 
                   <div>
                     <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Audio (optional)
+                      {t("uploadPage", "audioOptional")}
                     </label>
                     <input
                       type="file"
@@ -1071,20 +1088,18 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
                     {templateMedia.audioFile ? (
                       <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">{templateMedia.audioFile.name}</p>
                     ) : templateEditor.selectedMusicTrackUrl ? (
-                      <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">Using selected library track</p>
+                      <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">{t("uploadPage", "usingLibraryTrack")}</p>
                     ) : templateRemoteAudio ? (
-                      <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">Using saved listing audio</p>
+                      <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">{t("uploadPage", "usingSavedAudio")}</p>
                     ) : selectedTemplate?.defaultAudio ? (
-                      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                        Default template music will be used if you skip upload.
-                      </p>
+                      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{t("uploadPage", "defaultMusicHint")}</p>
                     ) : null}
                   </div>
 
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                     <div>
                       <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Music library
+                        {t("uploadPage", "musicLibrary")}
                       </label>
                       <select
                         value={templateEditor.selectedMusicTrackUrl}
@@ -1096,7 +1111,7 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
                         }}
                         className={uiTokens.select}
                       >
-                        <option value="">Use template default music</option>
+                        <option value="">{t("uploadPage", "musicUseTemplateDefault")}</option>
                         {TEMPLATE_MUSIC_LIBRARY.map((track) => (
                           <option key={track.id} value={track.url}>
                             {track.title} - {track.mood}
@@ -1105,12 +1120,12 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
                       </select>
                     </div>
                     <div className="rounded-xl border border-slate-200 p-3 text-xs text-slate-600 dark:border-slate-700 dark:text-slate-300">
-                      TikTok-style audio: uploaded music overrides library, then default template audio is used as fallback.
+                      {t("uploadPage", "audioPriorityHint")}
                     </div>
                   </div>
 
                   <div className="space-y-3 rounded-xl border border-slate-200 p-3 dark:border-slate-700">
-                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Font settings (Arabic + English)</p>
+                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{t("uploadPage", "fontSettings")}</p>
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                       <select
                         value={templateEditor.fontFamily}
@@ -1134,7 +1149,7 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
                           setTemplateEditor((prev) => ({ ...prev, fontSize: Number(event.target.value) || 34 }))
                         }
                         className={uiTokens.input}
-                        placeholder="Font size"
+                        placeholder={t("uploadPage", "fontSizePh")}
                       />
                       <select
                         value={templateEditor.fontWeight}
@@ -1145,7 +1160,17 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
                       >
                         {(["normal", "medium", "semibold", "bold", "800", "900"] as const).map((w) => (
                           <option key={w} value={w}>
-                            {w}
+                            {w === "normal"
+                              ? t("uploadPage", "fontWNormal")
+                              : w === "medium"
+                                ? t("uploadPage", "fontWMedium")
+                                : w === "semibold"
+                                  ? t("uploadPage", "fontWSemibold")
+                                  : w === "bold"
+                                    ? t("uploadPage", "fontWBold")
+                                    : w === "800"
+                                      ? t("uploadPage", "fontW800")
+                                      : t("uploadPage", "fontW900")}
                           </option>
                         ))}
                       </select>
@@ -1166,7 +1191,11 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
                       >
                         {(["left", "center", "right"] as const).map((a) => (
                           <option key={a} value={a}>
-                            {a}
+                            {a === "left"
+                              ? t("uploadPage", "alignLeft")
+                              : a === "center"
+                                ? t("uploadPage", "alignCenter")
+                                : t("uploadPage", "alignRight")}
                           </option>
                         ))}
                       </select>
@@ -1174,7 +1203,7 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
                         value={templateEditor.sceneText}
                         onChange={(event) => setTemplateEditor((prev) => ({ ...prev, sceneText: event.target.value }))}
                         className={uiTokens.input}
-                        placeholder="Scene headline text"
+                        placeholder={t("uploadPage", "sceneHeadlinePh")}
                       />
                     </div>
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -1185,9 +1214,9 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
                         }
                         className={uiTokens.select}
                       >
-                        <option value="fade-in">fade</option>
-                        <option value="slide-up">slide</option>
-                        <option value="zoom-in">zoom</option>
+                        <option value="fade-in">{t("uploadPage", "animFade")}</option>
+                        <option value="slide-up">{t("uploadPage", "animSlide")}</option>
+                        <option value="zoom-in">{t("uploadPage", "animZoom")}</option>
                       </select>
                       <div className="grid grid-cols-2 gap-2">
                         <select
@@ -1199,7 +1228,11 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
                         >
                           {(["top", "center", "bottom"] as const).map((p) => (
                             <option key={p} value={p}>
-                              {p}
+                              {p === "top"
+                                ? t("uploadPage", "posTop")
+                                : p === "center"
+                                  ? t("uploadPage", "posCenter")
+                                  : t("uploadPage", "posBottom")}
                             </option>
                           ))}
                         </select>
@@ -1216,7 +1249,7 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
                             }))
                           }
                           className={uiTokens.input}
-                          placeholder="Duration"
+                          placeholder={t("uploadPage", "durationPh")}
                         />
                       </div>
                     </div>
@@ -1230,13 +1263,16 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
                       images={templateLivePreviewImages}
                       audioUrl={templateAudioPreviewUrl || templateEditor.selectedMusicTrackUrl || null}
                       fallbackAudioUrl={selectedTemplate.defaultAudio}
-                      title={formData.title || "Listing title"}
+                      title={formData.title || t("uploadPage", "listingTitleFallback")}
                       priceLine={
                         formData.price
-                          ? `${new Intl.NumberFormat("en-US").format(Number(formData.price))} ${formData.currency}`
-                          : "Price"
+                          ? `${new Intl.NumberFormat(numberLocale).format(Number(formData.price))} ${formData.currency}`
+                          : t("uploadPage", "priceFallback")
                       }
-                      locationLine={`${formData.city || ""}${formData.country ? `, ${formData.country}` : ""}` || "Location"}
+                      locationLine={
+                        `${formData.city || ""}${formData.country ? `, ${formData.country}` : ""}`.trim() ||
+                        t("uploadPage", "locationFallback")
+                      }
                       isShort={formData.videoType === "short"}
                     />
                   ) : null}
@@ -1244,7 +1280,7 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
               )}
 
               <UploadCard
-                title="Thumbnail"
+                title={t("uploadPage", "thumbnailTitle")}
                 icon={<FileImage className="h-5 w-5 text-indigo-500" />}
                 accept="image/jpeg,image/png,.jpg,.jpeg,.png"
                 disabled={isUploading}
@@ -1252,7 +1288,7 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
                 progress={thumbnailUpload.progress}
                 uploading={thumbnailUpload.uploading}
                 uploaded={Boolean(thumbnailUpload.uploadedUrl)}
-                helperText="Optional — JPG or PNG"
+                helperText={t("uploadPage", "thumbnailHelp")}
                 previewSrc={thumbnailDisplayUrl}
                 onChange={(event) => handleThumbnailSelect(event.target.files?.[0] || null)}
                 dropzoneHeight="min-h-[11rem]"
@@ -1264,42 +1300,44 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
           <section className="space-y-5">
             <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
               <Home className="h-5 w-5 text-indigo-500" />
-              Property Details
+              {t("uploadPage", "sectionProperty")}
             </h2>
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
               <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Property Type</label>
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {t("uploadPage", "propertyListing")}
+                </label>
                 <select
                   name="propertyType"
                   value={formData.propertyType}
                   onChange={handleChange}
                   className={uiTokens.select}
                 >
-                  <option value="APARTMENT">Apartment</option>
-                  <option value="VILLA">Villa</option>
-                  <option value="HOUSE">House</option>
-                  <option value="OFFICE">Office</option>
-                  <option value="SHOP">Shop</option>
-                  <option value="COMMERCIAL">Commercial</option>
-                  <option value="LAND">Land</option>
+                  {(["APARTMENT", "VILLA", "HOUSE", "OFFICE", "SHOP", "COMMERCIAL", "LAND"] as const).map((pt) => (
+                    <option key={pt} value={pt}>
+                      {t("upload", `types.${pt}`)}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Listing Type</label>
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {t("uploadPage", "listingType")}
+                </label>
                 <select
                   name="status"
                   value={formData.status}
                   onChange={handleChange}
                   className={uiTokens.select}
                 >
-                  <option value="FOR_SALE">For Sale</option>
-                  <option value="FOR_RENT">For Rent</option>
+                  <option value="FOR_SALE">{t("upload", "statuses.FOR_SALE")}</option>
+                  <option value="FOR_RENT">{t("upload", "statuses.FOR_RENT")}</option>
                 </select>
               </div>
 
               <CompactField
-                label="Bedrooms"
+                label={t("upload", "bedrooms")}
                 name="bedrooms"
                 value={formData.bedrooms}
                 onChange={handleChange}
@@ -1308,7 +1346,7 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
                 maxWidthClassName="max-w-none"
               />
               <CompactField
-                label="Bathrooms"
+                label={t("upload", "bathrooms")}
                 name="bathrooms"
                 value={formData.bathrooms}
                 onChange={handleChange}
@@ -1321,7 +1359,7 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
               <CompactField
-                label="Area"
+                label={t("uploadPage", "areaLabel")}
                 name="sizeSqm"
                 value={formData.sizeSqm}
                 onChange={handleChange}
@@ -1330,7 +1368,9 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
                 maxWidthClassName="max-w-none"
               />
               <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Area Unit</label>
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {t("uploadPage", "areaUnit")}
+                </label>
                 <input
                   value={formData.sizeUnit === "sqft" ? "ft²" : "m²"}
                   readOnly
@@ -1338,7 +1378,7 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
                 />
               </div>
               <CompactField
-                label="Price"
+                label={t("upload", "price")}
                 name="price"
                 value={formData.price}
                 onChange={handleChange}
@@ -1348,7 +1388,9 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
                 maxWidthClassName="max-w-none"
               />
               <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Currency</label>
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {t("uploadPage", "currency")}
+                </label>
                 <input value={formData.currency} readOnly className={uiTokens.input} />
               </div>
             </div>
@@ -1357,12 +1399,14 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
           <section className="space-y-5">
             <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
               <MapPin className="h-5 w-5 text-indigo-500" />
-              Location
+              {t("uploadPage", "sectionLocation")}
             </h2>
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
               <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Country</label>
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {t("upload", "country")}
+                </label>
                 <select
                   name="country"
                   required
@@ -1370,7 +1414,7 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
                   onChange={handleChange}
                   className={uiTokens.select}
                 >
-                  <option value="">Select country</option>
+                  <option value="">{t("upload", "selectCountry")}</option>
                   {countries.map((country) => (
                     <option key={country} value={country}>
                       {country}
@@ -1379,7 +1423,9 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
                 </select>
               </div>
               <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">City</label>
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {t("upload", "city")}
+                </label>
                 <select
                   name="city"
                   required
@@ -1388,7 +1434,9 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
                   disabled={!formData.country}
                   className={uiTokens.select}
                 >
-                  <option value="">{formData.country ? "Select city" : "Select country first"}</option>
+                  <option value="">
+                    {formData.country ? t("upload", "selectCity") : t("upload", "selectCountryFirst")}
+                  </option>
                   {cities.map((city) => (
                     <option key={city} value={city}>
                       {city}
@@ -1397,13 +1445,15 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
                 </select>
               </div>
               <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Area / Address</label>
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {t("uploadPage", "areaAddress")}
+                </label>
                 <input
                   name="address"
                   value={formData.address}
                   onChange={handleChange}
                   className={uiTokens.input}
-                  placeholder="Business Bay, Downtown, etc."
+                  placeholder={t("uploadPage", "addressPlaceholder")}
                 />
               </div>
 
@@ -1427,13 +1477,13 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
               {(loading || isUploading) && <Loader2 className="h-5 w-5 animate-spin" />}
               {loading
                 ? editVideoId
-                  ? "Updating..."
-                  : "Publishing..."
+                  ? t("upload", "updating")
+                  : t("upload", "publishing")
                 : isUploading
-                  ? "Uploading..."
+                  ? t("uploadPage", "uploading")
                   : editVideoId
-                    ? "Update Video"
-                    : "Publish Video"}
+                    ? t("upload", "updateVideo")
+                    : t("upload", "publishVideo")}
             </button>
           </div>
         </form>
@@ -1441,7 +1491,9 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">
             <div className="max-h-[85vh] w-full max-w-5xl overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
               <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-slate-700">
-                <h3 className="text-base font-semibold text-slate-900 dark:text-white">Choose Template</h3>
+                <h3 className="text-base font-semibold text-slate-900 dark:text-white">
+                  {t("uploadPage", "modalChooseTemplate")}
+                </h3>
                 <button
                   type="button"
                   onClick={() => {
@@ -1478,13 +1530,16 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
           <TemplateCinematicPreviewModal
             template={cinematicPreviewTemplate}
             isOpen={cinematicPreviewOpen}
-            listingTitle={formData.title || "Listing title"}
+            listingTitle={formData.title || t("uploadPage", "listingTitleFallback")}
             priceLine={
               formData.price
-                ? `${new Intl.NumberFormat("en-US").format(Number(formData.price))} ${formData.currency}`
-                : "Price"
+                ? `${new Intl.NumberFormat(numberLocale).format(Number(formData.price))} ${formData.currency}`
+                : t("uploadPage", "priceFallback")
             }
-            locationLine={`${formData.city || ""}${formData.country ? `, ${formData.country}` : ""}` || "Location"}
+            locationLine={
+              `${formData.city || ""}${formData.country ? `, ${formData.country}` : ""}`.trim() ||
+              t("uploadPage", "locationFallback")
+            }
             onClose={() => {
               setCinematicPreviewOpen(false);
               setCinematicPreviewTemplate(null);
@@ -1539,6 +1594,7 @@ function UploadCard({
   dropzoneHeight?: string;
   wrapperClassName?: string;
 }) {
+  const { t } = useTranslation();
   const inputRef = useRef<HTMLInputElement>(null);
   const inputId = useId();
 
@@ -1585,7 +1641,7 @@ function UploadCard({
               ) : (
                 <img
                   src={previewSrc}
-                  alt="Thumbnail preview"
+                  alt={t("uploadPage", "thumbnailPreviewAlt")}
                   className="z-[1] max-h-full w-full object-contain"
                 />
               )}
@@ -1595,7 +1651,7 @@ function UploadCard({
                 onClick={() => inputRef.current?.click()}
                 className="absolute right-2 top-2 z-[2] rounded-lg border border-slate-200 bg-white/95 px-2.5 py-1 text-xs font-semibold text-slate-800 shadow-sm backdrop-blur-sm transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900/95 dark:text-slate-100"
               >
-                Replace
+                {t("uploadPage", "replace")}
               </button>
             </div>
           </div>
@@ -1607,7 +1663,9 @@ function UploadCard({
             }`}
           >
             <Upload className="mx-auto h-6 w-6 text-gray-400" />
-            <p className="mt-2 text-sm text-slate-700 dark:text-slate-100">{fileName || "Click to upload"}</p>
+            <p className="mt-2 text-sm text-slate-700 dark:text-slate-100">
+              {fileName || t("uploadPage", "clickToUpload")}
+            </p>
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-300">{helperText}</p>
           </label>
         )}
@@ -1615,7 +1673,7 @@ function UploadCard({
       {(uploading || uploaded || fileName) && (
         <div className="mt-3 space-y-2">
           <div className="flex items-center justify-between text-xs text-slate-700 dark:text-slate-100">
-            <span className="truncate">{fileName || "Preparing upload..."}</span>
+            <span className="truncate">{fileName || t("uploadPage", "preparingUpload")}</span>
             <span>{progress}%</span>
           </div>
           <div className="h-2 w-full rounded-full bg-slate-200 dark:bg-slate-700">
@@ -1623,7 +1681,7 @@ function UploadCard({
           </div>
           {uploaded && (
             <p className="flex items-center gap-1 text-xs font-medium text-green-600 dark:text-green-400">
-              <CheckCircle2 className="h-3.5 w-3.5" /> Upload complete
+              <CheckCircle2 className="h-3.5 w-3.5" /> {t("uploadPage", "uploadComplete")}
             </p>
           )}
         </div>
@@ -1647,6 +1705,7 @@ function TemplateImageSlot({
   disabled: boolean;
   onPick: (file: File | null) => void;
 }) {
+  const { t } = useTranslation();
   const ref = useRef<HTMLInputElement>(null);
   const showSrc = preview || remoteUrl?.trim() || "";
   return (
@@ -1669,7 +1728,7 @@ function TemplateImageSlot({
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={showSrc}
-            alt={`Template slot ${index + 1}`}
+            alt={t("uploadPage", "templateSlotAlt").replace("{{n}}", String(index + 1))}
             className="h-20 w-full rounded object-cover"
             loading="lazy"
           />
@@ -1679,7 +1738,9 @@ function TemplateImageSlot({
           </div>
         )}
         <span className="font-medium text-slate-600 dark:text-slate-300">
-          {file || remoteUrl ? "Replace image" : `Image ${index + 1}`}
+          {file || remoteUrl
+            ? t("uploadPage", "replaceImage")
+            : t("uploadPage", "imageSlot").replace("{{n}}", String(index + 1))}
         </span>
       </button>
     </div>

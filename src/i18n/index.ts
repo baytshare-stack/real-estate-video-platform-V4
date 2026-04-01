@@ -15,3 +15,4 @@ export {
 } from "./config";
 
 export { LanguageProvider, useTranslation, type TranslateFn } from "./LanguageProvider";
+export { useSafeT, reportUntranslatedLiteral } from "./useSafeT";

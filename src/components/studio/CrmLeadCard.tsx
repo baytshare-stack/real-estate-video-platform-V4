@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { mailtoInquiryUrl, telHref, whatsappDigits, whatsappUrl } from "@/lib/crmContactLinks";
+import { useTranslation } from "@/i18n/LanguageProvider";
 
 export interface CrmTemplateEvent {
   type: string;
@@ -42,21 +43,6 @@ export interface CrmInteractor {
   isAnonymousAggregate?: boolean;
 }
 
-function templateEventLabel(type: string): string {
-  switch (type) {
-    case "TEMPLATE_VIEW":
-      return "Slideshow view";
-    case "TEMPLATE_WHATSAPP_CLICK":
-      return "WhatsApp tap";
-    case "TEMPLATE_CALL_CLICK":
-      return "Call tap";
-    case "TEMPLATE_EMAIL_CLICK":
-      return "Email tap";
-    default:
-      return "Template activity";
-  }
-}
-
 interface CrmLeadCardProps {
   lead: CrmInteractor;
 }
@@ -73,7 +59,23 @@ function WhatsAppIcon({ className }: { className?: string }) {
 }
 
 export default function CrmLeadCard({ lead }: CrmLeadCardProps) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
+
+  const templateEventLabel = (type: string) => {
+    switch (type) {
+      case "TEMPLATE_VIEW":
+        return t("studio", "crm.eventTemplateView");
+      case "TEMPLATE_WHATSAPP_CLICK":
+        return t("studio", "crm.eventWhatsapp");
+      case "TEMPLATE_CALL_CLICK":
+        return t("studio", "crm.eventCall");
+      case "TEMPLATE_EMAIL_CLICK":
+        return t("studio", "crm.eventEmail");
+      default:
+        return t("studio", "crm.eventDefault");
+    }
+  };
   const {
     user,
     likes,
@@ -143,14 +145,14 @@ export default function CrmLeadCard({ lead }: CrmLeadCardProps) {
             </div>
           )}
           {isSubscriber ? (
-            <div className="flex items-center gap-1 text-xs font-medium text-amber-400" title="Channel subscriber">
-              <Bell className="h-3.5 w-3.5" /> Sub
+            <div className="flex items-center gap-1 text-xs font-medium text-amber-400" title={t("studio", "crm.subscriberTitle")}>
+              <Bell className="h-3.5 w-3.5" /> {t("studio", "crm.subBadge")}
             </div>
           ) : null}
           {templateEvents.length > 0 && (
             <div
               className="flex items-center gap-1 text-xs font-medium text-violet-400"
-              title="Template / slideshow engagement"
+              title={t("studio", "crm.templateEngagementTitle")}
             >
               <Sparkles className="h-3.5 w-3.5" /> {templateEvents.length}
             </div>
@@ -169,7 +171,7 @@ export default function CrmLeadCard({ lead }: CrmLeadCardProps) {
 
       <div className="mb-1 mt-3">
         <div className="mb-1 flex items-center justify-between">
-          <span className="text-xs font-medium text-gray-500">Interest Score</span>
+          <span className="text-xs font-medium text-gray-500">{t("studio", "crm.interestScore")}</span>
           <span className="text-xs font-bold text-gray-400">{interestScore}%</span>
         </div>
         <div className="h-1.5 overflow-hidden rounded-full bg-gray-800">
@@ -185,12 +187,12 @@ export default function CrmLeadCard({ lead }: CrmLeadCardProps) {
           {isSubscriber ? (
             <p className="text-xs text-amber-400/90">
               <Bell className="mb-0.5 mr-1 inline h-3.5 w-3.5" />
-              Subscribed to your channel — high-intent lead.
+              {t("studio", "crm.subscribedHint")}
             </p>
           ) : null}
           {likes.length > 0 && (
             <div>
-              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">Liked Videos</p>
+              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">{t("studio", "crm.likedVideos")}</p>
               {likes.slice(0, 3).map((l, i) => (
                 <p key={i} className="line-clamp-1 flex items-center gap-1.5 text-xs text-gray-400">
                   <Heart className="h-3 w-3 flex-shrink-0 text-red-400" /> {l.videoTitle}
@@ -200,7 +202,7 @@ export default function CrmLeadCard({ lead }: CrmLeadCardProps) {
           )}
           {comments.length > 0 && (
             <div>
-              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">Commented On</p>
+              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">{t("studio", "crm.commentedOn")}</p>
               {comments.slice(0, 3).map((c, i) => (
                 <p key={i} className="line-clamp-1 flex items-center gap-1.5 text-xs text-gray-400">
                   <MessageCircle className="h-3 w-3 flex-shrink-0 text-blue-400" /> {c.videoTitle}
@@ -210,9 +212,7 @@ export default function CrmLeadCard({ lead }: CrmLeadCardProps) {
           )}
           {templateEvents.length > 0 && (
             <div>
-              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                Template listings
-              </p>
+              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">{t("studio", "crm.templateListings")}</p>
               {templateEvents.slice(0, 6).map((ev, i) => (
                 <p
                   key={`${ev.createdAt}-${i}`}
@@ -232,15 +232,13 @@ export default function CrmLeadCard({ lead }: CrmLeadCardProps) {
               ))}
               {templateEvents.length > 6 ? (
                 <p className="mt-1 text-[10px] text-gray-600">
-                  +{templateEvents.length - 6} more (newest first)
+                  {t("studio", "crm.moreEvents").replace("{{count}}", String(templateEvents.length - 6))}
                 </p>
               ) : null}
             </div>
           )}
           {isAnonymousAggregate ? (
-            <p className="text-xs text-gray-500">
-              These actions had no logged-in user. Encourage sign-in or lead forms to attach identity.
-            </p>
+            <p className="text-xs text-gray-500">{t("studio", "crm.anonymousHint")}</p>
           ) : null}
         </div>
       )}
@@ -253,15 +251,15 @@ export default function CrmLeadCard({ lead }: CrmLeadCardProps) {
             className={`${btnClass} border-emerald-500/25 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20`}
           >
             <Phone className="h-4 w-4 shrink-0" />
-            <span>Call</span>
+            <span>{t("studio", "crm.call")}</span>
           </a>
         ) : (
           <span
             className={`${btnClass} cursor-not-allowed border-white/10 bg-white/[0.02] text-gray-600`}
-            title="No phone number on file"
+            title={t("studio", "crm.noPhone")}
           >
             <Phone className="h-4 w-4 shrink-0 opacity-50" />
-            <span>Call</span>
+            <span>{t("studio", "crm.call")}</span>
           </span>
         )}
 
@@ -273,15 +271,15 @@ export default function CrmLeadCard({ lead }: CrmLeadCardProps) {
             className={`${btnClass} border-emerald-600/30 bg-emerald-600/15 text-emerald-400 hover:bg-emerald-600/25`}
           >
             <WhatsAppIcon className="h-4 w-4 shrink-0" />
-            <span>WhatsApp</span>
+            <span>{t("studio", "crm.whatsapp")}</span>
           </a>
         ) : (
           <span
             className={`${btnClass} cursor-not-allowed border-white/10 bg-white/[0.02] text-gray-600`}
-            title="No phone number on file for WhatsApp"
+            title={t("studio", "crm.noPhoneWhatsapp")}
           >
             <WhatsAppIcon className="h-4 w-4 shrink-0 opacity-50" />
-            <span>WhatsApp</span>
+            <span>{t("studio", "crm.whatsapp")}</span>
           </span>
         )}
 
@@ -291,15 +289,15 @@ export default function CrmLeadCard({ lead }: CrmLeadCardProps) {
             className={`${btnClass} border-sky-500/25 bg-sky-500/10 text-sky-300 hover:bg-sky-500/20`}
           >
             <Mail className="h-4 w-4 shrink-0" />
-            <span>Email</span>
+            <span>{t("studio", "crm.email")}</span>
           </a>
         ) : (
           <span
             className={`${btnClass} cursor-not-allowed border-white/10 bg-white/[0.02] text-gray-600`}
-            title="No email on file"
+            title={t("studio", "crm.noEmailFile")}
           >
             <Mail className="h-4 w-4 shrink-0 opacity-50" />
-            <span>Email</span>
+            <span>{t("studio", "crm.email")}</span>
           </span>
         )}
       </div>

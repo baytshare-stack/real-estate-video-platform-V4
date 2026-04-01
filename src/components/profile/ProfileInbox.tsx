@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Loader2, MessageCircle } from "lucide-react";
+import { useTranslation } from "@/i18n/LanguageProvider";
 
 type Peer = {
   id: string;
@@ -27,8 +28,8 @@ type Msg = {
   sender: Peer;
 };
 
-function peerLabel(p: Peer) {
-  return p.profile?.name?.trim() || p.fullName || p.name || p.username || "User";
+function peerLabel(p: Peer, userFallback: string) {
+  return p.profile?.name?.trim() || p.fullName || p.name || p.username || userFallback;
 }
 
 function peerAvatar(p: Peer) {
@@ -42,6 +43,7 @@ export default function ProfileInbox({
   currentUserId: string;
   sessionName: string;
 }) {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [conversations, setConversations] = useState<Conv[]>([]);
   const [activePeerId, setActivePeerId] = useState<string | null>(null);
@@ -83,7 +85,7 @@ export default function ProfileInbox({
       const data = (await res.json()) as { messages: Msg[] };
       setThread(data.messages ?? []);
     } catch {
-      setError("Could not load conversation");
+      setError(t("profile", "inbox.loadThreadFailed"));
       setThread([]);
     } finally {
       setThreadLoading(false);
@@ -102,14 +104,14 @@ export default function ProfileInbox({
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || "Send failed");
+        setError(typeof data.error === "string" ? data.error : t("profile", "inbox.sendFailed"));
         return;
       }
       setReply("");
       await openThread(activePeerId);
       await loadConversations();
     } catch {
-      setError("Send failed");
+      setError(t("profile", "inbox.sendFailed"));
     } finally {
       setSending(false);
     }
@@ -119,7 +121,7 @@ export default function ProfileInbox({
     return (
       <div className="flex items-center gap-2 rounded-xl border border-gray-800 bg-gray-900/50 p-8 text-gray-400">
         <Loader2 className="h-5 w-5 animate-spin" />
-        Loading messages…
+        {t("profile", "inbox.loading")}
       </div>
     );
   }
@@ -127,9 +129,9 @@ export default function ProfileInbox({
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <div className="rounded-xl border border-gray-800 bg-gray-900/40">
-        <div className="border-b border-gray-800 px-4 py-3 text-sm font-semibold text-white">Conversations</div>
+        <div className="border-b border-gray-800 px-4 py-3 text-sm font-semibold text-white">{t("profile", "inbox.conversations")}</div>
         {conversations.length === 0 ? (
-          <p className="p-6 text-sm text-gray-500">No messages yet. Visit an agent profile and use Send message.</p>
+          <p className="p-6 text-sm text-gray-500">{t("profile", "inbox.empty")}</p>
         ) : (
           <ul className="max-h-80 overflow-y-auto">
             {conversations.map((c) => (
@@ -146,11 +148,11 @@ export default function ProfileInbox({
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={peerAvatar(c.peer)!} alt="" className="h-full w-full object-cover" />
                     ) : (
-                      peerLabel(c.peer).charAt(0)
+                      peerLabel(c.peer, t("profile", "userFallback")).charAt(0)
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium text-white">{peerLabel(c.peer)}</p>
+                    <p className="truncate font-medium text-white">{peerLabel(c.peer, t("profile", "userFallback"))}</p>
                     <p className="truncate text-xs text-gray-500">{c.lastMessage}</p>
                   </div>
                   <span className="shrink-0 text-[10px] text-gray-600">
@@ -166,13 +168,13 @@ export default function ProfileInbox({
       <div className="flex min-h-[280px] flex-col rounded-xl border border-gray-800 bg-gray-900/40">
         <div className="flex items-center gap-2 border-b border-gray-800 px-4 py-3 text-sm font-semibold text-white">
           <MessageCircle className="h-4 w-4 text-blue-400" />
-          {activePeerId ? "Thread" : "Select a conversation"}
+          {activePeerId ? t("profile", "inbox.thread") : t("profile", "inbox.selectConversation")}
         </div>
         {error && <div className="px-4 py-2 text-sm text-red-400">{error}</div>}
         <div className="flex flex-1 flex-col overflow-hidden">
           {!activePeerId ? (
             <p className="flex flex-1 items-center justify-center p-6 text-sm text-gray-500">
-              Choose a conversation to read and reply.
+              {t("profile", "inbox.chooseConversation")}
             </p>
           ) : threadLoading ? (
             <div className="flex flex-1 items-center justify-center gap-2 text-gray-400">
@@ -208,7 +210,7 @@ export default function ProfileInbox({
                 <textarea
                   value={reply}
                   onChange={(e) => setReply(e.target.value)}
-                  placeholder={`Reply as ${sessionName}…`}
+                  placeholder={t("profile", "inbox.replyPlaceholder").replace("{{name}}", sessionName)}
                   rows={2}
                   className="min-h-[44px] flex-1 resize-none rounded-xl border border-gray-700 bg-black/40 px-3 py-2 text-sm text-white placeholder:text-gray-600 focus:border-blue-500 focus:outline-none"
                 />
@@ -218,7 +220,7 @@ export default function ProfileInbox({
                   onClick={sendReply}
                   className="shrink-0 self-end rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
                 >
-                  {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send"}
+                  {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : t("profile", "inbox.send")}
                 </button>
               </div>
             </div>

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { TemplateListItemDto } from "@/lib/video-templates/types";
 import { Check } from "lucide-react";
+import { useTranslation } from "@/i18n/LanguageProvider";
 
 function useInView<T extends Element>(opts?: IntersectionObserverInit & { once?: boolean }) {
   const { once = true, ...io } = opts ?? {};
@@ -35,7 +36,11 @@ function TemplatePreviewCard({
   selected: boolean;
   onPreview: (tpl: TemplateListItemDto) => void;
 }) {
-  const kind = tpl.type.toLowerCase() === "short" ? "short" : "long";
+  const { t } = useTranslation();
+  const kind =
+    tpl.type.toLowerCase() === "short" || tpl.type === "SHORT"
+      ? t("uploadPage", "templateTypeShort")
+      : t("uploadPage", "templateTypeLong");
   const { ref: mediaRef, inView } = useInView<HTMLDivElement>({ rootMargin: "250px", threshold: 0.08 });
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -97,7 +102,7 @@ function TemplatePreviewCard({
         if (e.pointerType === "touch") setHovered(false);
       }}
       onClick={() => onPreview(tpl)}
-      aria-label={`Preview template: ${tpl.name}`}
+      aria-label={t("uploadPage", "previewTemplateAria").replace("{{name}}", tpl.name)}
     >
       <div
         ref={mediaRef}
@@ -163,11 +168,12 @@ export default function TemplateGallery({
   onPreview: (tpl: TemplateListItemDto) => void;
   error?: string;
 }) {
+  const { t } = useTranslation();
   const [tab, setTab] = useState<"all" | "short" | "long">("all");
 
   const filtered = useMemo(() => {
     if (tab === "all") return templates;
-    return templates.filter((t) => t.type.toLowerCase() === tab);
+    return templates.filter((tpl) => tpl.type.toLowerCase() === tab);
   }, [templates, tab]);
 
   return (
@@ -176,7 +182,12 @@ export default function TemplateGallery({
 
       <div className="flex flex-wrap items-center gap-2">
         {(["all", "short", "long"] as const).map((k) => {
-          const label = k === "all" ? "All" : k[0].toUpperCase() + k.slice(1);
+          const label =
+            k === "all"
+              ? t("uploadPage", "galleryFilterAll")
+              : k === "short"
+                ? t("uploadPage", "templateTypeShort")
+                : t("uploadPage", "templateTypeLong");
           const active = tab === k;
           return (
             <button
@@ -209,7 +220,7 @@ export default function TemplateGallery({
         </div>
       ) : (
         <div className="flex h-48 items-center justify-center rounded-xl border border-dashed text-sm text-slate-500 dark:text-slate-400">
-          No templates found.
+          {t("uploadPage", "galleryNoTemplates")}
         </div>
       )}
     </div>
