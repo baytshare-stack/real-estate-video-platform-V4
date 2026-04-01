@@ -6,10 +6,12 @@ import prisma from "@/lib/prisma";
 import { safeFindFirst } from "@/lib/safePrisma";
 import DashboardVideosList from "@/components/dashboard/DashboardVideosList";
 import type { VideoRowData } from "@/components/studio/VideoRow";
+import { getServerI18n } from "@/i18n/server";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardVideosPage() {
+  const { t } = await getServerI18n();
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     redirect("/login");
@@ -35,13 +37,13 @@ export default async function DashboardVideosPage() {
   if (!channel) {
     return (
       <div className="mx-auto max-w-5xl px-4 py-10">
-        <h1 className="mb-2 text-2xl font-bold text-slate-100">Your Videos</h1>
-        <p className="mb-6 text-slate-400">Create your channel first to manage uploads.</p>
+        <h1 className="mb-2 text-2xl font-bold text-slate-100">{t("dashboardVideos", "title")}</h1>
+        <p className="mb-6 text-slate-400">{t("dashboardVideos", "createChannelFirst")}</p>
         <Link
           href="/create-channel"
           className="rounded-lg bg-indigo-600 px-4 py-2 text-white hover:bg-indigo-700"
         >
-          Create Channel
+          {t("dashboardVideos", "createChannel")}
         </Link>
       </div>
     );
@@ -68,12 +70,12 @@ export default async function DashboardVideosPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-slate-100">Your Videos</h1>
+        <h1 className="text-2xl font-bold text-slate-100">{t("dashboardVideos", "title")}</h1>
         <Link
           href="/upload-video"
           className="rounded-lg bg-indigo-600 px-4 py-2 text-white hover:bg-indigo-700"
         >
-          Upload New Video
+          {t("dashboardVideos", "uploadNew")}
         </Link>
       </div>
 

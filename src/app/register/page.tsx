@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getProviders, signIn } from "next-auth/react";
 import { COUNTRIES, getCountryByIso, buildFullPhoneNumber } from "@/lib/countriesData";
+import { useTranslation } from "@/i18n/LanguageProvider";
 
 type RoleValue = "user" | "agent" | "agency";
 
@@ -12,8 +13,15 @@ function digitsOnly(s: string) {
   return s.replace(/\D/g, "");
 }
 
+function mapSignInError(raw: string | undefined, t: (a: string, b?: string) => string): string {
+  if (!raw) return t("errors", "generic");
+  if (raw === "CredentialsSignin" || raw === "credentials") return t("errors", "invalidCredentials");
+  return raw;
+}
+
 export default function RegisterPage() {
   const router = useRouter();
+  const { t } = useTranslation();
   const [step, setStep] = useState<"form" | "otp">("form");
   const [formData, setFormData] = useState({
     username: "",
@@ -46,13 +54,13 @@ export default function RegisterPage() {
     setError("");
 
     if (phoneRequired && !formData.phoneNational.trim()) {
-      setError("Phone is required for agent and agency accounts.");
+      setError(t("auth", "phoneRequiredAgent"));
       setLoading(false);
       return;
     }
 
     if (wantsPhone && !formData.countryIso) {
-      setError("Select a country to set your phone country code.");
+      setError(t("auth", "selectCountryPhone"));
       setLoading(false);
       return;
     }
@@ -84,9 +92,11 @@ export default function RegisterPage() {
 
       if (!res.ok) {
         const hint = typeof data.hint === "string" ? data.hint : "";
-        setError(
-          hint ? `${data.error || "Registration failed"}\n${hint}` : data.error || "Registration failed"
-        );
+        const base =
+          typeof data.error === "string" && data.error.trim()
+            ? data.error
+            : t("auth", "registrationFailed");
+        setError(hint ? `${base}\n${hint}` : base);
         setLoading(false);
         return;
       }
@@ -95,8 +105,8 @@ export default function RegisterPage() {
         const inlineOtp = typeof data.otp === "string" ? data.otp : "";
         setSuccess(
           inlineOtp
-            ? `Verification code (email not sent or dev/staging): ${inlineOtp}`
-            : "We sent a verification code to your email. Enter it below."
+            ? t("auth", "otpDevHint").replace("{{code}}", inlineOtp)
+            : t("auth", "otpSent")
         );
         setStep("otp");
         setLoading(false);
@@ -106,7 +116,7 @@ export default function RegisterPage() {
         return;
       }
 
-      setSuccess("Account created! Signing you in...");
+      setSuccess(t("auth", "accountCreated"));
       const sign = await signIn("credentials", {
         redirect: false,
         email: formData.email.trim().toLowerCase(),
@@ -115,7 +125,7 @@ export default function RegisterPage() {
 
       if (sign?.error) {
         setSuccess("");
-        setError("Registered but sign-in failed. Please log in manually.");
+        setError(t("auth", "registeredSignInFailed"));
         setTimeout(() => router.push("/login"), 2000);
         return;
       }
@@ -124,7 +134,7 @@ export default function RegisterPage() {
       router.push(isAgentOrAgency ? "/create-channel" : "/profile");
       router.refresh();
     } catch {
-      setError("An unexpected error occurred");
+      setError(t("auth", "unexpectedError"));
     } finally {
       setLoading(false);
     }
@@ -144,17 +154,17 @@ export default function RegisterPage() {
       });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(d.error || "Could not resend code");
+        setError(typeof d.error === "string" ? d.error : t("auth", "couldNotResendCode"));
         return;
       }
       if (typeof d.otp === "string") {
         console.info("[register] resent OTP from API:", d.otp);
-        setSuccess(`New code (email not sent or dev/staging): ${d.otp}`);
+        setSuccess(t("auth", "otpNewDev").replace("{{code}}", d.otp));
       } else {
-        setSuccess("A new code was sent to your email.");
+        setSuccess(t("auth", "otpResentEmail"));
       }
     } catch {
-      setError("Could not resend code");
+      setError(t("auth", "couldNotResendCode"));
     } finally {
       setOtpLoading(false);
     }
@@ -175,7 +185,7 @@ export default function RegisterPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data.error || "Verification failed");
+        setError(typeof data.error === "string" ? data.error : t("auth", "verifyFailed"));
         setOtpLoading(false);
         return;
       }
@@ -187,7 +197,7 @@ export default function RegisterPage() {
       });
 
       if (sign?.error) {
-        setError(sign.error || "Sign-in failed after verification");
+        setError(mapSignInError(sign.error, t) || t("auth", "signInAfterVerifyFailed"));
         setOtpLoading(false);
         return;
       }
@@ -196,7 +206,7 @@ export default function RegisterPage() {
       router.push(isAgentOrAgency ? "/create-channel" : "/profile");
       router.refresh();
     } catch {
-      setError("Verification failed");
+      setError(t("auth", "verifyFailed"));
     } finally {
       setOtpLoading(false);
     }
@@ -204,27 +214,29 @@ export default function RegisterPage() {
 
   if (step === "otp") {
     return (
-      <div className="min-h-[calc(100vh-64px)] flex items-center justify-center p-4">
-        <div className="w-full max-w-xl bg-gray-900 border border-gray-800 rounded-2xl p-6 md:p-8 shadow-2xl my-8">
-          <div className="text-center mb-8">
-            <h1 className="text-2xl font-bold text-white">Verify your email</h1>
-            <p className="text-gray-400 mt-2">Enter the 6-digit code we sent to your email</p>
+      <div className="my-8 flex min-h-[calc(100vh-64px)] items-center justify-center p-4">
+        <div className="w-full max-w-xl rounded-2xl border border-gray-800 bg-gray-900 p-6 shadow-2xl md:p-8">
+          <div className="mb-8 text-center">
+            <h1 className="text-2xl font-bold text-white">{t("auth", "verifyEmailHeading")}</h1>
+            <p className="mt-2 text-gray-400">{t("auth", "verifyEmailBody")}</p>
           </div>
 
-          {error && (
-            <div className="bg-red-500/10 border border-red-500/50 text-red-400 p-3 rounded-lg text-sm mb-6">
+          {error ? (
+            <div className="mb-6 rounded-lg border border-red-500/50 bg-red-500/10 p-3 text-sm text-red-400">
               {error}
             </div>
-          )}
-          {success && (
-            <div className="bg-green-500/10 border border-green-500/50 text-green-400 p-3 rounded-lg text-sm mb-6">
+          ) : null}
+          {success ? (
+            <div className="mb-6 rounded-lg border border-green-500/50 bg-green-500/10 p-3 text-sm text-green-400">
               {success}
             </div>
-          )}
+          ) : null}
 
           <form onSubmit={handleVerifyOtp} className="flex flex-col gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-400 mb-1">Verification code</label>
+              <label className="mb-1 block text-sm font-medium text-gray-400">
+                {t("auth", "verificationCodeLabel")}
+              </label>
               <input
                 type="text"
                 inputMode="numeric"
@@ -233,16 +245,16 @@ export default function RegisterPage() {
                 maxLength={8}
                 value={otpCode}
                 onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
-                className="w-full bg-black/50 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors"
-                placeholder="123456"
+                className="w-full rounded-xl border border-gray-700 bg-black/50 px-4 py-3 text-white transition-colors focus:border-blue-500 focus:outline-none"
+                placeholder={t("auth", "otpPlaceholder")}
               />
             </div>
             <button
               type="submit"
               disabled={otpLoading}
-              className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl mt-4 transition-colors disabled:opacity-50"
+              className="mt-4 w-full rounded-xl bg-blue-600 py-3 font-bold text-white transition-colors hover:bg-blue-500 disabled:opacity-50"
             >
-              {otpLoading ? "Verifying..." : "Verify & continue"}
+              {otpLoading ? t("auth", "verifying") : t("auth", "verifyAndContinue")}
             </button>
           </form>
 
@@ -250,14 +262,14 @@ export default function RegisterPage() {
             type="button"
             onClick={handleResendOtp}
             disabled={otpLoading}
-            className="w-full mt-4 text-sm text-blue-400 hover:text-blue-300 disabled:opacity-50"
+            className="mt-4 w-full text-sm text-blue-400 hover:text-blue-300 disabled:opacity-50"
           >
-            Resend code
+            {t("auth", "resendCode")}
           </button>
 
-          <p className="text-center text-gray-400 mt-8 text-sm">
-            <Link href="/login" className="text-blue-500 hover:text-blue-400 font-medium">
-              Back to sign in
+          <p className="mt-8 text-center text-sm text-gray-400">
+            <Link href="/login" className="font-medium text-blue-500 hover:text-blue-400">
+              {t("auth", "backToSignIn")}
             </Link>
           </p>
         </div>
@@ -266,24 +278,24 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-[calc(100vh-64px)] flex items-center justify-center p-4">
-      <div className="w-full max-w-xl bg-gray-900 border border-gray-800 rounded-2xl p-6 md:p-8 shadow-2xl my-8">
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-white">Create an Account</h1>
-          <p className="text-gray-400 mt-2">Join RealEstateTV to upload or discover properties</p>
+    <div className="my-8 flex min-h-[calc(100vh-64px)] items-center justify-center p-4">
+      <div className="w-full max-w-xl rounded-2xl border border-gray-800 bg-gray-900 p-6 shadow-2xl md:p-8">
+        <div className="mb-8 text-center">
+          <h1 className="text-2xl font-bold text-white">{t("auth", "registerHeroTitle")}</h1>
+          <p className="mt-2 text-gray-400">{t("auth", "registerHeroSubtitle")}</p>
         </div>
 
-        {error && (
-          <div className="bg-red-500/10 border border-red-500/50 text-red-400 p-3 rounded-lg text-sm mb-6">
+        {error ? (
+          <div className="mb-6 rounded-lg border border-red-500/50 bg-red-500/10 p-3 text-sm text-red-400">
             {error}
           </div>
-        )}
+        ) : null}
 
-        {success && (
-          <div className="bg-green-500/10 border border-green-500/50 text-green-400 p-3 rounded-lg text-sm mb-6">
+        {success ? (
+          <div className="mb-6 rounded-lg border border-green-500/50 bg-green-500/10 p-3 text-sm text-green-400">
             {success}
           </div>
-        )}
+        ) : null}
 
         {showGoogle ? (
           <div className="mb-6 space-y-3">
@@ -294,88 +306,93 @@ export default function RegisterPage() {
                   callbackUrl: "/auth/post-login?from=register",
                 })
               }
-              className="w-full bg-white hover:bg-gray-100 text-black font-semibold py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2"
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-white py-2.5 font-semibold text-black transition-colors hover:bg-gray-100"
             >
-              <svg className="w-5 h-5" viewBox="0 0 24 24" aria-hidden>
+              <svg className="h-5 w-5" viewBox="0 0 24 24" aria-hidden>
                 <path
                   fill="currentColor"
                   d="M12.545,10.239v3.821h5.445c-0.712,2.315-2.647,3.972-5.445,3.972c-3.332,0-6.033-2.701-6.033-6.032s2.701-6.032,6.033-6.032c1.498,0,2.866,0.549,3.921,1.453l2.814-2.814C17.503,2.988,15.139,2,12.545,2C7.021,2,2.543,6.477,2.543,12s4.478,10,10.002,10c8.396,0,10.249-7.85,9.426-11.748L12.545,10.239z"
                 />
               </svg>
-              Continue with Google — no email code
+              {t("auth", "continueWithGoogleNoCode")}
             </button>
-            <p className="text-center text-xs text-gray-500">
-              Google confirms your email instantly. New accounts are <strong>users</strong> (viewer). Use the form
-              below to register as agent/agency with email + password.
-            </p>
+            <p className="text-center text-xs text-gray-500">{t("auth", "googleRegisterExplainer")}</p>
             <div className="flex items-center justify-center gap-4">
-              <div className="h-px bg-gray-800 flex-1" />
-              <span className="text-gray-500 text-sm font-medium">Or register with email</span>
-              <div className="h-px bg-gray-800 flex-1" />
+              <div className="h-px flex-1 bg-gray-800" />
+              <span className="text-sm font-medium text-gray-500">{t("auth", "orRegisterWithEmail")}</span>
+              <div className="h-px flex-1 bg-gray-800" />
             </div>
           </div>
         ) : null}
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
-              <label className="block text-sm font-medium text-gray-400 mb-1">Username *</label>
+              <label className="mb-1 block text-sm font-medium text-gray-400">
+                {t("auth", "usernameRequiredLabel")}
+              </label>
               <input
                 type="text"
                 required
                 value={formData.username}
                 onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                className="w-full bg-black/50 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors"
+                className="w-full rounded-xl border border-gray-700 bg-black/50 px-4 py-3 text-white transition-colors focus:border-blue-500 focus:outline-none"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-400 mb-1">Role *</label>
+              <label className="mb-1 block text-sm font-medium text-gray-400">
+                {t("auth", "roleRequiredLabel")}
+              </label>
               <select
                 required
                 value={formData.role}
                 onChange={(e) => setFormData({ ...formData, role: e.target.value as RoleValue })}
-                className="w-full bg-black/50 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors"
+                className="w-full rounded-xl border border-gray-700 bg-black/50 px-4 py-3 text-white transition-colors focus:border-blue-500 focus:outline-none"
               >
-                <option value="user">User</option>
-                <option value="agent">Agent</option>
-                <option value="agency">Agency</option>
+                <option value="user">{t("auth", "roleUser")}</option>
+                <option value="agent">{t("auth", "roleAgent")}</option>
+                <option value="agency">{t("auth", "roleAgency")}</option>
               </select>
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-400 mb-1">Email Address *</label>
+            <label className="mb-1 block text-sm font-medium text-gray-400">
+              {t("auth", "emailRequiredLabel")}
+            </label>
             <input
               type="email"
               required
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              className="w-full bg-black/50 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors"
+              className="w-full rounded-xl border border-gray-700 bg-black/50 px-4 py-3 text-white transition-colors focus:border-blue-500 focus:outline-none"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-400 mb-1">Password *</label>
+            <label className="mb-1 block text-sm font-medium text-gray-400">
+              {t("auth", "passwordRequiredLabel")}
+            </label>
             <input
               type="password"
               required
               value={formData.password}
               onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-              className="w-full bg-black/50 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors"
+              className="w-full rounded-xl border border-gray-700 bg-black/50 px-4 py-3 text-white transition-colors focus:border-blue-500 focus:outline-none"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-400 mb-1">
-              Country {wantsPhone ? "*" : "(for phone)"}
+            <label className="mb-1 block text-sm font-medium text-gray-400">
+              {t("auth", "country")} {wantsPhone ? "*" : t("auth", "countryOptionalForPhone")}
             </label>
             <select
               required={wantsPhone}
               value={formData.countryIso}
               onChange={(e) => setFormData({ ...formData, countryIso: e.target.value })}
-              className="w-full bg-black/50 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors"
+              className="w-full rounded-xl border border-gray-700 bg-black/50 px-4 py-3 text-white transition-colors focus:border-blue-500 focus:outline-none"
             >
-              <option value="">Select country</option>
+              <option value="">{t("auth", "selectCountry")}</option>
               {COUNTRIES.map((c) => (
                 <option key={c.iso2} value={c.iso2}>
                   {c.flag} {c.name} ({c.phoneCode})
@@ -385,8 +402,8 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-400 mb-1">
-              Phone {phoneRequired ? "*" : "(optional)"}{" "}
+            <label className="mb-1 block text-sm font-medium text-gray-400">
+              {t("auth", "phone")} {phoneRequired ? "*" : t("auth", "fieldOptional")}{" "}
               {country ? <span className="text-gray-500">{country.phoneCode}</span> : null}
             </label>
             <input
@@ -396,35 +413,39 @@ export default function RegisterPage() {
               onChange={(e) =>
                 setFormData({ ...formData, phoneNational: digitsOnly(e.target.value) })
               }
-              className="w-full bg-black/50 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors"
-              placeholder={phoneRequired ? "National number (no country code)" : "Optional"}
+              className="w-full rounded-xl border border-gray-700 bg-black/50 px-4 py-3 text-white transition-colors focus:border-blue-500 focus:outline-none"
+              placeholder={
+                phoneRequired ? t("auth", "phoneNationalPlaceholder") : t("auth", "phoneOptionalShort")
+              }
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-400 mb-1">WhatsApp (optional)</label>
+            <label className="mb-1 block text-sm font-medium text-gray-400">
+              {t("auth", "whatsapp")} {t("auth", "fieldOptional")}
+            </label>
             <input
               type="tel"
               value={formData.whatsapp}
               onChange={(e) => setFormData({ ...formData, whatsapp: e.target.value })}
-              className="w-full bg-black/50 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors"
-              placeholder="Same country code as above, or full international"
+              className="w-full rounded-xl border border-gray-700 bg-black/50 px-4 py-3 text-white transition-colors focus:border-blue-500 focus:outline-none"
+              placeholder={t("auth", "whatsappPlaceholderLong")}
             />
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl mt-4 transition-colors disabled:opacity-50"
+            className="mt-4 w-full rounded-xl bg-blue-600 py-3 font-bold text-white transition-colors hover:bg-blue-500 disabled:opacity-50"
           >
-            {loading ? "Creating Account..." : "Register"}
+            {loading ? t("auth", "registering") : t("auth", "registerSubmit")}
           </button>
         </form>
 
-        <p className="text-center text-gray-400 mt-8 text-sm">
-          Already have an account?{" "}
-          <Link href="/login" className="text-blue-500 hover:text-blue-400 font-medium">
-            Sign in
+        <p className="mt-8 text-center text-sm text-gray-400">
+          {t("auth", "hasAccount")}{" "}
+          <Link href="/login" className="font-medium text-blue-500 hover:text-blue-400">
+            {t("auth", "signInShort")}
           </Link>
         </p>
       </div>

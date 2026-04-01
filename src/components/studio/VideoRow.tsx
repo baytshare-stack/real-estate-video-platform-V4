@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Edit2, Trash2, Heart, MessageCircle, Clapperboard, Film } from "lucide-react";
 import DeleteConfirmModal from "./DeleteConfirmModal";
 import StudioVideoCommentsModal from "./StudioVideoCommentsModal";
+import { useTranslation } from "@/i18n/LanguageProvider";
 
 export interface VideoRowData {
   id: string;
@@ -24,6 +25,7 @@ interface VideoRowProps {
 }
 
 export default function VideoRow({ video, onDeleted }: VideoRowProps) {
+  const { t, locale } = useTranslation();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
@@ -35,7 +37,7 @@ export default function VideoRow({ video, onDeleted }: VideoRowProps) {
       if (res.ok) {
         onDeleted(video.id);
       } else {
-        alert("Failed to delete video. Please try again.");
+        alert(t("dashboardVideos", "deleteFailed"));
       }
     } finally {
       setDeleting(false);
@@ -43,7 +45,8 @@ export default function VideoRow({ video, onDeleted }: VideoRowProps) {
     }
   };
 
-  const date = new Date(video.createdAt).toLocaleDateString("en-US", {
+  const dateLocale = locale === "ar" ? "ar-SA" : "en-US";
+  const date = new Date(video.createdAt).toLocaleDateString(dateLocale, {
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -54,9 +57,9 @@ export default function VideoRow({ video, onDeleted }: VideoRowProps) {
   return (
     <>
       <tr className="group border-b border-white/[0.06] transition-colors hover:bg-white/[0.025]">
-        <td className="py-4 pl-2 pr-4">
+        <td className="py-4 ps-2 pe-4">
           <div className="flex min-w-[260px] items-start gap-4">
-            <div className="relative flex-shrink-0">
+            <div className="relative shrink-0">
               <img
                 src={
                   video.thumbnail ||
@@ -66,17 +69,17 @@ export default function VideoRow({ video, onDeleted }: VideoRowProps) {
                 className="aspect-video w-28 rounded-lg bg-gray-800 object-cover"
               />
               <div
-                className={`absolute left-1.5 top-1.5 flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-bold text-white ${
+                className={`absolute start-1.5 top-1.5 flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase text-white ${
                   isShort ? "bg-red-600" : "bg-gray-700/90 backdrop-blur-sm"
                 }`}
               >
                 {isShort ? (
                   <>
-                    <Clapperboard className="h-2.5 w-2.5" /> SHORT
+                    <Clapperboard className="h-2.5 w-2.5" /> {t("dashboardVideos", "typeShort")}
                   </>
                 ) : (
                   <>
-                    <Film className="h-2.5 w-2.5" /> LONG
+                    <Film className="h-2.5 w-2.5" /> {t("dashboardVideos", "typeLong")}
                   </>
                 )}
               </div>
@@ -99,7 +102,7 @@ export default function VideoRow({ video, onDeleted }: VideoRowProps) {
                   href={`/studio/videos/edit/${video.id}`}
                   className="flex items-center gap-1 text-xs text-gray-400 transition-colors hover:text-blue-400"
                 >
-                  <Edit2 className="h-3.5 w-3.5" /> Edit
+                  <Edit2 className="h-3.5 w-3.5" /> {t("common", "edit")}
                 </Link>
                 <span className="text-gray-700">·</span>
                 <button
@@ -107,7 +110,7 @@ export default function VideoRow({ video, onDeleted }: VideoRowProps) {
                   onClick={() => setShowDeleteModal(true)}
                   className="flex items-center gap-1 text-xs text-gray-400 transition-colors hover:text-red-400"
                 >
-                  <Trash2 className="h-3.5 w-3.5" /> Delete
+                  <Trash2 className="h-3.5 w-3.5" /> {t("common", "delete")}
                 </button>
               </div>
             </div>
@@ -123,11 +126,11 @@ export default function VideoRow({ video, onDeleted }: VideoRowProps) {
                   : "border-purple-500/20 bg-purple-500/10 text-purple-400"
               }`}
             >
-              {video.property.status === "FOR_SALE" ? "For Sale" : "For Rent"}
+              {video.property.status === "FOR_SALE" ? t("watch", "forSale") : t("watch", "forRent")}
             </span>
           ) : (
             <span className="inline-flex items-center rounded-full border border-green-500/20 bg-green-500/10 px-2.5 py-1 text-xs font-semibold text-green-400">
-              Published
+              {t("dashboardVideos", "published")}
             </span>
           )}
         </td>
@@ -162,7 +165,7 @@ export default function VideoRow({ video, onDeleted }: VideoRowProps) {
             <Link
               href={`/studio/videos/edit/${video.id}`}
               className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-blue-500/10 hover:text-blue-400"
-              title="Edit"
+              title={t("common", "edit")}
             >
               <Edit2 className="h-4 w-4" />
             </Link>
@@ -170,7 +173,7 @@ export default function VideoRow({ video, onDeleted }: VideoRowProps) {
               type="button"
               onClick={() => setShowDeleteModal(true)}
               className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-red-500/10 hover:text-red-400"
-              title="Delete"
+              title={t("common", "delete")}
             >
               <Trash2 className="h-4 w-4" />
             </button>

@@ -12,6 +12,9 @@ export const LOCALE_COOKIE = "NEXT_LOCALE";
 /** Client persistence (preference). */
 export const LOCALE_STORAGE_KEY = "RETV_LOCALE";
 
+/** Set when user explicitly picks a language (skips auto navigator detection). */
+export const LOCALE_USER_CHOICE_KEY = "RETV_LOCALE_USER_CHOICE";
+
 export const languages: Record<
   Locale,
   { name: string; nativeName: string; dir: "ltr" | "rtl"; flag: string }

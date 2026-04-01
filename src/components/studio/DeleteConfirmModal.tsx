@@ -1,6 +1,7 @@
 "use client";
 
-import { AlertTriangle, Trash2 } from 'lucide-react';
+import { AlertTriangle, Trash2 } from "lucide-react";
+import { useTranslation } from "@/i18n/LanguageProvider";
 
 interface DeleteConfirmModalProps {
   title: string;
@@ -10,6 +11,7 @@ interface DeleteConfirmModalProps {
 }
 
 export default function DeleteConfirmModal({ title, onCancel, onConfirm, loading }: DeleteConfirmModalProps) {
+  const { t } = useTranslation();
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center px-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onCancel} />
@@ -19,8 +21,8 @@ export default function DeleteConfirmModal({ title, onCancel, onConfirm, loading
             <AlertTriangle className="w-6 h-6 text-red-400" />
           </div>
           <div>
-            <h2 className="text-white font-bold text-lg">Delete Video?</h2>
-            <p className="text-gray-400 text-sm">This action cannot be undone.</p>
+            <h2 className="text-lg font-bold text-white">{t("dashboardVideos", "deleteModalTitle")}</h2>
+            <p className="text-sm text-gray-400">{t("dashboardVideos", "deleteModalBody")}</p>
           </div>
         </div>
 
@@ -33,7 +35,7 @@ export default function DeleteConfirmModal({ title, onCancel, onConfirm, loading
             onClick={onCancel}
             className="flex-1 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white font-medium text-sm transition-colors"
           >
-            Cancel
+            {t("common", "cancel")}
           </button>
           <button
             onClick={onConfirm}
@@ -41,9 +43,14 @@ export default function DeleteConfirmModal({ title, onCancel, onConfirm, loading
             className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-60 text-white font-bold text-sm transition-colors flex items-center justify-center gap-2"
           >
             {loading ? (
-              <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Deleting…</>
+              <>
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />{" "}
+                {t("dashboardVideos", "deleting")}
+              </>
             ) : (
-              <><Trash2 className="w-4 h-4" /> Delete Video</>
+              <>
+                <Trash2 className="h-4 w-4" /> {t("dashboardVideos", "deleteModalConfirm")}
+              </>
             )}
           </button>
         </div>

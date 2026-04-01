@@ -3,7 +3,13 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import type { Dictionary, Locale } from "./config";
-import { locales, LOCALE_STORAGE_KEY, languages } from "./config";
+import {
+  defaultLocale,
+  locales,
+  LOCALE_STORAGE_KEY,
+  LOCALE_USER_CHOICE_KEY,
+  languages,
+} from "./config";
 import { translateWithFallback } from "./resolve";
 
 export type TranslateFn = (namespaceOrPath: string, key?: string) => string;
@@ -11,10 +17,13 @@ export type TranslateFn = (namespaceOrPath: string, key?: string) => string;
 type LanguageContextType = {
   locale: Locale;
   dir: "ltr" | "rtl";
+  language: Locale;
   dict: Dictionary;
   /** Two-arg: t('nav','home') or single path: t('nav.home') */
   t: TranslateFn;
   setLocale: (next: Locale) => Promise<void>;
+  /** Alias for setLocale — switches language globally (cookie + refresh). */
+  setLanguage: (next: Locale) => Promise<void>;
 };
 
 const LanguageContext = createContext<LanguageContextType | null>(null);
@@ -44,7 +53,8 @@ export const LanguageProvider = ({
 
   const dir = languages[locale]?.dir ?? "ltr";
 
-  const setLocale = useCallback(
+  /** Persist locale without marking an explicit user choice (e.g. browser-language bootstrap). */
+  const applyLocale = useCallback(
     async (next: Locale) => {
       if (!locales.includes(next)) return;
       try {
@@ -58,10 +68,23 @@ export const LanguageProvider = ({
         document.documentElement.dir = languages[next].dir;
         router.refresh();
       } catch (e) {
-        console.error("setLocale failed", e);
+        console.error("applyLocale failed", e);
       }
     },
     [router]
+  );
+
+  const setLocale = useCallback(
+    async (next: Locale) => {
+      if (!locales.includes(next)) return;
+      try {
+        localStorage.setItem(LOCALE_USER_CHOICE_KEY, "1");
+      } catch {
+        /* ignore */
+      }
+      await applyLocale(next);
+    },
+    [applyLocale]
   );
 
   // Persist server locale to localStorage; one-way sync localStorage → server if user preference differs
@@ -85,13 +108,29 @@ export const LanguageProvider = ({
     }
   }, [locale, router]);
 
+  /** First visit: if user never chose a language, align with navigator when it suggests Arabic. */
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      if (localStorage.getItem(LOCALE_USER_CHOICE_KEY)) return;
+      const nav = navigator.language?.toLowerCase() ?? "";
+      if (nav.startsWith("ar") && locale === defaultLocale) {
+        void applyLocale("ar");
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [locale, applyLocale]);
+
   const value = useMemo(
     () => ({
       locale,
+      language: locale,
       dir,
       dict: dictionary,
       t,
       setLocale,
+      setLanguage: setLocale,
     }),
     [locale, dir, dictionary, t, setLocale]
   );

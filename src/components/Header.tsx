@@ -33,7 +33,7 @@ export default function Header() {
   };
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 flex h-16 items-center justify-between border-b border-white/10 bg-[#0f0f0f] px-2 sm:px-4">
+    <header className="fixed inset-x-0 top-0 z-50 flex h-16 items-center justify-between border-b border-white/10 bg-[#0f0f0f] px-2 sm:px-4">
       {/* ── Left ── */}
       <div className="flex min-w-0 shrink items-center gap-2 sm:gap-4">
         <button type="button" className="hidden rounded-full p-2 transition-colors hover:bg-white/10 xl:block">
@@ -44,7 +44,7 @@ export default function Header() {
             R
           </div>
           <span className="hidden truncate text-lg font-black uppercase tracking-tighter text-white sm:block sm:text-xl">
-            RealEstateTV
+            {t("brand", "name")}
           </span>
         </Link>
       </div>
@@ -58,7 +58,7 @@ export default function Header() {
             placeholder={t('search', 'placeholder')}
             className="w-full bg-transparent px-5 py-2.5 text-white outline-none placeholder:text-gray-600 text-sm"
           />
-          <button type="submit" className="px-6 bg-white/5 hover:bg-white/10 border-l border-white/10 flex items-center justify-center transition-colors">
+          <button type="submit" className="flex items-center justify-center border-s border-white/10 bg-white/5 px-6 transition-colors hover:bg-white/10">
             <Search className="w-4 h-4 text-gray-400" />
           </button>
         </form>
@@ -94,10 +94,10 @@ export default function Header() {
         ) : session ? (
           <div className="flex items-center gap-3">
              <NotificationBell />
-             <Link href="/profile" className="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-600 to-purple-600 flex items-center justify-center text-white font-bold hover:scale-105 transition-transform shadow-lg shadow-blue-500/20" title="Profile">
+             <Link href="/profile" className="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-600 to-purple-600 flex items-center justify-center text-white font-bold hover:scale-105 transition-transform shadow-lg shadow-blue-500/20" title={t("auth", "profile")}>
                 {session.user?.name?.charAt(0) || 'U'}
              </Link>
-             <button onClick={() => signOut()} className="p-2 hover:bg-red-500/10 rounded-full transition-colors hidden sm:block text-gray-400 hover:text-red-400" title="Sign Out">
+             <button onClick={() => signOut()} className="p-2 hover:bg-red-500/10 rounded-full transition-colors hidden sm:block text-gray-400 hover:text-red-400" title={t("auth", "signOut")} type="button" aria-label={t("auth", "signOut")}>
                 <LogOut className="w-5 h-5" />
              </button>
           </div>
@@ -132,8 +132,8 @@ export default function Header() {
               <X className="w-6 h-6" />
             </button>
           </div>
-          <div className="p-6 text-gray-500 text-sm italic">
-            Press enter to search for real estate videos...
+          <div className="p-6 text-sm italic text-gray-500">
+            {t("header", "mobileSearchHint")}
           </div>
         </div>
       )}

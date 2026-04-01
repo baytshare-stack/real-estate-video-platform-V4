@@ -55,7 +55,7 @@ export default function Sidebar() {
     <>
       {/* ── Desktop Sidebar ── */}
       <aside 
-        className={`fixed left-0 top-16 h-[calc(100vh-64px)] bg-[#0f0f0f] border-r border-white/10 overflow-y-auto hide-scrollbar hidden xl:flex flex-col py-3 z-40 transition-all duration-300 ${collapsed ? 'w-20' : 'w-60'}`}
+        className={`fixed start-0 top-16 z-40 hidden h-[calc(100vh-64px)] flex-col overflow-y-auto border-e border-white/10 bg-[#0f0f0f] py-3 hide-scrollbar transition-all duration-300 xl:flex ${collapsed ? 'w-20' : 'w-60'}`}
       >
         <div className="flex flex-col gap-1 px-3">
           {navItems.map((link) => {
@@ -70,7 +70,7 @@ export default function Sidebar() {
                 href={link.href}
                 className={`flex items-center gap-4 px-3 py-2.5 rounded-xl transition-all relative group ${isActive ? 'bg-blue-600/10 text-blue-400' : 'hover:bg-white/5 text-gray-300 hover:text-white'}`}
               >
-                {isActive && <div className="absolute left-0 top-2 bottom-2 w-1 bg-blue-600 rounded-r-full" />}
+                {isActive && <div className="absolute start-0 top-2 bottom-2 w-1 rounded-e-full bg-blue-600" />}
                 <Icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-blue-400' : 'group-hover:text-white'}`} />
                 {!collapsed && <span className="text-sm font-semibold tracking-wide truncate">{link.name}</span>}
                 {collapsed && (
@@ -89,12 +89,12 @@ export default function Sidebar() {
             className="w-full flex items-center gap-4 px-3 py-2.5 rounded-xl transition-colors hover:bg-white/5 text-gray-400 hover:text-white"
           >
             {collapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
-            {!collapsed && <span className="text-sm font-medium">Collapse</span>}
+            {!collapsed && <span className="text-sm font-medium">{t("sidebar", "collapse")}</span>}
           </button>
           
           <Link href="/settings" className="flex items-center gap-4 px-3 py-2.5 rounded-xl transition-colors hover:bg-white/5 text-gray-400 hover:text-white">
             <Settings className="w-5 h-5 flex-shrink-0" />
-            {!collapsed && <span className="text-sm font-medium">Settings</span>}
+            {!collapsed && <span className="text-sm font-medium">{t("sidebar", "settings")}</span>}
           </Link>
         </div>
       </aside>
@@ -133,7 +133,7 @@ export default function Sidebar() {
             }`}
           >
             <Settings className="h-5 w-5 shrink-0" aria-hidden />
-            <span className="text-center text-[9px] font-bold uppercase leading-tight tracking-tight">Studio</span>
+            <span className="text-center text-[9px] font-bold uppercase leading-tight tracking-tight">{t("nav", "studio")}</span>
           </Link>
         </div>
       </nav>

@@ -10,6 +10,17 @@ import { safeFindMany } from '@/lib/safePrisma';
 export const dynamic = 'force-dynamic';
 
 // This is a Next.js Server Component, it fetches DB directly on the server
+const HOME_FILTER_KEYS = [
+  "all",
+  "mansions",
+  "apartments",
+  "commercial",
+  "newYork",
+  "dubai",
+  "forRent",
+  "under1m",
+] as const;
+
 export default async function Home() {
   const { t } = await getServerTranslation();
   
@@ -63,10 +74,14 @@ export default async function Home() {
     <div className="p-4 md:p-6 max-w-[2000px] mx-auto min-h-screen">
       <h1 className="text-2xl font-bold mb-4 text-white">{t('home', 'feedTitle')}</h1>
       {/* Filters Strip (Optional, similar to YouTube's top pills) */}
-      <div className="flex gap-3 overflow-x-auto hide-scrollbar pb-4 mb-2">
-        {['All', 'Mansions', 'Apartments', 'Commercial', 'New York', 'Dubai', 'For Rent', 'Under $1M'].map(filter => (
-          <button key={filter} className="whitespace-nowrap px-4 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-medium transition-colors">
-            {filter}
+      <div className="mb-2 flex gap-3 overflow-x-auto pb-4 hide-scrollbar">
+        {HOME_FILTER_KEYS.map((key) => (
+          <button
+            key={key}
+            type="button"
+            className="whitespace-nowrap rounded-lg bg-white/10 px-4 py-1.5 text-sm font-medium transition-colors hover:bg-white/20"
+          >
+            {t("home", `filters.${key}`)}
           </button>
         ))}
       </div>
@@ -96,7 +111,7 @@ export default async function Home() {
       <div className="mb-10 pt-6 border-t border-white/10">
         <div className="flex items-center gap-2 mb-4">
           <Flame className="w-6 h-6 text-red-500" />
-          <h2 className="text-xl font-bold">Shorts</h2>
+          <h2 className="text-xl font-bold text-white">{t("home", "shortsShelf")}</h2>
         </div>
         <div className="flex gap-4 overflow-x-auto hide-scrollbar pb-4">
           {shortsPayload.map((short) => (
@@ -134,7 +149,7 @@ export default async function Home() {
       )}
 
       <div className="mt-6 border-t border-white/10 pt-6">
-        <h2 className="mb-4 text-xl font-bold text-white">Properties Map</h2>
+        <h2 className="mb-4 text-xl font-bold text-white">{t("home", "mapTitle")}</h2>
         <div className="h-[420px] overflow-hidden rounded-2xl border border-white/10">
           <PropertyMap
             className="h-full w-full"
