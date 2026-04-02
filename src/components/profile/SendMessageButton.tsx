@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useLocalizedPath } from "@/i18n/navigation";
 import { useSession } from "next-auth/react";
 import { Loader2, MessageCircle, X } from "lucide-react";
 
@@ -16,6 +17,7 @@ export default function SendMessageButton({
 }) {
   const { status } = useSession();
   const router = useRouter();
+  const localizedPath = useLocalizedPath();
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -38,7 +40,7 @@ export default function SendMessageButton({
       }
       setText("");
       setOpen(false);
-      router.push("/profile");
+      router.push(localizedPath("/profile"));
     } catch {
       setError("Failed to send");
     } finally {
@@ -55,7 +57,11 @@ export default function SendMessageButton({
       <button
         type="button"
         disabled={disabled}
-        onClick={() => router.push(`/login?callbackUrl=${encodeURIComponent(typeof window !== "undefined" ? window.location.pathname : "/")}`)}
+        onClick={() =>
+          router.push(
+            `${localizedPath("/login")}?callbackUrl=${encodeURIComponent(typeof window !== "undefined" ? window.location.pathname + window.location.search : localizedPath("/"))}`
+          )
+        }
         className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 px-4 py-2.5 text-sm font-semibold text-white/90 transition hover:bg-white/5 disabled:opacity-50"
       >
         <MessageCircle className="h-4 w-4" />

@@ -38,6 +38,7 @@ import { normalizeTemplateConfig } from "@/lib/video-templates/normalize-config"
 import { TEMPLATE_MUSIC_LIBRARY } from "@/lib/video-templates/music-library";
 import type { TemplateListItemDto } from "@/lib/video-templates/types";
 import { useTranslation } from "@/i18n/LanguageProvider";
+import { useLocalizedPath } from "@/i18n/navigation";
 
 const MapLeafletPicker = dynamic(() => import("@/components/upload/MapLeafletPicker"), {
   ssr: false,
@@ -209,6 +210,7 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
   const router = useRouter();
   const { data: session, status } = useSession();
   const { t, locale } = useTranslation();
+  const localizedPath = useLocalizedPath();
   const numberLocale = locale === "ar" ? "ar-SA" : "en-US";
 
   const [loading, setLoading] = useState(false);
@@ -529,7 +531,7 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
         <h1 className={`mb-2 text-2xl font-bold ${uiTokens.textPrimary}`}>{t("uploadPage", "accessDenied")}</h1>
         <p className={`mb-6 max-w-md text-center ${uiTokens.textSecondary}`}>{t("uploadPage", "accessDeniedBody")}</p>
         <button
-          onClick={() => router.push("/")}
+          onClick={() => router.push(localizedPath("/"))}
           className="rounded-lg bg-indigo-600 px-6 py-2 text-white transition hover:bg-indigo-700 active:bg-indigo-800"
         >
           {t("uploadPage", "returnHome")}
@@ -559,7 +561,7 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
         </p>
         <button
           type="button"
-          onClick={() => router.push("/studio")}
+          onClick={() => router.push(localizedPath("/studio"))}
           className="rounded-lg bg-indigo-600 px-6 py-2 text-white transition hover:bg-indigo-700 active:bg-indigo-800"
         >
           {t("uploadPage", "backToStudio")}
@@ -815,7 +817,9 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
 
       setSuccessMessage(isEdit ? t("uploadPage", "videoUpdated") : t("uploadPage", "successPublish"));
       const role = session?.user?.role;
-      router.push(role === "ADMIN" || role === "SUPER_ADMIN" ? "/studio" : "/");
+      router.push(
+        localizedPath(role === "ADMIN" || role === "SUPER_ADMIN" ? "/studio" : "/")
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : t("uploadPage", "networkError"));
     } finally {

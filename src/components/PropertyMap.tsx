@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useTranslation } from "@/i18n/LanguageProvider";
+import { prefixWithLocale } from "@/i18n/routing";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -17,6 +19,7 @@ type MapVideo = {
 const DEFAULT_CENTER: L.LatLngExpression = [25.2048, 55.2708];
 
 export default function PropertyMap({ videos, className = "h-full w-full" }: { videos: MapVideo[]; className?: string }) {
+  const { locale } = useTranslation();
   const mapRef = useRef<L.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const markersLayerRef = useRef<L.LayerGroup | null>(null);
@@ -60,8 +63,9 @@ export default function PropertyMap({ videos, className = "h-full w-full" }: { v
       const price = typeof video.price === "number" ? `${video.price.toLocaleString()} ${video.currency || "USD"}` : "";
       const thumbnail = video.thumbnailUrl || "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&q=80&w=320&h=180";
 
+      const watchHref = prefixWithLocale(locale, `/watch/${video.id}`);
       marker.bindPopup(
-        `<a href="/watch/${video.id}" style="display:block;min-width:220px;text-decoration:none;color:#111827">
+        `<a href="${watchHref}" style="display:block;min-width:220px;text-decoration:none;color:#111827">
           <img src="${thumbnail}" alt="${video.title}" style="width:100%;height:120px;object-fit:cover;border-radius:8px;margin-bottom:8px;" />
           <div style="font-weight:700;font-size:14px;line-height:1.2;margin-bottom:4px;">${video.title}</div>
           <div style="font-size:13px;color:#374151;">${price}</div>
@@ -78,7 +82,7 @@ export default function PropertyMap({ videos, className = "h-full w-full" }: { v
     } else {
       mapRef.current.setView(DEFAULT_CENTER, 10);
     }
-  }, [videos]);
+  }, [videos, locale]);
 
   return <div ref={mapContainerRef} className={className} />;
 }

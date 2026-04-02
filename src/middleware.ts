@@ -1,19 +1,34 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { defaultLocale, locales, type Locale, LOCALE_COOKIE } from "@/i18n/config";
+import { locales, type Locale, LOCALE_COOKIE } from "@/i18n/config";
 import {
-  ADMIN_SESSION_COOKIE,
-  verifyAdminToken,
-} from "@/lib/admin-jwt";
+  isPathWithoutLocalePrefix,
+  LOCALE_HEADER,
+  parseLocaleFromPathname,
+  prefixWithLocale,
+  resolveLocaleFromRequest,
+} from "@/i18n/routing";
+import { ADMIN_SESSION_COOKIE, verifyAdminToken } from "@/lib/admin-jwt";
 
-function detectFromAcceptLanguage(header: string | null): Locale {
-  if (!header) return defaultLocale;
-  const first = header.split(",")[0]?.trim().toLowerCase() ?? "";
-  if (first.startsWith("ar")) return "ar";
-  return defaultLocale;
+const COOKIE_OPTS = {
+  path: "/",
+  maxAge: 60 * 60 * 24 * 365,
+  sameSite: "lax" as const,
+};
+
+function nextWithRequestLocale(request: NextRequest, locale: Locale): NextResponse {
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set(LOCALE_HEADER, locale);
+  const res = NextResponse.next({ request: { headers: requestHeaders } });
+  res.cookies.set(LOCALE_COOKIE, locale, COOKIE_OPTS);
+  return res;
+}
+
+function setLocaleCookie(res: NextResponse, locale: Locale) {
+  res.cookies.set(LOCALE_COOKIE, locale, COOKIE_OPTS);
+  return res;
 }
 
 function requiresAdminAuth(pathname: string): boolean {
-  // "/admin-login" starts with "/admin" — must be excluded first
   if (pathname === "/admin-login" || pathname.startsWith("/admin-login/")) {
     return false;
   }
@@ -24,7 +39,6 @@ function requiresAdminAuth(pathname: string): boolean {
     return true;
   }
   if (pathname.startsWith("/api/admin/")) {
-    // POST /api/admin/auth — login (no JWT yet)
     if (pathname === "/api/admin/auth") {
       return false;
     }
@@ -39,20 +53,11 @@ function requiresAdminAuth(pathname: string): boolean {
   return false;
 }
 
-function applyLocale(request: NextRequest, response: NextResponse) {
-  const existing = request.cookies.get(LOCALE_COOKIE)?.value as Locale | undefined;
-  if (!existing || !locales.includes(existing)) {
-    const locale = detectFromAcceptLanguage(request.headers.get("accept-language"));
-    response.cookies.set(LOCALE_COOKIE, locale, {
-      path: "/",
-      maxAge: 60 * 60 * 24 * 365,
-      sameSite: "lax",
-    });
-  }
-}
-
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
+  const cookieLocale = request.cookies.get(LOCALE_COOKIE)?.value as Locale | undefined;
+  const acceptLang = request.headers.get("accept-language");
+  const fallbackLocale = resolveLocaleFromRequest(pathname, cookieLocale, acceptLang);
 
   if (requiresAdminAuth(pathname)) {
     const token = request.cookies.get(ADMIN_SESSION_COOKIE)?.value;
@@ -60,19 +65,28 @@ export async function middleware(request: NextRequest) {
 
     if (!session) {
       if (pathname.startsWith("/api/")) {
-        const res = NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        applyLocale(request, res);
-        return res;
+        return setLocaleCookie(NextResponse.json({ error: "Unauthorized" }, { status: 401 }), fallbackLocale);
       }
-      const res = NextResponse.redirect(new URL("/admin-login", request.url));
-      applyLocale(request, res);
-      return res;
+      return setLocaleCookie(NextResponse.redirect(new URL("/admin-login", request.url)), fallbackLocale);
     }
   }
 
-  const res = NextResponse.next();
-  applyLocale(request, res);
-  return res;
+  if (isPathWithoutLocalePrefix(pathname)) {
+    return nextWithRequestLocale(request, fallbackLocale);
+  }
+
+  const { locale: prefixLocale, restPath } = parseLocaleFromPathname(pathname);
+
+  if (prefixLocale && locales.includes(prefixLocale)) {
+    return nextWithRequestLocale(request, prefixLocale);
+  }
+
+  const targetLocale = fallbackLocale;
+  const redirectPath = prefixWithLocale(targetLocale, restPath === "/" ? "/" : restPath);
+  const url = request.nextUrl.clone();
+  url.pathname = redirectPath;
+  const res = NextResponse.redirect(url);
+  return setLocaleCookie(res, targetLocale);
 }
 
 export const config = {

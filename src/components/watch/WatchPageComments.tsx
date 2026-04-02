@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
+import LocaleLink from "@/components/LocaleLink";
 import { useSession } from "next-auth/react";
 import { useTranslation } from "@/i18n/LanguageProvider";
 
@@ -180,9 +180,9 @@ export default function WatchPageComments({ videoId }: { videoId: string }) {
         {postError ? <p className="text-sm text-rose-400">{postError}</p> : null}
         {status !== "authenticated" ? (
           <p className="text-sm text-gray-400">
-            <Link href="/login" className="text-blue-400 underline hover:text-blue-300">
+            <LocaleLink href="/login" className="text-blue-400 underline hover:text-blue-300">
               {t("watch", "signInToComment")}
-            </Link>
+            </LocaleLink>
           </p>
         ) : (
           <button

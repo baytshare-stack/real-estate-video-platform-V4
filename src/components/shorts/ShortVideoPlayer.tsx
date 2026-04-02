@@ -12,6 +12,7 @@ import YouTubePlayer from "@/components/video/YouTubePlayer";
 import TemplateMotionPlayer from "@/components/video/TemplateMotionPlayer";
 import { getYouTubeEmbedUrl } from "@/lib/youtube";
 import { useShortsPlayback } from "./ShortsPlaybackContext";
+import { useLocalizedPath } from "@/i18n/navigation";
 
 type Mode = "feed" | "grid";
 
@@ -53,6 +54,7 @@ export default function ShortVideoPlayer({
   onOpenComments?: (video: ShortVideoPayload) => void;
 }) {
   const router = useRouter();
+  const localizedPath = useLocalizedPath();
   const { status } = useSession();
   const isFeedMode = mode === "feed";
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -351,7 +353,7 @@ export default function ShortVideoPlayer({
           <div className="absolute bottom-0 left-0 right-0 z-10 p-3">
             <button
               type="button"
-              onClick={() => router.push(`/channel/${initial.channelId}`)}
+              onClick={() => router.push(localizedPath(`/channel/${initial.channelId}`))}
               className="flex items-center gap-2"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -528,7 +530,7 @@ export default function ShortVideoPlayer({
         <div className="absolute bottom-0 left-0 right-14 z-10 p-4 pr-2">
           <button
             type="button"
-            onClick={() => router.push(`/channel/${initial.channelId}`)}
+            onClick={() => router.push(localizedPath(`/channel/${initial.channelId}`))}
             className="mt-2 flex items-center gap-2"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}

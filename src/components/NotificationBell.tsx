@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { useLocalizeAppHref } from "@/i18n/navigation";
 import { Bell } from "lucide-react";
 
 type NotifRow = {
@@ -17,6 +18,7 @@ type NotifRow = {
 export default function NotificationBell() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const localizeHref = useLocalizeAppHref();
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<NotifRow[]>([]);
   const [unread, setUnread] = useState(0);
@@ -86,7 +88,7 @@ export default function NotificationBell() {
       /* still navigate */
     }
     setOpen(false);
-    if (n.linkUrl) router.push(n.linkUrl);
+    if (n.linkUrl) router.push(localizeHref(n.linkUrl));
   };
 
   const loadMore = async () => {

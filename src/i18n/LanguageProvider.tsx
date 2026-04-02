@@ -1,16 +1,11 @@
 "use client";
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import type { Dictionary, Locale } from "./config";
-import {
-  defaultLocale,
-  locales,
-  LOCALE_STORAGE_KEY,
-  LOCALE_USER_CHOICE_KEY,
-  languages,
-} from "./config";
+import { locales, LOCALE_STORAGE_KEY, LOCALE_USER_CHOICE_KEY, languages } from "./config";
 import { translateWithFallback } from "./resolve";
+import { prefixWithLocale, stripLocaleFromPathname } from "./routing";
 
 export type TranslateFn = (namespaceOrPath: string, key?: string) => string;
 
@@ -41,6 +36,7 @@ export const LanguageProvider = ({
   fallbackDictionary: Dictionary;
 }) => {
   const router = useRouter();
+  const pathname = usePathname();
   const hasSyncedStorage = useRef(false);
 
   const t: TranslateFn = useCallback(
@@ -66,12 +62,13 @@ export const LanguageProvider = ({
         });
         document.documentElement.lang = next;
         document.documentElement.dir = languages[next].dir;
-        router.refresh();
+        const rest = stripLocaleFromPathname(pathname || "/");
+        router.push(prefixWithLocale(next, rest));
       } catch (e) {
         console.error("applyLocale failed", e);
       }
     },
-    [router]
+    [router, pathname]
   );
 
   const setLocale = useCallback(
@@ -104,23 +101,12 @@ export const LanguageProvider = ({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ locale: stored }),
-      }).then(() => router.refresh());
+      }).then(() => {
+        const rest = stripLocaleFromPathname(pathname || "/");
+        router.replace(prefixWithLocale(stored, rest));
+      });
     }
-  }, [locale, router]);
-
-  /** First visit: if user never chose a language, align with navigator when it suggests Arabic. */
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      if (localStorage.getItem(LOCALE_USER_CHOICE_KEY)) return;
-      const nav = navigator.language?.toLowerCase() ?? "";
-      if (nav.startsWith("ar") && locale === defaultLocale) {
-        void applyLocale("ar");
-      }
-    } catch {
-      /* ignore */
-    }
-  }, [locale, applyLocale]);
+  }, [locale, router, pathname]);
 
   const value = useMemo(
     () => ({

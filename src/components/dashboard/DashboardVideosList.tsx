@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
+import LocaleLink from "@/components/LocaleLink";
 import VideoRow, { type VideoRowData } from "@/components/studio/VideoRow";
 import { useTranslation } from "@/i18n/LanguageProvider";
 
@@ -14,9 +14,9 @@ export default function DashboardVideosList({ initialVideos }: { initialVideos: 
     return (
       <div className="rounded-xl border border-slate-700 bg-slate-900 p-8 text-center">
         <p className="mb-4 text-slate-300">{t("dashboardVideos", "empty")}</p>
-        <Link href="/upload-video" className="text-indigo-400 hover:text-indigo-300">
+        <LocaleLink href="/upload-video" className="text-indigo-400 hover:text-indigo-300">
           {t("dashboardVideos", "uploadFirst")}
-        </Link>
+        </LocaleLink>
       </div>
     );
   }

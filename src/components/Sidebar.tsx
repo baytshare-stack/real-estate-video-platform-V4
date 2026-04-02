@@ -1,6 +1,5 @@
 "use client";
 
-import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   Home,
@@ -17,9 +16,12 @@ import {
 } from "lucide-react";
 import { useState, useEffect } from 'react';
 import { useTranslation } from '@/i18n/LanguageProvider';
+import { stripLocaleFromPathname } from '@/i18n/routing';
+import LocaleLink from '@/components/LocaleLink';
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const path = stripLocaleFromPathname(pathname || "/");
   const { t } = useTranslation();
   const [collapsed, setCollapsed] = useState(false);
 
@@ -62,10 +64,10 @@ export default function Sidebar() {
             const Icon = link.icon;
             const isActive =
               link.href === "/"
-                ? pathname === "/"
-                : pathname === link.href || pathname.startsWith(`${link.href}/`);
+                ? path === "/"
+                : path === link.href || path.startsWith(`${link.href}/`);
             return (
-              <Link 
+              <LocaleLink 
                 key={link.href} 
                 href={link.href}
                 className={`flex items-center gap-4 px-3 py-2.5 rounded-xl transition-all relative group ${isActive ? 'bg-blue-600/10 text-blue-400' : 'hover:bg-white/5 text-gray-300 hover:text-white'}`}
@@ -78,7 +80,7 @@ export default function Sidebar() {
                     {link.name}
                   </div>
                 )}
-              </Link>
+              </LocaleLink>
             );
           })}
         </div>
@@ -92,10 +94,10 @@ export default function Sidebar() {
             {!collapsed && <span className="text-sm font-medium">{t("sidebar", "collapse")}</span>}
           </button>
           
-          <Link href="/settings" className="flex items-center gap-4 px-3 py-2.5 rounded-xl transition-colors hover:bg-white/5 text-gray-400 hover:text-white">
+          <LocaleLink href="/settings" className="flex items-center gap-4 px-3 py-2.5 rounded-xl transition-colors hover:bg-white/5 text-gray-400 hover:text-white">
             <Settings className="w-5 h-5 flex-shrink-0" />
             {!collapsed && <span className="text-sm font-medium">{t("sidebar", "settings")}</span>}
-          </Link>
+          </LocaleLink>
         </div>
       </aside>
 
@@ -109,10 +111,10 @@ export default function Sidebar() {
             const Icon = link.icon;
             const isActive =
               link.href === "/"
-                ? pathname === "/"
-                : pathname === link.href || pathname.startsWith(`${link.href}/`);
+                ? path === "/"
+                : path === link.href || path.startsWith(`${link.href}/`);
             return (
-              <Link
+              <LocaleLink
                 key={link.href}
                 href={link.href}
                 className={`flex min-w-[4.25rem] max-w-[5.5rem] flex-1 flex-col items-center justify-center gap-0.5 px-1 py-1.5 transition-colors active:opacity-80 ${
@@ -123,18 +125,18 @@ export default function Sidebar() {
                 <span className="line-clamp-2 w-full text-center text-[9px] font-bold uppercase leading-tight tracking-tight">
                   {link.name}
                 </span>
-              </Link>
+              </LocaleLink>
             );
           })}
-          <Link
+          <LocaleLink
             href="/studio"
             className={`flex min-w-[4.25rem] max-w-[5.5rem] flex-1 flex-col items-center justify-center gap-0.5 px-1 py-1.5 transition-colors active:opacity-80 ${
-              pathname === "/studio" ? "text-blue-400" : "text-gray-500"
+              path === "/studio" ? "text-blue-400" : "text-gray-500"
             }`}
           >
             <Settings className="h-5 w-5 shrink-0" aria-hidden />
             <span className="text-center text-[9px] font-bold uppercase leading-tight tracking-tight">{t("nav", "studio")}</span>
-          </Link>
+          </LocaleLink>
         </div>
       </nav>
     </>
