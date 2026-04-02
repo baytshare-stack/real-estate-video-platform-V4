@@ -56,3 +56,9 @@ export default function YourLayout({ children }: { children: React.ReactNode }) 
 ## Root vs locale layout
 
 `src/app/[locale]/layout.tsx` sets **default** title template and site-wide description/keywords only. **Canonical and hreflang** are set by leaf layouts/pages so they match the real URL path.
+
+## Video Open Graph (watch pages)
+
+- **`src/lib/video-open-graph.ts`** — loads video + property from Prisma, builds **locale-aware** `og:description` (price, bedrooms, bathrooms, area, location), and **`buildVideoWatchPageMetadata`** (`og:type` = `video.other`, `og:url`, `og:site_name`, Twitter `summary_large_image`, optional `og:video` for direct MP4/WebM/Cloudinary video URLs).
+- **`src/app/[locale]/watch/[id]/opengraph-image.tsx`** — dynamic **1200×630** PNG via `next/og`: full-bleed **thumbnail** with a bottom gradient overlay, **title**, and stat chips (price, rooms, baths, m²). Uses **Noto Sans** / **Noto Sans Arabic** from Google Fonts when fetch succeeds. Only **approved** listings render the rich card; otherwise a neutral “Video unavailable” image is returned.
+- **`src/app/[locale]/watch/[id]/layout.tsx`** — `generateMetadata` wires the above so new uploads automatically get correct tags for the active locale (`/en/...` vs `/ar/...`).
