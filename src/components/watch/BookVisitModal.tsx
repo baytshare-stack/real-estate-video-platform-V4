@@ -5,6 +5,8 @@ import { X, CalendarClock } from "lucide-react";
 import { useSession, signIn } from "next-auth/react";
 import { useTranslation } from "@/i18n/LanguageProvider";
 import LocaleLink from "@/components/LocaleLink";
+import BookingDatePicker from "@/components/watch/BookingDatePicker";
+import BookingTimeSelect from "@/components/watch/BookingTimeSelect";
 
 type BookVisitModalProps = {
   isOpen: boolean;
@@ -37,7 +39,7 @@ function todayDateStr(): string {
 }
 
 export default function BookVisitModal({ isOpen, onClose, videoId, videoTitle }: BookVisitModalProps) {
-  const { t, dir } = useTranslation();
+  const { t, dir, locale } = useTranslation();
   const { data: session, status } = useSession();
   const [visitorName, setVisitorName] = useState("");
   const [visitorPhone, setVisitorPhone] = useState("");
@@ -207,25 +209,26 @@ export default function BookVisitModal({ isOpen, onClose, videoId, videoTitle }:
               </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div>
+                <div className="min-w-0 sm:col-span-2">
                   <label className="mb-1 block text-xs font-medium text-gray-400">{t("booking", "date")}</label>
-                  <input
-                    type="date"
+                  <BookingDatePicker
                     value={dateStr}
-                    min={minDate}
-                    onChange={(e) => setDateStr(e.target.value)}
-                    className="w-full rounded-xl border border-gray-700 bg-gray-950 px-3 py-2.5 text-sm text-white outline-none focus:border-blue-500"
-                    required
+                    onChange={setDateStr}
+                    minDate={minDate}
+                    locale={locale}
+                    dir={dir}
                   />
                 </div>
-                <div>
+                <div className="min-w-0 sm:col-span-2">
                   <label className="mb-1 block text-xs font-medium text-gray-400">{t("booking", "time")}</label>
-                  <input
-                    type="time"
+                  <BookingTimeSelect
                     value={timeStr}
-                    onChange={(e) => setTimeStr(e.target.value)}
-                    className="w-full rounded-xl border border-gray-700 bg-gray-950 px-3 py-2.5 text-sm text-white outline-none focus:border-blue-500"
-                    required
+                    onChange={setTimeStr}
+                    dir={dir}
+                    amLabel={t("booking", "am")}
+                    pmLabel={t("booking", "pm")}
+                    hourPlaceholder={t("booking", "selectHour")}
+                    periodPlaceholder={t("booking", "selectAmPm")}
                   />
                 </div>
               </div>
