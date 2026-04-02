@@ -95,7 +95,7 @@ export default function BookingDatePicker({ value, onChange, minDate, locale, di
   const NextIcon = dir === "rtl" ? ChevronLeft : ChevronRight;
 
   return (
-    <div className="rounded-xl border border-gray-700 bg-gray-950 p-3">
+    <div className="rounded-xl border border-gray-700 bg-gray-950 p-3 transition-transform duration-200 animate-in zoom-in-95 fade-in">
       <div className="mb-3 flex items-center justify-between gap-2">
         <button
           type="button"

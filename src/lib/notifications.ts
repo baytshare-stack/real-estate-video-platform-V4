@@ -9,11 +9,17 @@ export const NOTIFICATION_TYPES = {
   VISIT_BOOKING_NEW: "VISIT_BOOKING_NEW",
   VISIT_BOOKING_STATUS: "VISIT_BOOKING_STATUS",
   VISIT_BOOKING_SUBMITTED: "VISIT_BOOKING_SUBMITTED",
+  VISIT_BOOKING_VISITOR_ACTION: "VISIT_BOOKING_VISITOR_ACTION",
 } as const;
 
 export function watchVideoUrl(videoId: string, commentId?: string) {
   const base = `/watch/${videoId}`;
   return commentId ? `${base}#comment-${commentId}` : base;
+}
+
+/** Deep link for booking detail (notifications, My Visits). */
+export function visitBookingPath(bookingId: string) {
+  return `/visits/${bookingId}`;
 }
 
 export async function createNotification(input: {

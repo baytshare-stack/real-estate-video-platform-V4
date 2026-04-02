@@ -1,7 +1,7 @@
 import type { VisitBooking, VisitBookingStatus } from "@prisma/client";
 import { sendEmail } from "@/lib/email/send";
 import { getEmailTransportConfig } from "@/lib/email/config";
-import { createNotification, NOTIFICATION_TYPES, watchVideoUrl } from "@/lib/notifications";
+import { createNotification, NOTIFICATION_TYPES, visitBookingPath, watchVideoUrl } from "@/lib/notifications";
 import { whatsappDigits, whatsappUrl } from "@/lib/crmContactLinks";
 import { formatVisitDateTimeForMessage } from "@/lib/bookingFormat";
 import { sendWhatsAppCloudText } from "@/lib/bookingWhatsApp";
@@ -67,7 +67,7 @@ export async function notifyVisitorBookingCreated(params: {
     userId: params.booking.visitorUserId,
     type: NOTIFICATION_TYPES.VISIT_BOOKING_SUBMITTED,
     message: msg,
-    linkUrl: watchVideoUrl(params.booking.videoId),
+    linkUrl: visitBookingPath(params.booking.id),
   });
 
   const to = params.booking.visitorEmail?.trim();
@@ -115,13 +115,14 @@ export async function notifyAgentNewVisitBooking(params: {
   const base = siteBaseUrl();
   const studioLink = base ? `${base}/studio` : "/studio";
   const watchLink = watchVideoUrl(params.booking.videoId);
+  const visitLink = visitBookingPath(params.booking.id);
   const when = whenFormatted(params.booking.scheduledAt);
 
   await createNotification({
     userId: params.booking.agentUserId,
     type: NOTIFICATION_TYPES.VISIT_BOOKING_NEW,
     message: `New visit request: ${params.booking.visitorName} — ${params.videoTitle} (${when})`,
-    linkUrl: studioLink,
+    linkUrl: visitLink,
   });
 
   const visitorWa = digitsOnly(params.booking.visitorPhone);
@@ -136,7 +137,7 @@ export async function notifyAgentNewVisitBooking(params: {
   const html = `
     <h2>New property visit request</h2>
     <pre style="font-family:system-ui,sans-serif;white-space:pre-wrap;">${escapeHtml(detail)}</pre>
-    <p><a href="${escapeHtml(studioLink)}">Open Studio</a> · <a href="${escapeHtml(base ? base + watchLink : watchLink)}">View listing</a></p>
+    <p><a href="${escapeHtml(base ? base + visitLink : visitLink)}">Open booking</a> · <a href="${escapeHtml(studioLink)}">Studio</a> · <a href="${escapeHtml(base ? base + watchLink : watchLink)}">View listing</a></p>
     ${
       waLink
         ? `<p><a href="${escapeHtml(waLink)}">WhatsApp the visitor</a> (prefilled message)</p>`
@@ -152,7 +153,7 @@ export async function notifyAgentNewVisitBooking(params: {
       await sendEmail({
         to: params.agentEmail,
         subject: `Visit request: ${params.booking.visitorName} — ${params.videoTitle}`,
-        text: `${detail}\n\nStudio: ${studioLink}\nListing: ${base ? base + watchLink : watchLink}${waLink ? `\nWhatsApp visitor: ${waLink}` : ""}`,
+        text: `${detail}\n\nBooking: ${base ? base + visitLink : visitLink}\nStudio: ${studioLink}\nListing: ${base ? base + watchLink : watchLink}${waLink ? `\nWhatsApp visitor: ${waLink}` : ""}`,
         html,
       });
     } catch (e) {
@@ -173,7 +174,7 @@ export async function notifyVisitorVisitRescheduled(params: {
   visitorEmail: string | null;
 }) {
   const when = whenFormatted(params.booking.scheduledAt);
-  const msg = `Your visit for "${params.videoTitle}" was rescheduled to ${when}.`;
+  const msg = `Your visit for "${params.videoTitle}" was rescheduled to ${when}. Open the visit to accept, decline, or suggest another time.`;
   const extra = params.booking.responseMessage?.trim()
     ? ` Agent message: ${params.booking.responseMessage.trim()}`
     : "";
@@ -182,7 +183,7 @@ export async function notifyVisitorVisitRescheduled(params: {
     userId: params.booking.visitorUserId,
     type: NOTIFICATION_TYPES.VISIT_BOOKING_STATUS,
     message: msg + extra,
-    linkUrl: watchVideoUrl(params.booking.videoId),
+    linkUrl: visitBookingPath(params.booking.id),
   });
 
   const to = params.visitorEmail?.trim();
@@ -238,7 +239,7 @@ export async function notifyVisitorVisitBookingStatus(params: {
     userId: booking.visitorUserId,
     type: NOTIFICATION_TYPES.VISIT_BOOKING_STATUS,
     message: msg.replace(/\n\n/g, " — "),
-    linkUrl: watchVideoUrl(booking.videoId),
+    linkUrl: visitBookingPath(booking.id),
   });
 
   const to = params.visitorEmail?.trim();
@@ -276,4 +277,29 @@ export async function notifyVisitorVisitBookingStatus(params: {
           : `Your visit request for "${params.videoTitle}" was ${label} for ${when}.${booking.responseMessage?.trim() ? ` ${booking.responseMessage.trim()}` : ""}`;
     await sendWhatsAppCloudText(wa, waBody);
   }
+}
+
+export async function notifyAgentVisitorRescheduleInteraction(params: {
+  bookingId: string;
+  agentUserId: string;
+  videoTitle: string;
+  visitorName: string;
+  kind: "accepted" | "rejected" | "counter";
+  whenLabel?: string;
+}) {
+  const link = visitBookingPath(params.bookingId);
+  const when = params.whenLabel ? ` (${params.whenLabel})` : "";
+  const msg =
+    params.kind === "accepted"
+      ? `${params.visitorName} confirmed the proposed visit time for "${params.videoTitle}"${when}.`
+      : params.kind === "rejected"
+        ? `${params.visitorName} declined the proposed time for "${params.videoTitle}".`
+        : `${params.visitorName} suggested a new visit time for "${params.videoTitle}"${when}.`;
+
+  await createNotification({
+    userId: params.agentUserId,
+    type: NOTIFICATION_TYPES.VISIT_BOOKING_VISITOR_ACTION,
+    message: msg,
+    linkUrl: link,
+  });
 }

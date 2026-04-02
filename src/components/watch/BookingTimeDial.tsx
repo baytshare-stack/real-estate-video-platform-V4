@@ -144,11 +144,11 @@ export default function BookingTimeDial({
         {step === "hour" ? pickHourLabel : pickMinuteLabel}
       </p>
 
-      <div className="relative mx-auto aspect-square w-full max-w-[min(100%,240px)]">
+      <div className="relative mx-auto aspect-square w-full max-w-[min(100%,260px)] animate-in zoom-in-95 fade-in duration-200">
         <div className="absolute inset-0 rounded-full border border-gray-700 bg-gradient-to-b from-gray-900 to-gray-950 shadow-inner shadow-black/40" />
 
-        <div className="absolute left-1/2 top-[14%] z-10 -translate-x-1/2 text-center">
-          <div className="text-2xl font-semibold tabular-nums text-white">{centerLabel}</div>
+        <div className="absolute left-1/2 top-[12%] z-10 w-[90%] -translate-x-1/2 text-center">
+          <div className="text-3xl font-semibold tabular-nums tracking-tight text-white sm:text-4xl">{centerLabel}</div>
         </div>
 
         {step === "hour"

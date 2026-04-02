@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import prisma from "@/lib/prisma";
 import { notifyAgentNewVisitBooking, notifyVisitorBookingCreated } from "@/lib/bookingNotify";
+import { whatsappDigits } from "@/lib/crmContactLinks";
+import { buildBookingWhatsAppHref } from "@/lib/bookingWaMe";
 
 export const dynamic = "force-dynamic";
 
@@ -122,6 +124,10 @@ export async function POST(req: Request) {
       agentPhoneUser: video.channel.owner,
     });
 
+    const agentDigits = whatsappDigits(video.channel.owner);
+    const whatsappToAgentUrl =
+      agentDigits ? buildBookingWhatsAppHref(agentDigits, video.title, booking.scheduledAt) : null;
+
     return NextResponse.json(
       {
         ok: true,
@@ -130,6 +136,7 @@ export async function POST(req: Request) {
           status: booking.status,
           scheduledAt: booking.scheduledAt.toISOString(),
         },
+        whatsappToAgentUrl,
       },
       { status: 201 }
     );

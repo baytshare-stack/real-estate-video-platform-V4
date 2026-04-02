@@ -42,8 +42,11 @@ export async function GET() {
         status: b.status,
         scheduledAt: b.scheduledAt.toISOString(),
         updatedAt: b.updatedAt.toISOString(),
+        createdAt: b.createdAt.toISOString(),
         responseMessage: b.responseMessage,
         message: b.message,
+        reschedulePendingFrom: b.reschedulePendingFrom?.toISOString() ?? null,
+        visitorCounterProposalAt: b.visitorCounterProposalAt?.toISOString() ?? null,
         video: b.video,
         propertyLabel: b.property
           ? [b.property.city, b.property.country].filter(Boolean).join(", ")

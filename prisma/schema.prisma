@@ -454,6 +454,12 @@ model VisitBooking {
   message          String?            @db.Text
   responseMessage  String?            @db.Text
   status           VisitBookingStatus @default(PENDING)
+  /// Slot before the agent’s latest proposed time (visitor can revert here).
+  reschedulePendingFrom          DateTime?
+  /// Status to restore if the visitor rejects the agent’s proposed time.
+  statusBeforePendingReschedule  VisitBookingStatus?
+  /// Visitor-proposed alternative time while awaiting the agent.
+  visitorCounterProposalAt       DateTime?
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
 

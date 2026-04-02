@@ -17,6 +17,8 @@ import { useTranslation } from "@/i18n/LanguageProvider";
 import BookingDatePicker from "@/components/watch/BookingDatePicker";
 import BookingTimeDial from "@/components/watch/BookingTimeDial";
 import { localDateTimeToIso } from "@/lib/bookingTime";
+import SendWhatsAppButton from "@/components/booking/SendWhatsAppButton";
+import { buildBookingWhatsAppHref, bookingPhoneDigits } from "@/lib/bookingWaMe";
 
 export type StudioBookingRow = {
   id: string;
@@ -28,6 +30,7 @@ export type StudioBookingRow = {
   visitorEmail: string | null;
   message: string | null;
   responseMessage: string | null;
+  visitorCounterProposalAt: string | null;
   video: { id: string; title: string; thumbnail: string | null };
   propertyLabel: string | null;
 };
@@ -53,6 +56,19 @@ function todayDateStr(): string {
 type Props = {
   pollMs?: number;
 };
+
+function statusEmoji(status: StudioBookingRow["status"]): string {
+  switch (status) {
+    case "ACCEPTED":
+      return "✅";
+    case "REJECTED":
+      return "❌";
+    case "RESCHEDULED":
+      return "🔄";
+    default:
+      return "⏳";
+  }
+}
 
 function StatusIcon({ status }: { status: StudioBookingRow["status"] }) {
   const cls = "h-3.5 w-3.5 shrink-0";
@@ -249,6 +265,7 @@ export default function StudioBookingsTable({ pollMs = 5000 }: Props) {
                       <span
                         className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-0.5 text-xs font-semibold ${statusClass(r.status)}`}
                       >
+                        <span aria-hidden>{statusEmoji(r.status)}</span>
                         <StatusIcon status={r.status} />
                         {t("studio", `bookings.status.${r.status}`)}
                       </span>
@@ -260,35 +277,71 @@ export default function StudioBookingsTable({ pollMs = 5000 }: Props) {
                       </span>
                     </td>
                     <td className="px-4 py-3 align-top">
-                      <div className="flex flex-wrap gap-1.5">
-                        {r.status === "PENDING" || r.status === "REJECTED" || r.status === "RESCHEDULED" ? (
+                      <div className="flex flex-col gap-2">
+                        {r.visitorCounterProposalAt ? (
+                          <p className="text-[11px] text-amber-300/90">
+                            {t("visitDetail", "visitorCounter")}: {fmtWhen(r.visitorCounterProposalAt)}
+                          </p>
+                        ) : null}
+                        <div className="flex flex-wrap gap-1.5">
+                          {r.visitorCounterProposalAt ? (
+                            <button
+                              type="button"
+                              disabled={busyId === r.id}
+                              onClick={() => void patchBooking(r.id, { acceptVisitorProposal: true })}
+                              className="rounded-lg bg-amber-600/25 px-2 py-1 text-xs font-bold text-amber-200 hover:bg-amber-600/35 disabled:opacity-40"
+                            >
+                              <Check className="inline h-3.5 w-3.5" /> {t("studio", "bookings.acceptVisitorTime")}
+                            </button>
+                          ) : null}
+                          {r.status === "PENDING" || r.status === "REJECTED" || r.status === "RESCHEDULED" ? (
+                            <button
+                              type="button"
+                              disabled={busyId === r.id}
+                              onClick={() => void patchBooking(r.id, { status: "ACCEPTED" })}
+                              className="rounded-lg bg-emerald-600/20 px-2 py-1 text-xs font-bold text-emerald-400 hover:bg-emerald-600/30 disabled:opacity-40"
+                            >
+                              <Check className="inline h-3.5 w-3.5" /> {t("studio", "bookings.approve")}
+                            </button>
+                          ) : null}
+                          {r.status !== "REJECTED" ? (
+                            <button
+                              type="button"
+                              disabled={busyId === r.id}
+                              onClick={() => openReject(r)}
+                              className="rounded-lg bg-red-600/20 px-2 py-1 text-xs font-bold text-red-400 hover:bg-red-600/30 disabled:opacity-40"
+                            >
+                              <X className="inline h-3.5 w-3.5" /> {t("studio", "bookings.reject")}
+                            </button>
+                          ) : null}
                           <button
                             type="button"
                             disabled={busyId === r.id}
-                            onClick={() => void patchBooking(r.id, { status: "ACCEPTED" })}
-                            className="rounded-lg bg-emerald-600/20 px-2 py-1 text-xs font-bold text-emerald-400 hover:bg-emerald-600/30 disabled:opacity-40"
+                            onClick={() => openModify(r)}
+                            className="rounded-lg bg-white/10 px-2 py-1 text-xs font-bold text-gray-200 hover:bg-white/15 disabled:opacity-40"
                           >
-                            <Check className="inline h-3.5 w-3.5" /> {t("studio", "bookings.approve")}
+                            <Pencil className="inline h-3.5 w-3.5" /> {t("studio", "bookings.modify")}
                           </button>
-                        ) : null}
-                        {r.status !== "REJECTED" ? (
-                          <button
-                            type="button"
-                            disabled={busyId === r.id}
-                            onClick={() => openReject(r)}
-                            className="rounded-lg bg-red-600/20 px-2 py-1 text-xs font-bold text-red-400 hover:bg-red-600/30 disabled:opacity-40"
+                          <LocaleLink
+                            href={`/visits/${r.id}`}
+                            className="inline-flex items-center rounded-lg border border-white/10 px-2 py-1 text-xs font-bold text-blue-300 hover:bg-white/5"
                           >
-                            <X className="inline h-3.5 w-3.5" /> {t("studio", "bookings.reject")}
-                          </button>
-                        ) : null}
-                        <button
-                          type="button"
-                          disabled={busyId === r.id}
-                          onClick={() => openModify(r)}
-                          className="rounded-lg bg-white/10 px-2 py-1 text-xs font-bold text-gray-200 hover:bg-white/15 disabled:opacity-40"
-                        >
-                          <Pencil className="inline h-3.5 w-3.5" /> {t("studio", "bookings.modify")}
-                        </button>
+                            {t("visitDetail", "viewDetails")}
+                          </LocaleLink>
+                        </div>
+                        {(() => {
+                          const d = bookingPhoneDigits(r.visitorPhone);
+                          const href = d
+                            ? buildBookingWhatsAppHref(d, r.video.title, new Date(r.scheduledAt), locale)
+                            : null;
+                          return (
+                            <SendWhatsAppButton
+                              href={href}
+                              label={t("visitDetail", "whatsapp")}
+                              className="!py-1.5 !text-xs !font-semibold"
+                            />
+                          );
+                        })()}
                       </div>
                     </td>
                   </tr>

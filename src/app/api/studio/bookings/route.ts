@@ -75,6 +75,9 @@ export async function GET(req: Request) {
         message: b.message,
         responseMessage: b.responseMessage,
         visitorUserId: b.visitorUserId,
+        reschedulePendingFrom: b.reschedulePendingFrom?.toISOString() ?? null,
+        statusBeforePendingReschedule: b.statusBeforePendingReschedule,
+        visitorCounterProposalAt: b.visitorCounterProposalAt?.toISOString() ?? null,
         video: b.video,
         propertyLabel: b.property
           ? [b.property.city, b.property.country].filter(Boolean).join(", ")

@@ -10,11 +10,27 @@ type VisitRow = {
   status: "PENDING" | "ACCEPTED" | "REJECTED" | "RESCHEDULED";
   scheduledAt: string;
   updatedAt: string;
+  createdAt?: string;
   responseMessage: string | null;
   message: string | null;
+  reschedulePendingFrom: string | null;
+  visitorCounterProposalAt: string | null;
   video: { id: string; title: string; thumbnail: string | null };
   propertyLabel: string | null;
 };
+
+function statusEmoji(status: VisitRow["status"]): string {
+  switch (status) {
+    case "ACCEPTED":
+      return "✅";
+    case "REJECTED":
+      return "❌";
+    case "RESCHEDULED":
+      return "🔄";
+    default:
+      return "⏳";
+  }
+}
 
 function StatusIcon({ status }: { status: VisitRow["status"] }) {
   const cls = "h-4 w-4 shrink-0";
@@ -145,6 +161,7 @@ export default function ProfileMyVisits() {
               <span
                 className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-0.5 text-xs font-semibold ${statusPillClass(r.status)}`}
               >
+                <span aria-hidden>{statusEmoji(r.status)}</span>
                 <StatusIcon status={r.status} />
                 {t("studio", `bookings.status.${r.status}`)}
               </span>
@@ -153,11 +170,25 @@ export default function ProfileMyVisits() {
                 {t("profile", "myVisitsUpdated")} {fmtUpdated(r.updatedAt)}
               </span>
             </div>
+            {r.status === "RESCHEDULED" && r.reschedulePendingFrom ? (
+              <p className="text-xs font-medium text-sky-300/90">{t("visitDetail", "pendingYourConfirm")}</p>
+            ) : null}
+            {r.visitorCounterProposalAt ? (
+              <p className="text-xs text-amber-200/80">
+                {t("visitDetail", "visitorCounter")}: {fmtWhen(r.visitorCounterProposalAt)}
+              </p>
+            ) : null}
             {r.responseMessage ? (
               <p className="text-sm text-gray-400">
                 <span className="font-medium text-gray-500">{t("profile", "agentResponse")}</span> {r.responseMessage}
               </p>
             ) : null}
+            <LocaleLink
+              href={`/visits/${r.id}`}
+              className="inline-flex text-sm font-semibold text-blue-400 hover:underline"
+            >
+              {t("visitDetail", "viewDetails")} →
+            </LocaleLink>
           </div>
         </li>
       ))}

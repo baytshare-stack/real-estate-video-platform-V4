@@ -109,6 +109,14 @@ export default function StudioPage() {
     fetchOverview();
   }, [fetchOverview]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const tab = new URLSearchParams(window.location.search).get("tab");
+    if (tab && (TAB_IDS as readonly string[]).includes(tab)) {
+      setActiveTab(tab as TabId);
+    }
+  }, []);
+
   const fetchCrm = useCallback(async () => {
     if (crm !== null) return;
     setLoadingCrm(true);
