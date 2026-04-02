@@ -329,8 +329,12 @@ export default function StudioBookingsTable({ pollMs = 5000 }: Props) {
                         </div>
                         {(() => {
                           const d = bookingPhoneDigits(r.visitorPhone);
+                          const visitUrl =
+                            typeof window !== "undefined"
+                              ? `${window.location.origin}/visits/${r.id}`
+                              : `/visits/${r.id}`;
                           const href = d
-                            ? buildBookingWhatsAppHref(d, r.video.title, new Date(r.scheduledAt), locale)
+                            ? buildBookingWhatsAppHref(d, r.video.title, new Date(r.scheduledAt), locale, visitUrl)
                             : null;
                           return (
                             <SendWhatsAppButton

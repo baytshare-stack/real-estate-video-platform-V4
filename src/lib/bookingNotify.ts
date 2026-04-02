@@ -55,6 +55,12 @@ function whenFormatted(d: Date): string {
   return formatVisitDateTimeForMessage(d, "en-GB");
 }
 
+function absoluteVisitUrl(bookingId: string): string {
+  const base = siteBaseUrl();
+  const path = visitBookingPath(bookingId);
+  return base ? `${base}${path}` : path;
+}
+
 /** Visitor confirmation — in-app (+ optional email / WhatsApp). */
 export async function notifyVisitorBookingCreated(params: {
   booking: VisitBooking;
@@ -87,7 +93,7 @@ export async function notifyVisitorBookingCreated(params: {
 
   const wa = digitsOnly(params.booking.visitorPhone);
   if (wa.length >= 8) {
-    const body = `Your visit request for "${params.videoTitle}" was submitted for ${when}. You will be notified when the agent responds.`;
+    const body = `Your visit request for "${params.videoTitle}" was submitted for ${when}. You will be notified when the agent responds.\nManage visit: ${absoluteVisitUrl(params.booking.id)}`;
     const sent = await sendWhatsAppCloudText(wa, body);
     if (!sent) {
       /* Link fallback is client-only; optional log */
@@ -163,7 +169,7 @@ export async function notifyAgentNewVisitBooking(params: {
 
   const agentDigits = params.agentPhoneUser ? whatsappDigits(params.agentPhoneUser) : null;
   if (agentDigits && agentDigits.length >= 8) {
-    const body = `New visit request for "${params.videoTitle}" from ${params.booking.visitorName}. Proposed time: ${when}. Open Studio to approve or reschedule.`;
+    const body = `New visit request for "${params.videoTitle}" from ${params.booking.visitorName}. Proposed time: ${when}.\nOpen booking: ${absoluteVisitUrl(params.booking.id)}`;
     await sendWhatsAppCloudText(agentDigits, body);
   }
 }
@@ -205,7 +211,7 @@ export async function notifyVisitorVisitRescheduled(params: {
   if (wa.length >= 8) {
     await sendWhatsAppCloudText(
       wa,
-      `Your visit request for "${params.videoTitle}" has been rescheduled to ${when}.${params.booking.responseMessage?.trim() ? ` Note: ${params.booking.responseMessage.trim()}` : ""}`
+      `Your visit request for "${params.videoTitle}" has been rescheduled to ${when}.${params.booking.responseMessage?.trim() ? ` Note: ${params.booking.responseMessage.trim()}` : ""}\nManage visit: ${absoluteVisitUrl(params.booking.id)}`
     );
   }
 }
@@ -275,7 +281,7 @@ export async function notifyVisitorVisitBookingStatus(params: {
         : booking.status === "REJECTED"
           ? `Your visit request for "${params.videoTitle}" has been Rejected.${booking.responseMessage?.trim() ? ` ${booking.responseMessage.trim()}` : ""}`
           : `Your visit request for "${params.videoTitle}" was ${label} for ${when}.${booking.responseMessage?.trim() ? ` ${booking.responseMessage.trim()}` : ""}`;
-    await sendWhatsAppCloudText(wa, waBody);
+    await sendWhatsAppCloudText(wa, `${waBody}\nManage visit: ${absoluteVisitUrl(booking.id)}`);
   }
 }
 

@@ -19,6 +19,13 @@ function phoneDigitCount(s: string): number {
   return s.replace(/\D/g, "").length;
 }
 
+function siteBaseUrl(): string {
+  const u = process.env.NEXTAUTH_URL?.trim() || process.env.VERCEL_URL?.trim();
+  if (!u) return "";
+  if (u.startsWith("http")) return u.replace(/\/$/, "");
+  return `https://${u.replace(/\/$/, "")}`;
+}
+
 export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -125,8 +132,10 @@ export async function POST(req: Request) {
     });
 
     const agentDigits = whatsappDigits(video.channel.owner);
+    const base = siteBaseUrl();
+    const visitUrl = base ? `${base}/visits/${booking.id}` : undefined;
     const whatsappToAgentUrl =
-      agentDigits ? buildBookingWhatsAppHref(agentDigits, video.title, booking.scheduledAt) : null;
+      agentDigits ? buildBookingWhatsAppHref(agentDigits, video.title, booking.scheduledAt, "en-GB", visitUrl) : null;
 
     return NextResponse.json(
       {

@@ -130,14 +130,18 @@ export default function VisitBookingDetailClient({ bookingId }: Props) {
     if (!booking || booking.role !== "visitor") return null;
     const d = booking.contact.agentWhatsAppDigits;
     if (!d) return null;
-    return buildBookingWhatsAppHref(d, booking.video.title, new Date(booking.scheduledAt), locale);
+    const visitUrl =
+      typeof window !== "undefined" ? `${window.location.origin}/visits/${booking.id}` : `/visits/${booking.id}`;
+    return buildBookingWhatsAppHref(d, booking.video.title, new Date(booking.scheduledAt), locale, visitUrl);
   }, [booking, locale]);
 
   const waHrefAgent = useMemo(() => {
     if (!booking || booking.role !== "agent") return null;
     const d = booking.contact.visitorWhatsAppDigits;
     if (!d) return null;
-    return buildBookingWhatsAppHref(d, booking.video.title, new Date(booking.scheduledAt), locale);
+    const visitUrl =
+      typeof window !== "undefined" ? `${window.location.origin}/visits/${booking.id}` : `/visits/${booking.id}`;
+    return buildBookingWhatsAppHref(d, booking.video.title, new Date(booking.scheduledAt), locale, visitUrl);
   }, [booking, locale]);
 
   const visitorActionsVisible =

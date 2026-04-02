@@ -11,7 +11,8 @@ export function buildBookingWhatsAppHref(
   digits: string,
   videoTitle: string,
   scheduledAt: Date,
-  localeTag = "en-GB"
+  localeTag = "en-GB",
+  visitUrl?: string
 ): string {
   const dateStr = new Intl.DateTimeFormat(localeTag, {
     weekday: "short",
@@ -23,6 +24,6 @@ export function buildBookingWhatsAppHref(
     hour: "numeric",
     minute: "2-digit",
   }).format(scheduledAt);
-  const text = `Property: ${videoTitle}\nDate: ${dateStr}\nTime: ${timeStr}`;
+  const text = `Property: ${videoTitle}\nDate: ${dateStr}\nTime: ${timeStr}${visitUrl ? `\nManage visit: ${visitUrl}` : ""}`;
   return whatsappUrl(digits, text);
 }
