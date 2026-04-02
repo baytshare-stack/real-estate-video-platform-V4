@@ -23,6 +23,7 @@ export async function GET(req: Request) {
           channel: {
             select: {
               id: true,
+              ownerId: true,
               name: true,
               avatar: true,
               subscribersCount: true,
@@ -128,6 +129,8 @@ export async function GET(req: Request) {
         subscribersCount: video.channel.subscribersCount,
       },
       channelId: video.channel.id,
+      agentUserId: video.channel.ownerId,
+      propertyId: video.property?.id ?? null,
       contact: contactInfo,
     };
 

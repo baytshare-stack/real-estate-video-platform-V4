@@ -58,7 +58,7 @@ export default function NotificationBell() {
     if (!open || status !== "authenticated") return;
     const id = window.setInterval(() => {
       load().catch(() => {});
-    }, 60_000);
+    }, 20_000);
     return () => clearInterval(id);
   }, [open, status, load]);
 

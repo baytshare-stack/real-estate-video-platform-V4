@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, use } from 'react';
-import { ThumbsUp, Share2, PhoneCall, MessageCircle, MapPin, Bed, Bath, Maximize, Mail } from 'lucide-react';
+import { ThumbsUp, Share2, PhoneCall, MessageCircle, MapPin, Bed, Bath, Maximize, Mail, CalendarClock } from 'lucide-react';
 import VideoCard from '@/components/VideoCard';
 import ShareModal from '@/components/ShareModal';
 import LocaleLink from '@/components/LocaleLink';
@@ -14,6 +14,7 @@ import SubscriptionNotifyDropdown, { type NotifyPref } from '@/components/channe
 import { formatSubscriberCount } from '@/lib/formatSubscribers';
 import TemplateMotionPlayer from '@/components/video/TemplateMotionPlayer';
 import { trackTemplateInteraction } from '@/lib/video-templates/track';
+import BookVisitModal from '@/components/watch/BookVisitModal';
 
 function isNotifyPref(v: unknown): v is NotifyPref {
   return v === 'ALL' || v === 'PERSONALIZED' || v === 'NONE';
@@ -36,6 +37,7 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
   const [likesCount, setLikesCount] = useState(0);
   const [isLiked, setIsLiked] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [isBookVisitOpen, setIsBookVisitOpen] = useState(false);
 
   useEffect(() => {
     const fetchVideo = async () => {
@@ -297,9 +299,15 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
                 {video.description}
             </p>
 
-            {/* Contact Action Buttons */}
-            {(contact?.whatsappLink || contact?.rawPhone || contact?.email) && (
-                <div className="mt-6 md:mt-8 flex flex-col sm:flex-row flex-wrap gap-3">
+            {/* Contact + Book a Visit */}
+            <div className="mt-6 md:mt-8 flex flex-col sm:flex-row flex-wrap gap-3">
+                    <button
+                        type="button"
+                        onClick={() => setIsBookVisitOpen(true)}
+                        className="flex-1 border border-blue-500/40 bg-blue-600/15 hover:bg-blue-600/25 text-blue-100 flex items-center justify-center gap-2 py-3 px-4 md:px-6 rounded-xl font-bold text-base md:text-lg transition-colors shadow-lg shadow-blue-900/20"
+                    >
+                        <CalendarClock className="w-5 h-5 md:w-6 md:h-6 shrink-0" /> {t('watch', 'bookVisit')}
+                    </button>
                     {contact.whatsappLink ? (
                     <a 
                         href={contact.whatsappLink} 
@@ -342,7 +350,6 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
                     </a>
                     ) : null}
                 </div>
-            )}
         </div>
 
         <WatchPageComments videoId={videoId} />
@@ -369,6 +376,12 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
       isOpen={isShareModalOpen} 
       onClose={() => setIsShareModalOpen(false)} 
       title={video?.title || 'Check out this property!'}
+    />
+    <BookVisitModal
+      isOpen={isBookVisitOpen}
+      onClose={() => setIsBookVisitOpen(false)}
+      videoId={videoId}
+      videoTitle={video?.title || ''}
     />
     </>
   );

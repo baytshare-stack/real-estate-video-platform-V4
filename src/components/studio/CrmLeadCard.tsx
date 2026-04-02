@@ -32,6 +32,7 @@ export interface CrmInteractor {
     phoneCode: string | null;
     phone: string | null;
     fullPhoneNumber: string | null;
+    whatsapp: string | null;
     role: string;
   };
   likes: { videoTitle: string }[];

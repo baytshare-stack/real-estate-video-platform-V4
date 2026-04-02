@@ -19,11 +19,13 @@ import {
   AlertCircle,
   Clapperboard,
   LogIn,
+  CalendarClock,
 } from "lucide-react";
 import StatCard from "@/components/studio/StatCard";
 import VideoRow, { type VideoRowData } from "@/components/studio/VideoRow";
 import CrmLeadCard, { type CrmInteractor } from "@/components/studio/CrmLeadCard";
 import ChannelSettingsTab from "@/components/studio/ChannelSettingsTab";
+import StudioBookingsTable from "@/components/studio/StudioBookingsTable";
 import { useTranslation } from "@/i18n/LanguageProvider";
 
 const ERR_SIGN_IN = "STUDIO_SIGN_IN";
@@ -56,7 +58,7 @@ interface OverviewData {
   videos: VideoRowData[];
 }
 
-const TAB_IDS = ["overview", "content", "analytics", "crm", "settings"] as const;
+const TAB_IDS = ["overview", "content", "analytics", "crm", "bookings", "settings"] as const;
 type TabId = (typeof TAB_IDS)[number];
 
 const TAB_ICONS: Record<TabId, typeof LayoutDashboard> = {
@@ -64,6 +66,7 @@ const TAB_ICONS: Record<TabId, typeof LayoutDashboard> = {
   content: Video,
   analytics: BarChart3,
   crm: Users,
+  bookings: CalendarClock,
   settings: Settings,
 };
 
@@ -554,6 +557,16 @@ export default function StudioPage() {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {activeTab === "bookings" && (
+          <div className="mx-auto max-w-6xl space-y-6">
+            <div>
+              <h1 className="text-2xl font-black text-white">{t("studio", "bookings.title")}</h1>
+              <p className="mt-0.5 text-sm text-gray-400">{t("studio", "bookings.subtitle")}</p>
+            </div>
+            <StudioBookingsTable pollMs={5000} />
           </div>
         )}
 

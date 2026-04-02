@@ -23,6 +23,7 @@ const userSelect = {
   phoneCode: true,
   phone: true,
   fullPhoneNumber: true,
+  whatsapp: true,
   role: true,
 } as const;
 
@@ -84,6 +85,7 @@ export async function GET() {
       phoneCode: string | null;
       phone: string | null;
       fullPhoneNumber: string | null;
+      whatsapp: string | null;
       role: string;
     };
     likes: { videoTitle: string }[];
@@ -262,6 +264,7 @@ export async function GET() {
         phoneCode: null,
         phone: null,
         fullPhoneNumber: null,
+        whatsapp: null,
         role: 'VISITOR',
       },
       likes: [],

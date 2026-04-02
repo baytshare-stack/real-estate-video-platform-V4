@@ -58,6 +58,8 @@ model User {
   sentMessages      Message[] @relation("SentMessages")
   receivedMessages  Message[] @relation("ReceivedMessages")
   notifications     Notification[]
+  visitBookingsVisitor VisitBooking[] @relation("VisitBookingsVisitor")
+  visitBookingsAgent   VisitBooking[] @relation("VisitBookingsAgent")
 }
 
 model Account {
@@ -222,6 +224,7 @@ model Video {
   shares      VideoShare[]
   property    Property?
   adPlacements AdPlacement[]
+  visitBookings VisitBooking[]
   channel     Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
   template Template? @relation(fields: [templateId], references: [id], onDelete: SetNull)
 
@@ -280,6 +283,7 @@ model Property {
   longitude    Float?
   createdAt    DateTime       @default(now())
   video        Video          @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  visitBookings VisitBooking[]
 }
 
 /// Threading: `parentCommentId` is the parent comment (null = top-level thread). JSON APIs may also accept `parentId` as an alias.
@@ -427,4 +431,37 @@ enum AdCampaignStatus {
 enum AdCreativeType {
   IMAGE
   VIDEO
+}
+
+enum VisitBookingStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+/// Scheduled property visit request from a signed-in visitor to a listing (video) owner.
+model VisitBooking {
+  id            String             @id @default(cuid())
+  videoId       String
+  propertyId    String?
+  visitorUserId String
+  agentUserId   String
+  visitorName   String
+  visitorPhone  String
+  visitorEmail  String?
+  scheduledAt   DateTime
+  message       String?            @db.Text
+  status        VisitBookingStatus @default(PENDING)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  video    Video     @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  property Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  visitor  User      @relation("VisitBookingsVisitor", fields: [visitorUserId], references: [id], onDelete: Cascade)
+  agent    User      @relation("VisitBookingsAgent", fields: [agentUserId], references: [id], onDelete: Cascade)
+
+  @@index([agentUserId, status, scheduledAt])
+  @@index([visitorUserId, updatedAt(sort: Desc)])
+  @@index([videoId])
+  @@index([agentUserId, updatedAt(sort: Desc)])
 }

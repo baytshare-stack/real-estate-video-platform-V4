@@ -69,7 +69,31 @@
     "commentsLoadError": "Could not load comments.",
     "loadingComments": "Loading comments…",
     "noCommentsYet": "No comments yet. Be the first to comment.",
-    "recommended": "Recommended Properties"
+    "recommended": "Recommended Properties",
+    "bookVisit": "Book a Visit"
+  },
+  "booking": {
+    "title": "Book a visit",
+    "close": "Close",
+    "signInHint": "Sign in to request a property visit. We will notify the listing agent.",
+    "signIn": "Sign in",
+    "goLogin": "Go to login",
+    "fullName": "Full name",
+    "phone": "Phone number",
+    "emailOptional": "Email (optional)",
+    "date": "Date",
+    "time": "Time",
+    "messageOptional": "Additional message (optional)",
+    "submit": "Book",
+    "submitting": "Sending…",
+    "success": "Request sent",
+    "successDetail": "The agent was notified. Check your notifications for updates.",
+    "errorName": "Please enter your name.",
+    "errorPhone": "Please enter a valid phone number.",
+    "errorEmail": "Please enter a valid email or leave it blank.",
+    "errorDateTime": "Please choose date and time.",
+    "errorPast": "Visit time must be in the future.",
+    "errorSubmit": "Could not send request. Try again."
   },
   "upload": {
     "title": "Upload Property Video",
@@ -430,6 +454,7 @@
       "content": "Content",
       "analytics": "Analytics",
       "crm": "CRM",
+      "bookings": "Bookings",
       "settings": "Settings"
     },
     "overview": {
@@ -505,6 +530,28 @@
       "eventCall": "Call tap",
       "eventEmail": "Email tap",
       "eventDefault": "Template activity"
+    },
+    "bookings": {
+      "title": "Visit bookings",
+      "subtitle": "Manage scheduled property visits from your listings",
+      "pollHint": "Updates every few seconds while this tab is open.",
+      "empty": "No visit requests yet.",
+      "loadError": "Could not load bookings.",
+      "actionError": "Action failed. Try again.",
+      "colProperty": "Property / video",
+      "colVisitor": "Visitor",
+      "colWhen": "Date & time",
+      "colStatus": "Status",
+      "accept": "Accept",
+      "reject": "Reject",
+      "modify": "Modify",
+      "modifyTitle": "Reschedule visit",
+      "save": "Save",
+      "status": {
+        "PENDING": "Pending",
+        "ACCEPTED": "Accepted",
+        "REJECTED": "Rejected"
+      }
     },
     "settings": {
       "channelTitle": "Channel Settings",
