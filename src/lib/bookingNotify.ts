@@ -61,13 +61,21 @@ function absoluteVisitUrl(bookingId: string): string {
   return base ? `${base}${path}` : path;
 }
 
+function isArabicLocale(localeTag?: string | null): boolean {
+  return (localeTag || "").toLowerCase().startsWith("ar");
+}
+
 /** Visitor confirmation — in-app (+ optional email / WhatsApp). */
 export async function notifyVisitorBookingCreated(params: {
   booking: VisitBooking;
   videoTitle: string;
+  localeTag?: string | null;
 }) {
   const when = whenFormatted(params.booking.scheduledAt);
-  const msg = `Your visit request for "${params.videoTitle}" was submitted for ${when}. The agent will respond soon.`;
+  const ar = isArabicLocale(params.localeTag);
+  const msg = ar
+    ? `تم إرسال طلب الزيارة للعقار "${params.videoTitle}" في ${when}. سيقوم الوكيل بالرد قريبًا.`
+    : `Your visit request for "${params.videoTitle}" was submitted for ${when}. The agent will respond soon.`;
 
   await createNotification({
     userId: params.booking.visitorUserId,
@@ -93,7 +101,9 @@ export async function notifyVisitorBookingCreated(params: {
 
   const wa = digitsOnly(params.booking.visitorPhone);
   if (wa.length >= 8) {
-    const body = `Your visit request for "${params.videoTitle}" was submitted for ${when}. You will be notified when the agent responds.\nManage visit: ${absoluteVisitUrl(params.booking.id)}`;
+    const body = ar
+      ? `تم إرسال طلب الزيارة للعقار "${params.videoTitle}" في ${when}. سيتم إشعارك عند رد الوكيل.\nإدارة الزيارة: ${absoluteVisitUrl(params.booking.id)}`
+      : `Your visit request for "${params.videoTitle}" was submitted for ${when}. You will be notified when the agent responds.\nManage visit: ${absoluteVisitUrl(params.booking.id)}`;
     const sent = await sendWhatsAppCloudText(wa, body);
     if (!sent) {
       /* Link fallback is client-only; optional log */
@@ -107,6 +117,7 @@ export async function notifyAgentNewVisitBooking(params: {
   videoTitle: string;
   locationLine: string;
   agentPhoneUser?: Parameters<typeof whatsappDigits>[0] | null;
+  localeTag?: string | null;
 }) {
   const detail = formatBookingDetailText({
     videoTitle: params.videoTitle,
@@ -123,6 +134,7 @@ export async function notifyAgentNewVisitBooking(params: {
   const watchLink = watchVideoUrl(params.booking.videoId);
   const visitLink = visitBookingPath(params.booking.id);
   const when = whenFormatted(params.booking.scheduledAt);
+  const ar = isArabicLocale(params.localeTag);
 
   await createNotification({
     userId: params.booking.agentUserId,
@@ -169,7 +181,9 @@ export async function notifyAgentNewVisitBooking(params: {
 
   const agentDigits = params.agentPhoneUser ? whatsappDigits(params.agentPhoneUser) : null;
   if (agentDigits && agentDigits.length >= 8) {
-    const body = `New visit request for "${params.videoTitle}" from ${params.booking.visitorName}. Proposed time: ${when}.\nOpen booking: ${absoluteVisitUrl(params.booking.id)}`;
+    const body = ar
+      ? `طلب زيارة جديد للعقار "${params.videoTitle}" من ${params.booking.visitorName}. الموعد المقترح: ${when}.\nفتح صفحة الزيارة: ${absoluteVisitUrl(params.booking.id)}`
+      : `New visit request for "${params.videoTitle}" from ${params.booking.visitorName}. Proposed time: ${when}.\nOpen booking: ${absoluteVisitUrl(params.booking.id)}`;
     await sendWhatsAppCloudText(agentDigits, body);
   }
 }
@@ -178,9 +192,13 @@ export async function notifyVisitorVisitRescheduled(params: {
   booking: VisitBooking;
   videoTitle: string;
   visitorEmail: string | null;
+  localeTag?: string | null;
 }) {
   const when = whenFormatted(params.booking.scheduledAt);
-  const msg = `Your visit for "${params.videoTitle}" was rescheduled to ${when}. Open the visit to accept, decline, or suggest another time.`;
+  const ar = isArabicLocale(params.localeTag);
+  const msg = ar
+    ? `تمت إعادة جدولة زيارتك للعقار "${params.videoTitle}" إلى ${when}. افتح صفحة الزيارة للقبول أو الرفض أو اقتراح موعد آخر.`
+    : `Your visit for "${params.videoTitle}" was rescheduled to ${when}. Open the visit to accept, decline, or suggest another time.`;
   const extra = params.booking.responseMessage?.trim()
     ? ` Agent message: ${params.booking.responseMessage.trim()}`
     : "";
@@ -211,7 +229,9 @@ export async function notifyVisitorVisitRescheduled(params: {
   if (wa.length >= 8) {
     await sendWhatsAppCloudText(
       wa,
-      `Your visit request for "${params.videoTitle}" has been rescheduled to ${when}.${params.booking.responseMessage?.trim() ? ` Note: ${params.booking.responseMessage.trim()}` : ""}\nManage visit: ${absoluteVisitUrl(params.booking.id)}`
+      ar
+        ? `تمت إعادة جدولة طلب زيارتك للعقار "${params.videoTitle}" إلى ${when}.${params.booking.responseMessage?.trim() ? ` ملاحظة: ${params.booking.responseMessage.trim()}` : ""}\nإدارة الزيارة: ${absoluteVisitUrl(params.booking.id)}`
+        : `Your visit request for "${params.videoTitle}" has been rescheduled to ${when}.${params.booking.responseMessage?.trim() ? ` Note: ${params.booking.responseMessage.trim()}` : ""}\nManage visit: ${absoluteVisitUrl(params.booking.id)}`
     );
   }
 }
@@ -233,11 +253,17 @@ export async function notifyVisitorVisitBookingStatus(params: {
   booking: VisitBooking;
   videoTitle: string;
   visitorEmail: string | null;
+  localeTag?: string | null;
 }) {
   const { booking } = params;
   const when = whenFormatted(booking.scheduledAt);
   const label = statusVisitorLabel(booking.status);
-  const baseMsg = `Your visit request for "${params.videoTitle}" has been ${label} for ${when}.`;
+  const ar = isArabicLocale(params.localeTag);
+  const statusAr =
+    booking.status === "ACCEPTED" ? "قبول" : booking.status === "REJECTED" ? "رفض" : "تحديث";
+  const baseMsg = ar
+    ? `تم ${statusAr} طلب زيارتك للعقار "${params.videoTitle}"${booking.status === "REJECTED" ? "." : ` بتاريخ ${when}.`}`
+    : `Your visit request for "${params.videoTitle}" has been ${label} for ${when}.`;
   const tail = booking.responseMessage?.trim() ? ` ${booking.responseMessage.trim()}` : "";
   const msg = baseMsg + (booking.status === "REJECTED" && tail ? `\n\n${tail.trim()}` : tail ? ` ${tail.trim()}` : "");
 
@@ -276,12 +302,18 @@ export async function notifyVisitorVisitBookingStatus(params: {
   const wa = digitsOnly(booking.visitorPhone);
   if (wa.length >= 8) {
     const waBody =
-      booking.status === "ACCEPTED"
-        ? `Your visit request for "${params.videoTitle}" has been Approved on ${when}.${booking.responseMessage?.trim() ? ` ${booking.responseMessage.trim()}` : ""}`
-        : booking.status === "REJECTED"
-          ? `Your visit request for "${params.videoTitle}" has been Rejected.${booking.responseMessage?.trim() ? ` ${booking.responseMessage.trim()}` : ""}`
-          : `Your visit request for "${params.videoTitle}" was ${label} for ${when}.${booking.responseMessage?.trim() ? ` ${booking.responseMessage.trim()}` : ""}`;
-    await sendWhatsAppCloudText(wa, `${waBody}\nManage visit: ${absoluteVisitUrl(booking.id)}`);
+      ar
+        ? booking.status === "ACCEPTED"
+          ? `تم قبول طلب زيارتك للعقار "${params.videoTitle}" بتاريخ ${when}.${booking.responseMessage?.trim() ? ` ${booking.responseMessage.trim()}` : ""}`
+          : booking.status === "REJECTED"
+            ? `تم رفض طلب زيارتك للعقار "${params.videoTitle}".${booking.responseMessage?.trim() ? ` ${booking.responseMessage.trim()}` : ""}`
+            : `تم تحديث طلب زيارتك للعقار "${params.videoTitle}" بتاريخ ${when}.${booking.responseMessage?.trim() ? ` ${booking.responseMessage.trim()}` : ""}`
+        : booking.status === "ACCEPTED"
+          ? `Your visit request for "${params.videoTitle}" has been Approved on ${when}.${booking.responseMessage?.trim() ? ` ${booking.responseMessage.trim()}` : ""}`
+          : booking.status === "REJECTED"
+            ? `Your visit request for "${params.videoTitle}" has been Rejected.${booking.responseMessage?.trim() ? ` ${booking.responseMessage.trim()}` : ""}`
+            : `Your visit request for "${params.videoTitle}" was ${label} for ${when}.${booking.responseMessage?.trim() ? ` ${booking.responseMessage.trim()}` : ""}`;
+    await sendWhatsAppCloudText(wa, `${waBody}\n${ar ? "إدارة الزيارة" : "Manage visit"}: ${absoluteVisitUrl(booking.id)}`);
   }
 }
 

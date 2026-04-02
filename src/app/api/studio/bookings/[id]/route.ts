@@ -12,6 +12,11 @@ export const dynamic = "force-dynamic";
 
 const STATUSES: VisitBookingStatus[] = ["PENDING", "ACCEPTED", "REJECTED", "RESCHEDULED"];
 
+function requestLocale(req: Request): string {
+  const al = req.headers.get("accept-language") || "";
+  return al.split(",")[0]?.trim() || "en";
+}
+
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
     const session = await getServerSession(authOptions);
@@ -80,12 +85,14 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
           booking: updated,
           videoTitle: updated.video.title,
           visitorEmail,
+          localeTag: requestLocale(req),
         });
       } else if (timeChanged && updated.status !== "ACCEPTED") {
         void notifyVisitorVisitRescheduled({
           booking: updated,
           videoTitle: updated.video.title,
           visitorEmail,
+          localeTag: requestLocale(req),
         });
       }
 
@@ -189,18 +196,21 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
         booking: updated,
         videoTitle: updated.video.title,
         visitorEmail,
+        localeTag: requestLocale(req),
       });
     } else if (statusChanged && updated.status === "ACCEPTED") {
       void notifyVisitorVisitBookingStatus({
         booking: updated,
         videoTitle: updated.video.title,
         visitorEmail,
+        localeTag: requestLocale(req),
       });
     } else if (timeChanged) {
       void notifyVisitorVisitRescheduled({
         booking: updated,
         videoTitle: updated.video.title,
         visitorEmail,
+        localeTag: requestLocale(req),
       });
     }
 

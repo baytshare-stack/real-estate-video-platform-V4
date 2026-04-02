@@ -26,6 +26,11 @@ function siteBaseUrl(): string {
   return `https://${u.replace(/\/$/, "")}`;
 }
 
+function requestLocale(req: Request): string {
+  const al = req.headers.get("accept-language") || "";
+  return al.split(",")[0]?.trim() || "en";
+}
+
 export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -121,6 +126,7 @@ export async function POST(req: Request) {
     void notifyVisitorBookingCreated({
       booking,
       videoTitle: video.title,
+      localeTag: requestLocale(req),
     });
 
     void notifyAgentNewVisitBooking({
@@ -129,13 +135,14 @@ export async function POST(req: Request) {
       videoTitle: video.title,
       locationLine,
       agentPhoneUser: video.channel.owner,
+      localeTag: requestLocale(req),
     });
 
     const agentDigits = whatsappDigits(video.channel.owner);
     const base = siteBaseUrl();
     const visitUrl = base ? `${base}/visits/${booking.id}` : undefined;
     const whatsappToAgentUrl =
-      agentDigits ? buildBookingWhatsAppHref(agentDigits, video.title, booking.scheduledAt, "en-GB", visitUrl) : null;
+      agentDigits ? buildBookingWhatsAppHref(agentDigits, video.title, booking.scheduledAt, requestLocale(req), visitUrl) : null;
 
     return NextResponse.json(
       {
