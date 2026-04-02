@@ -3,7 +3,8 @@ import { getServerSession } from "next-auth/next";
 import prisma from "@/lib/prisma";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { ensureUserProfile } from "@/lib/ensureUserProfile";
-import { normalizePlusE164 } from "@/lib/countriesData";
+import { inferPhoneCodeFromE164, normalizePlusE164 } from "@/lib/countriesData";
+import { canonicalPhoneDigitsFromE164 } from "@/lib/userPhone";
 
 export const runtime = "nodejs";
 
@@ -43,6 +44,12 @@ function validateContactPhone(value: string | null | undefined, countryHint: str
   const d = n.slice(1).replace(/\D/g, "");
   if (d.length < 7 || d.length > 15) return null;
   return n;
+}
+
+function digitsToPlus(d: string | null | undefined) {
+  if (!d) return null;
+  const x = d.replace(/\D/g, "");
+  return x ? `+${x}` : null;
 }
 
 export async function PUT(req: Request) {
@@ -124,13 +131,60 @@ export async function PUT(req: Request) {
       name?: string;
       description?: string | null;
       phone?: string | null;
+      whatsapp?: string | null;
       websiteUrl?: string | null;
       country?: string | null;
     } = {};
 
+    const profileData: {
+      contactEmail?: string | null;
+      contactPhone?: string | null;
+      location?: string | null;
+      bio?: string | null;
+      name?: string;
+    } = {};
+
     if (agencyName) channelData.name = agencyName;
     if ("description" in body) channelData.description = body.description?.trim() || null;
-    if (body.contactPhone !== undefined) channelData.phone = phone;
+    if (body.contactPhone !== undefined) {
+      if (!phone) {
+        await prisma.user.update({
+          where: { id: userId },
+          data: {
+            fullPhoneNumber: null,
+            phone: null,
+            phoneNumber: null,
+            phoneCode: null,
+            whatsapp: null,
+          },
+        });
+        channelData.phone = null;
+        channelData.whatsapp = null;
+        profileData.contactPhone = null;
+      } else {
+        const digits = canonicalPhoneDigitsFromE164(phone);
+        const inferredCode = inferPhoneCodeFromE164(phone);
+        const prev = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { whatsapp: true },
+        });
+        const prevWa = prev?.whatsapp?.replace(/\D/g, "") ?? "";
+        const nextWhatsapp = prevWa.length >= 8 ? prev!.whatsapp! : digits;
+        await prisma.user.update({
+          where: { id: userId },
+          data: {
+            fullPhoneNumber: phone,
+            phone: digits,
+            phoneNumber: digits,
+            whatsapp: nextWhatsapp,
+            ...(inferredCode ? { phoneCode: inferredCode } : {}),
+          },
+        });
+        channelData.phone = phone;
+        channelData.whatsapp = digitsToPlus(nextWhatsapp) ?? phone;
+        profileData.contactPhone = phone;
+      }
+    }
     if ("websiteUrl" in body) channelData.websiteUrl = website;
     if ("officeCountry" in body) channelData.country = body.officeCountry?.trim() || null;
 
@@ -141,8 +195,6 @@ export async function PUT(req: Request) {
       });
     }
 
-    const profileData: { contactEmail?: string | null; location?: string | null; bio?: string | null; name?: string } =
-      {};
     if ("contactEmail" in body) profileData.contactEmail = body.contactEmail?.trim() || null;
     if ("officeLocation" in body) profileData.location = body.officeLocation?.trim() || null;
     if ("description" in body) profileData.bio = body.description?.trim() || null;

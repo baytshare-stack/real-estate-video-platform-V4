@@ -128,7 +128,10 @@ export async function POST(req: Request) {
     const passwordHash = await bcrypt.hash(password, salt);
 
     const whatsappFull = buildWhatsappFull(country?.iso2, whatsapp?.trim() ?? "");
-    const whatsappTrim = whatsappFull ? canonicalPhoneDigitsFromE164(whatsappFull) : null;
+    let whatsappTrim = whatsappFull ? canonicalPhoneDigitsFromE164(whatsappFull) : null;
+    if (!whatsappTrim && phoneTrim) {
+      whatsappTrim = phoneTrim;
+    }
 
     const display = username.trim();
     /** Email OTP verification for every new account (phone fields kept for agents/agencies). */

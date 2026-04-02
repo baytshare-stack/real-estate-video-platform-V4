@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import prisma from "@/lib/prisma";
 import { safeFindFirst, safeFindUnique } from "@/lib/safePrisma";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { buildWatchPageContact } from "@/lib/videoContact";
 
 export async function GET(req: Request) {
   try {
@@ -25,10 +26,16 @@ export async function GET(req: Request) {
               name: true,
               avatar: true,
               subscribersCount: true,
+              phone: true,
+              whatsapp: true,
+              whatsappUrl: true,
               owner: {
                 select: {
-                  phoneNumber: true,
+                  fullPhoneNumber: true,
+                  whatsapp: true,
+                  phone: true,
                   phoneCode: true,
+                  phoneNumber: true,
                 },
               },
             },
@@ -67,33 +74,7 @@ export async function GET(req: Request) {
       subscriptionNotificationPreference = subRow?.notificationPreference ?? null;
     }
 
-    const contactPhoneCode = video.channel?.owner?.phoneCode || "";
-    const contactPhoneNumber = video.channel?.owner?.phoneNumber || "";
-
-    let rawPhone: string | null = null;
-    if (contactPhoneNumber) {
-      rawPhone = `+${contactPhoneCode.replace("+", "")} ${contactPhoneNumber}`;
-    }
-
-    let whatsappLink: string | null = null;
-    if (contactPhoneNumber) {
-      whatsappLink = `https://wa.me/${contactPhoneCode.replace("+", "")}${contactPhoneNumber}?text=I%20am%20interested%20in%20this%20property%20and%20would%20like%20more%20information.`;
-    }
-
-    const contactEmail: string | null = null;
-
-    let contactInfo: {
-      rawPhone: string | null;
-      whatsappLink: string | null;
-      email: string | null;
-    } | null = null;
-    if (rawPhone || whatsappLink || contactEmail) {
-      contactInfo = {
-        rawPhone,
-        whatsappLink,
-        email: contactEmail,
-      };
-    }
+    const contactInfo = buildWatchPageContact(video.channel?.owner ?? undefined, video.channel ?? undefined);
 
     const tpl = video.template;
     const templateDto = tpl

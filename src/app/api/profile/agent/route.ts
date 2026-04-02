@@ -8,6 +8,28 @@ import { canonicalPhoneDigitsFromE164 } from "@/lib/userPhone";
 
 export const runtime = "nodejs";
 
+function digitsToPlus(d: string | null | undefined) {
+  if (!d) return null;
+  const x = d.replace(/\D/g, "");
+  return x ? `+${x}` : null;
+}
+
+async function syncOwnerChannelContact(ownerId: string) {
+  const u = await prisma.user.findUnique({
+    where: { id: ownerId },
+    select: { fullPhoneNumber: true, phone: true, whatsapp: true },
+  });
+  const phoneLine = u?.fullPhoneNumber?.trim() || digitsToPlus(u?.phone);
+  const waLine = digitsToPlus(u?.whatsapp);
+  await prisma.channel.updateMany({
+    where: { ownerId },
+    data: {
+      phone: phoneLine ?? null,
+      whatsapp: (waLine ?? phoneLine) ?? null,
+    },
+  });
+}
+
 const AGENT_ROLES = ["AGENT"] as const;
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,32}$/;
 
@@ -96,8 +118,14 @@ export async function PUT(req: Request) {
             phone: null,
             phoneNumber: null,
             phoneCode: null,
+            whatsapp: null,
           },
         });
+        await prisma.profile.update({
+          where: { userId },
+          data: { contactPhone: null },
+        });
+        await syncOwnerChannelContact(userId);
       } else {
         const normalized = normalizePlusE164(raw, me.country) ?? normalizePlusE164(raw);
         if (!normalized) {
@@ -114,9 +142,15 @@ export async function PUT(req: Request) {
             fullPhoneNumber: normalized,
             phone: digits,
             phoneNumber: digits,
+            whatsapp: digits,
             ...(inferredCode ? { phoneCode: inferredCode } : {}),
           },
         });
+        await prisma.profile.update({
+          where: { userId },
+          data: { contactPhone: normalized },
+        });
+        await syncOwnerChannelContact(userId);
       }
     }
 
