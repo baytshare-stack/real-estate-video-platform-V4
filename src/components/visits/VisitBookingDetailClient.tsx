@@ -16,8 +16,6 @@ import { useTranslation } from "@/i18n/LanguageProvider";
 import { useLocalizedPath } from "@/i18n/navigation";
 import SendWhatsAppButton from "@/components/booking/SendWhatsAppButton";
 import { buildBookingWhatsAppHref } from "@/lib/bookingWaMe";
-import BookingDatePicker from "@/components/watch/BookingDatePicker";
-import BookingTimeDial from "@/components/watch/BookingTimeDial";
 import { localDateTimeToIso } from "@/lib/bookingTime";
 
 type BookingPayload = {
@@ -406,25 +404,22 @@ export default function VisitBookingDetailClient({ bookingId }: Props) {
             <div className="space-y-3">
               <div>
                 <label className="mb-1 block text-xs text-gray-400">{t("booking", "date")}</label>
-                <BookingDatePicker
+                <input
+                  type="date"
                   value={propDate}
-                  onChange={setPropDate}
-                  minDate={minDate}
-                  locale={locale}
-                  dir={dir}
+                  onChange={(e) => setPropDate(e.target.value)}
+                  min={minDate}
+                  className="w-full rounded-xl border border-gray-700 bg-[#020b22] px-3 py-2.5 text-sm text-white outline-none focus:border-blue-500"
                 />
               </div>
               <div>
                 <label className="mb-1 block text-xs text-gray-400">{t("booking", "time")}</label>
-                <BookingTimeDial
+                <input
+                  type="time"
                   value={propTime}
-                  onChange={setPropTime}
-                  dir={dir}
-                  locale={locale}
-                  pickHourLabel={t("booking", "pickHour")}
-                  pickMinuteLabel={t("booking", "pickMinute")}
-                  amLabel={t("booking", "am")}
-                  pmLabel={t("booking", "pm")}
+                  onChange={(e) => setPropTime(e.target.value)}
+                  step={300}
+                  className="w-full rounded-xl border border-gray-700 bg-[#020b22] px-3 py-2.5 text-sm text-white outline-none focus:border-blue-500"
                 />
               </div>
             </div>
