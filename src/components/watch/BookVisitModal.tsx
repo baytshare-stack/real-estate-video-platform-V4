@@ -5,8 +5,6 @@ import { X, CalendarClock, ChevronRight } from "lucide-react";
 import { useSession, signIn } from "next-auth/react";
 import { useTranslation } from "@/i18n/LanguageProvider";
 import LocaleLink from "@/components/LocaleLink";
-import BookingDatePicker from "@/components/watch/BookingDatePicker";
-import BookingTimeDial from "@/components/watch/BookingTimeDial";
 import { localDateTimeToIso } from "@/lib/bookingTime";
 import SendWhatsAppButton from "@/components/booking/SendWhatsAppButton";
 
@@ -241,25 +239,22 @@ export default function BookVisitModal({ isOpen, onClose, videoId, videoTitle }:
               <p className="line-clamp-2 text-center text-xs text-gray-500">{videoTitle}</p>
               <div className="min-w-0">
                 <label className="mb-1 block text-xs font-medium text-gray-400">{t("booking", "date")}</label>
-                <BookingDatePicker
+                <input
+                  type="date"
                   value={dateStr}
-                  onChange={setDateStr}
-                  minDate={minDate}
-                  locale={locale}
-                  dir={dir}
+                  onChange={(e) => setDateStr(e.target.value)}
+                  min={minDate}
+                  className="w-full rounded-xl border border-gray-700 bg-[#020b22] px-3 py-2.5 text-sm text-white outline-none focus:border-blue-500"
                 />
               </div>
               <div className="min-w-0">
                 <label className="mb-1 block text-xs font-medium text-gray-400">{t("booking", "time")}</label>
-                <BookingTimeDial
+                <input
+                  type="time"
                   value={timeStr}
-                  onChange={setTimeStr}
-                  dir={dir}
-                  locale={locale}
-                  pickHourLabel={t("booking", "pickHour")}
-                  pickMinuteLabel={t("booking", "pickMinute")}
-                  amLabel={t("booking", "am")}
-                  pmLabel={t("booking", "pm")}
+                  onChange={(e) => setTimeStr(e.target.value)}
+                  step={300}
+                  className="w-full rounded-xl border border-gray-700 bg-[#020b22] px-3 py-2.5 text-sm text-white outline-none focus:border-blue-500"
                 />
               </div>
               {error ? <p className="text-sm text-red-400">{error}</p> : null}
