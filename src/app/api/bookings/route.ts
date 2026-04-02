@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import prisma from "@/lib/prisma";
-import { notifyAgentNewVisitBooking } from "@/lib/bookingNotify";
+import { notifyAgentNewVisitBooking, notifyVisitorBookingCreated } from "@/lib/bookingNotify";
 
 export const dynamic = "force-dynamic";
 
@@ -109,11 +109,17 @@ export async function POST(req: Request) {
       },
     });
 
+    void notifyVisitorBookingCreated({
+      booking,
+      videoTitle: video.title,
+    });
+
     void notifyAgentNewVisitBooking({
       booking,
       agentEmail: video.channel.owner.email,
       videoTitle: video.title,
       locationLine,
+      agentPhoneUser: video.channel.owner,
     });
 
     return NextResponse.json(

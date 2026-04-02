@@ -5,51 +5,25 @@ import prisma from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
-/** List visit bookings for the signed-in channel owner (agent). */
-export async function GET(req: Request) {
+/** List visit bookings for the signed-in visitor (user profile — My Visits). */
+export async function GET() {
   try {
     const session = await getServerSession(authOptions);
-    const email = session?.user?.email;
-    if (!email) {
+    const visitorUserId = session?.user?.id as string | undefined;
+    if (!visitorUserId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { email },
-      include: { channel: { select: { id: true } } },
-    });
-    if (!user?.channel) {
-      return NextResponse.json({ error: "No channel" }, { status: 404 });
-    }
-
-    const agentUserId = user.id;
-    const url = new URL(req.url);
-    const updatedAfter = url.searchParams.get("updatedAfter");
-    const take = Math.min(parseInt(url.searchParams.get("limit") || "50", 10) || 50, 200);
-
-    const updatedFilter =
-      updatedAfter && !Number.isNaN(Date.parse(updatedAfter))
-        ? { updatedAt: { gt: new Date(updatedAfter) } }
-        : {};
-
     const rows = await prisma.visitBooking.findMany({
-      where: { agentUserId, ...updatedFilter },
+      where: { visitorUserId },
       orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
-      take,
+      take: 100,
       include: {
         video: {
           select: {
             id: true,
             title: true,
             thumbnail: true,
-            channelId: true,
-          },
-        },
-        visitor: {
-          select: {
-            id: true,
-            email: true,
-            fullName: true,
           },
         },
         property: {
@@ -68,13 +42,8 @@ export async function GET(req: Request) {
         status: b.status,
         scheduledAt: b.scheduledAt.toISOString(),
         updatedAt: b.updatedAt.toISOString(),
-        createdAt: b.createdAt.toISOString(),
-        visitorName: b.visitorName,
-        visitorPhone: b.visitorPhone,
-        visitorEmail: b.visitorEmail,
-        message: b.message,
         responseMessage: b.responseMessage,
-        visitorUserId: b.visitorUserId,
+        message: b.message,
         video: b.video,
         propertyLabel: b.property
           ? [b.property.city, b.property.country].filter(Boolean).join(", ")
@@ -82,7 +51,7 @@ export async function GET(req: Request) {
       })),
     });
   } catch (e) {
-    console.error("[studio/bookings GET]", e);
+    console.error("[bookings/mine GET]", e);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

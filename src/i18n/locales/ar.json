@@ -87,6 +87,8 @@
     "nextMonth": "الشهر التالي",
     "selectHour": "الساعة",
     "selectAmPm": "ص / م",
+    "pickHour": "اختر الساعة",
+    "pickMinute": "اختر الدقائق",
     "am": "ص",
     "pm": "م",
     "messageOptional": "رسالة إضافية (اختياري)",
@@ -360,6 +362,12 @@
     "studio": "الاستوديو",
     "editProfile": "تعديل الملف",
     "accountContact": "الحساب والتواصل",
+    "myVisitsTitle": "حجوزات الزيارات",
+    "myVisitsSubtitle": "زيارات العقار التي طلبتها من الإعلانات.",
+    "myVisitsEmpty": "لم تحجز أي زيارة بعد.",
+    "myVisitsLoadError": "تعذّر تحميل حجوزاتك.",
+    "myVisitsUpdated": "آخر تحديث",
+    "agentResponse": "رد الوكيل:",
     "messages": "الرسائل",
     "backHome": "العودة للرئيسية",
     "joined": "انضم في",
@@ -460,6 +468,7 @@
       "content": "المحتوى",
       "analytics": "التحليلات",
       "crm": "إدارة العملاء",
+      "bookings": "الحجوزات",
       "settings": "الإعدادات"
     },
     "overview": {
@@ -547,15 +556,23 @@
       "colVisitor": "الزائر",
       "colWhen": "التاريخ والوقت",
       "colStatus": "الحالة",
+      "colUpdated": "آخر تحديث",
+      "approve": "موافقة",
       "accept": "قبول",
       "reject": "رفض",
       "modify": "تعديل",
       "modifyTitle": "إعادة جدولة الزيارة",
       "save": "حفظ",
+      "agentNote": "ملاحظة:",
+      "rejectTitle": "رفض الزيارة",
+      "rejectHint": "رسالة اختيارية للزائر (تظهر في ملفه وإشعاراته).",
+      "responsePlaceholder": "سبب موجز أو الخطوات التالية…",
+      "confirmReject": "تأكيد الرفض",
       "status": {
         "PENDING": "قيد الانتظار",
-        "ACCEPTED": "مقبول",
-        "REJECTED": "مرفوض"
+        "ACCEPTED": "معتمد",
+        "REJECTED": "مرفوض",
+        "RESCHEDULED": "أُعيد جدولتها"
       }
     },
     "settings": {

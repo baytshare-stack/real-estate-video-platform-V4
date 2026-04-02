@@ -6,7 +6,8 @@ import { useSession, signIn } from "next-auth/react";
 import { useTranslation } from "@/i18n/LanguageProvider";
 import LocaleLink from "@/components/LocaleLink";
 import BookingDatePicker from "@/components/watch/BookingDatePicker";
-import BookingTimeSelect from "@/components/watch/BookingTimeSelect";
+import BookingTimeDial from "@/components/watch/BookingTimeDial";
+import { localDateTimeToIso } from "@/lib/bookingTime";
 
 type BookVisitModalProps = {
   isOpen: boolean;
@@ -24,10 +25,7 @@ function isValidEmail(s: string): boolean {
 }
 
 function toScheduledIso(dateStr: string, timeStr: string): string | null {
-  if (!dateStr?.trim() || !timeStr?.trim()) return null;
-  const d = new Date(`${dateStr.trim()}T${timeStr.trim()}:00`);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toISOString();
+  return localDateTimeToIso(dateStr, timeStr);
 }
 
 function todayDateStr(): string {
@@ -221,14 +219,15 @@ export default function BookVisitModal({ isOpen, onClose, videoId, videoTitle }:
                 </div>
                 <div className="min-w-0 sm:col-span-2">
                   <label className="mb-1 block text-xs font-medium text-gray-400">{t("booking", "time")}</label>
-                  <BookingTimeSelect
+                  <BookingTimeDial
                     value={timeStr}
                     onChange={setTimeStr}
                     dir={dir}
+                    locale={locale}
+                    pickHourLabel={t("booking", "pickHour")}
+                    pickMinuteLabel={t("booking", "pickMinute")}
                     amLabel={t("booking", "am")}
                     pmLabel={t("booking", "pm")}
-                    hourPlaceholder={t("booking", "selectHour")}
-                    periodPlaceholder={t("booking", "selectAmPm")}
                   />
                 </div>
               </div>

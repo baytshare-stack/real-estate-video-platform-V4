@@ -7,6 +7,7 @@ import LocaleLink from "@/components/LocaleLink";
 import { formatE164ForDisplay, getCountryByIso } from "@/lib/countriesData";
 import { Pencil, X, Loader2, ArrowLeft } from "lucide-react";
 import ProfileInbox from "@/components/profile/ProfileInbox";
+import ProfileMyVisits from "@/components/profile/ProfileMyVisits";
 import { useTranslation } from "@/i18n/LanguageProvider";
 
 export type ChannelPayload = {
@@ -583,6 +584,12 @@ export default function ProfilePageClient({
           </p>
         </div>
       </div>
+
+      <section className="mb-8">
+        <h3 className="mb-1 text-lg font-semibold text-white">{t("profile", "myVisitsTitle")}</h3>
+        <p className="mb-4 text-sm text-gray-500">{t("profile", "myVisitsSubtitle")}</p>
+        <ProfileMyVisits />
+      </section>
 
       <section className="mb-8">
         <h3 className="mb-3 text-lg font-semibold text-white">{t("profile", "messages")}</h3>

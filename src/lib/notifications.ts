@@ -8,6 +8,7 @@ export const NOTIFICATION_TYPES = {
   CHANNEL_NEW_VIDEO: "CHANNEL_NEW_VIDEO",
   VISIT_BOOKING_NEW: "VISIT_BOOKING_NEW",
   VISIT_BOOKING_STATUS: "VISIT_BOOKING_STATUS",
+  VISIT_BOOKING_SUBMITTED: "VISIT_BOOKING_SUBMITTED",
 } as const;
 
 export function watchVideoUrl(videoId: string, commentId?: string) {

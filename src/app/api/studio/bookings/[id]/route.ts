@@ -7,7 +7,7 @@ import type { VisitBookingStatus } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
-const STATUSES: VisitBookingStatus[] = ["PENDING", "ACCEPTED", "REJECTED"];
+const STATUSES: VisitBookingStatus[] = ["PENDING", "ACCEPTED", "REJECTED", "RESCHEDULED"];
 
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
@@ -45,11 +45,27 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
     const statusIn = body.status;
     const scheduledAtRaw = typeof body.scheduledAt === "string" ? body.scheduledAt.trim() : "";
+    const responseRaw = body.responseMessage;
+    let responseMessage: string | null | undefined;
+    if (typeof responseRaw === "string") {
+      responseMessage = responseRaw.trim().slice(0, 2000);
+    } else if (responseRaw === null) {
+      responseMessage = null;
+    }
 
-    const data: { status?: VisitBookingStatus; scheduledAt?: Date } = {};
+    const prevStatus = existing.status;
+    const prevScheduled = existing.scheduledAt.getTime();
+
+    const data: {
+      status?: VisitBookingStatus;
+      scheduledAt?: Date;
+      responseMessage?: string | null;
+    } = {};
+
     if (typeof statusIn === "string" && STATUSES.includes(statusIn as VisitBookingStatus)) {
       data.status = statusIn as VisitBookingStatus;
     }
+
     if (scheduledAtRaw) {
       const d = new Date(scheduledAtRaw);
       if (Number.isNaN(d.getTime())) {
@@ -58,12 +74,20 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       data.scheduledAt = d;
     }
 
-    if (data.status === undefined && data.scheduledAt === undefined) {
-      return NextResponse.json({ error: "Provide status and/or scheduledAt" }, { status: 400 });
+    if (responseMessage !== undefined) {
+      data.responseMessage = responseMessage && responseMessage.length ? responseMessage : null;
     }
 
-    const prevStatus = existing.status;
-    const prevScheduled = existing.scheduledAt.getTime();
+    if (data.status === undefined && data.scheduledAt === undefined && data.responseMessage === undefined) {
+      return NextResponse.json({ error: "Provide status, scheduledAt, and/or responseMessage" }, { status: 400 });
+    }
+
+    const timeWillChange =
+      data.scheduledAt !== undefined && data.scheduledAt.getTime() !== prevScheduled;
+
+    if (timeWillChange && data.status === undefined) {
+      data.status = "RESCHEDULED";
+    }
 
     const updated = await prisma.visitBooking.update({
       where: { id: bookingId },
@@ -74,12 +98,17 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       },
     });
 
-    const statusChanged = data.status !== undefined && data.status !== prevStatus;
-    const timeChanged =
-      data.scheduledAt !== undefined && updated.scheduledAt.getTime() !== prevScheduled;
+    const statusChanged = updated.status !== prevStatus;
+    const timeChanged = updated.scheduledAt.getTime() !== prevScheduled;
     const visitorEmail = updated.visitorEmail?.trim() || updated.visitor.email || null;
 
-    if (statusChanged) {
+    if (statusChanged && updated.status === "REJECTED") {
+      void notifyVisitorVisitBookingStatus({
+        booking: updated,
+        videoTitle: updated.video.title,
+        visitorEmail,
+      });
+    } else if (statusChanged && updated.status === "ACCEPTED") {
       void notifyVisitorVisitBookingStatus({
         booking: updated,
         videoTitle: updated.video.title,
@@ -99,6 +128,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
         status: updated.status,
         scheduledAt: updated.scheduledAt.toISOString(),
         updatedAt: updated.updatedAt.toISOString(),
+        responseMessage: updated.responseMessage,
       },
     });
   } catch (e) {

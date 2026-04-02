@@ -55,12 +55,12 @@ export default function NotificationBell() {
   }, [status, load]);
 
   useEffect(() => {
-    if (!open || status !== "authenticated") return;
+    if (status !== "authenticated") return;
     const id = window.setInterval(() => {
-      load().catch(() => {});
-    }, 20_000);
+      void load().catch(() => {});
+    }, 10_000);
     return () => clearInterval(id);
-  }, [open, status, load]);
+  }, [status, load]);
 
   useEffect(() => {
     if (!open) return;
