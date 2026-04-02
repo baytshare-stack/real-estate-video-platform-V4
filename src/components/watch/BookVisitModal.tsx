@@ -237,8 +237,8 @@ export default function BookVisitModal({ isOpen, onClose, videoId, videoTitle }:
           ) : step === 0 ? (
             <form onSubmit={(e) => void handleContinueFromSchedule(e)} className="space-y-3 md:space-y-4">
               <p className="line-clamp-2 text-center text-xs text-gray-500">{videoTitle}</p>
-              <div className="min-w-0">
-                <label className="mb-1 block text-xs font-medium text-gray-400">{t("booking", "date")}</label>
+              <div>
+                <label className="mb-1 block text-xs text-gray-400">{t("booking", "date")}</label>
                 <input
                   type="date"
                   value={dateStr}
@@ -247,8 +247,8 @@ export default function BookVisitModal({ isOpen, onClose, videoId, videoTitle }:
                   className="w-full rounded-xl border border-gray-700 bg-[#020b22] px-3 py-2.5 text-sm text-white outline-none focus:border-blue-500"
                 />
               </div>
-              <div className="min-w-0">
-                <label className="mb-1 block text-xs font-medium text-gray-400">{t("booking", "time")}</label>
+              <div>
+                <label className="mb-1 block text-xs text-gray-400">{t("booking", "time")}</label>
                 <input
                   type="time"
                   value={timeStr}
