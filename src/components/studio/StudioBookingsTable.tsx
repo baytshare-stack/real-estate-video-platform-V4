@@ -14,8 +14,6 @@ import {
 } from "lucide-react";
 import LocaleLink from "@/components/LocaleLink";
 import { useTranslation } from "@/i18n/LanguageProvider";
-import BookingDatePicker from "@/components/watch/BookingDatePicker";
-import BookingTimeDial from "@/components/watch/BookingTimeDial";
 import { localDateTimeToIso } from "@/lib/bookingTime";
 import SendWhatsAppButton from "@/components/booking/SendWhatsAppButton";
 import { buildBookingWhatsAppHref, bookingPhoneDigits } from "@/lib/bookingWaMe";
@@ -362,25 +360,22 @@ export default function StudioBookingsTable({ pollMs = 5000 }: Props) {
             <div className="space-y-3">
               <div>
                 <label className="mb-1 block text-xs text-gray-400">{t("booking", "date")}</label>
-                <BookingDatePicker
+                <input
+                  type="date"
                   value={modDate}
-                  onChange={setModDate}
-                  minDate={minDate}
-                  locale={locale}
-                  dir={dir}
+                  onChange={(e) => setModDate(e.target.value)}
+                  min={minDate}
+                  className="w-full rounded-xl border border-gray-700 bg-[#020b22] px-3 py-2.5 text-sm text-white outline-none focus:border-blue-500"
                 />
               </div>
               <div>
                 <label className="mb-1 block text-xs text-gray-400">{t("booking", "time")}</label>
-                <BookingTimeDial
+                <input
+                  type="time"
                   value={modTime}
-                  onChange={setModTime}
-                  dir={dir}
-                  locale={locale}
-                  pickHourLabel={t("booking", "pickHour")}
-                  pickMinuteLabel={t("booking", "pickMinute")}
-                  amLabel={t("booking", "am")}
-                  pmLabel={t("booking", "pm")}
+                  onChange={(e) => setModTime(e.target.value)}
+                  step={300}
+                  className="w-full rounded-xl border border-gray-700 bg-[#020b22] px-3 py-2.5 text-sm text-white outline-none focus:border-blue-500"
                 />
               </div>
             </div>
