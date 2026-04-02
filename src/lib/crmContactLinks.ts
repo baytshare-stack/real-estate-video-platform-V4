@@ -1,3 +1,5 @@
+import { stripNationalTrunkZero } from "@/lib/countriesData";
+
 /** Build international digits (no +) for WhatsApp wa.me/{digits} */
 
 export type CrmUserPhoneFields = {
@@ -18,7 +20,7 @@ export function whatsappDigits(user: CrmUserPhoneFields): string | null {
   }
   if (user.phoneCode?.trim() && user.phoneNumber?.trim()) {
     const code = user.phoneCode.replace(/\D/g, "");
-    const num = user.phoneNumber.replace(/\D/g, "");
+    const num = stripNationalTrunkZero(user.phoneNumber);
     const combined = code + num;
     if (combined.length >= 8) return combined;
   }

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { safeFindUnique } from "@/lib/safePrisma";
 import bcrypt from "bcryptjs";
-import { buildFullPhoneNumber, buildWhatsappFull, getCountryByIso } from "@/lib/countriesData";
+import { buildFullPhoneNumber, buildWhatsappFull, getCountryByIso, normalizePlusE164 } from "@/lib/countriesData";
 import { normalizeRegistrationRole } from "@/lib/roles";
 import {
   allowUnconfiguredEmail,
@@ -56,7 +56,7 @@ export async function POST(req: Request) {
 
     let fullPhone: string | null =
       typeof clientFullPhone === "string" && clientFullPhone.trim().startsWith("+")
-        ? `+${clientFullPhone.replace(/\D/g, "")}`
+        ? normalizePlusE164(clientFullPhone.trim(), country?.iso2)
         : null;
 
     if (!fullPhone && country && phoneNational?.trim()) {
@@ -65,10 +65,14 @@ export async function POST(req: Request) {
 
     if (!fullPhone && needsPhone && phone?.trim()) {
       const p = normalizePhone(phone.trim());
-      fullPhone = p.startsWith("+") ? `+${p.replace(/\D/g, "")}` : null;
+      fullPhone = p.startsWith("+") ? normalizePlusE164(p, country?.iso2) : null;
       if (!fullPhone && country) {
         fullPhone = buildFullPhoneNumber(country.iso2, p);
       }
+    }
+
+    if (fullPhone?.startsWith("+")) {
+      fullPhone = normalizePlusE164(fullPhone, country?.iso2) ?? fullPhone;
     }
 
     const phoneTrim = fullPhone ? canonicalPhoneDigitsFromE164(fullPhone) ?? "" : "";

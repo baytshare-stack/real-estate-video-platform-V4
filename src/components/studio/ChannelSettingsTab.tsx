@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { User, Phone, MessageCircle, CheckCircle2, Loader2 } from "lucide-react";
 import { useTranslation } from "@/i18n/LanguageProvider";
 import CountrySelect, { COUNTRIES, getCountryByIso } from "./settings/CountrySelect";
+import { buildFullPhoneNumber, formatE164ForDisplay, stripNationalTrunkZero } from "@/lib/countriesData";
 import SocialLinksForm, { type SocialLinks } from "./settings/SocialLinksForm";
 import ImageUploader from "./settings/ImageUploader";
 
@@ -47,7 +48,8 @@ function parsePhoneForCountry(fullPhone: string | null | undefined): { iso2: str
     if (!best || c.phoneCodeDigits.length > best.phoneCodeDigits.length) best = c;
   }
   if (!best) return { iso2: null, rest: digits };
-  return { iso2: best.iso2, rest: digits.slice(best.phoneCodeDigits.length) };
+  const rest = stripNationalTrunkZero(digits.slice(best.phoneCodeDigits.length));
+  return { iso2: best.iso2, rest };
 }
 
 type OwnerDefaults = {
@@ -116,8 +118,11 @@ export default function ChannelSettingsTab({ channel, ownerDefaults, onSaved }: 
   const [saveNonce, setSaveNonce] = useState(0);
 
   const country = getCountryByIso(countryIso);
-  const phoneFull = country ? `${country.phoneCode}${phoneRest}` : "";
-  const whatsappFull = country ? `${country.phoneCode}${whatsappRest}` : "";
+  const phoneE164 = countryIso && phoneRest ? buildFullPhoneNumber(countryIso, phoneRest) : null;
+  const whatsappE164 =
+    countryIso && (whatsappSameAsPhone ? phoneRest : whatsappRest)
+      ? buildFullPhoneNumber(countryIso, whatsappSameAsPhone ? phoneRest : whatsappRest)
+      : null;
   const restMaxLen = useMemo(() => {
     const codeLen = country?.phoneCodeDigits.length ?? 0;
     return Math.max(1, 15 - codeLen);
@@ -178,14 +183,16 @@ export default function ChannelSettingsTab({ channel, ownerDefaults, onSaved }: 
 
     if (!countryIso) nextErrors.country = "Country is required";
 
-    const fullPhoneDigits = `${country?.phoneCodeDigits ?? ""}${digitsOnly(phoneRest)}`;
+    const phoneDigits = phoneE164 ? digitsOnly(phoneE164) : "";
     if (!digitsOnly(phoneRest)) nextErrors.phone = "Phone number is required";
-    if (fullPhoneDigits && (fullPhoneDigits.length < 7 || fullPhoneDigits.length > 15)) nextErrors.phone = "Phone number must be 7-15 digits (including country code)";
+    if (phoneDigits && (phoneDigits.length < 7 || phoneDigits.length > 15)) {
+      nextErrors.phone = "Phone number must be 7-15 digits (including country code)";
+    }
 
     if (!whatsappSameAsPhone) {
-      const fullWhatsappDigits = `${country?.phoneCodeDigits ?? ""}${digitsOnly(whatsappRest)}`;
+      const waDigits = whatsappE164 ? digitsOnly(whatsappE164) : "";
       if (!digitsOnly(whatsappRest)) nextErrors.whatsapp = "WhatsApp number is required";
-      if (fullWhatsappDigits && (fullWhatsappDigits.length < 7 || fullWhatsappDigits.length > 15)) {
+      if (waDigits && (waDigits.length < 7 || waDigits.length > 15)) {
         nextErrors.whatsapp = "WhatsApp must be 7-15 digits (including country code)";
       }
     }
@@ -206,9 +213,10 @@ export default function ChannelSettingsTab({ channel, ownerDefaults, onSaved }: 
     }
 
     return nextErrors;
-  }, [countryIso, name, phoneRest, social, whatsappSameAsPhone, whatsappRest, t]);
+  }, [countryIso, name, phoneRest, phoneE164, social, whatsappSameAsPhone, whatsappRest, whatsappE164, t]);
 
-  const canSave = Object.keys(validation).length === 0 && !!countryIso && phoneFull.length > 0 && whatsappFull.length > 0;
+  const canSave =
+    Object.keys(validation).length === 0 && !!countryIso && Boolean(phoneE164) && Boolean(whatsappE164);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -226,8 +234,8 @@ export default function ChannelSettingsTab({ channel, ownerDefaults, onSaved }: 
       fd.append("name", name);
       fd.append("description", description);
       fd.append("country", countryIso ?? "");
-      fd.append("phone", phoneFull);
-      fd.append("whatsapp", whatsappSameAsPhone ? phoneFull : whatsappFull);
+      fd.append("phone", phoneE164!);
+      fd.append("whatsapp", whatsappSameAsPhone ? phoneE164! : whatsappE164!);
 
       fd.append("facebookUrl", social.facebookUrl.trim());
       fd.append("instagramUrl", social.instagramUrl.trim());

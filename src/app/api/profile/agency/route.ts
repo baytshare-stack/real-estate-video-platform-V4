@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth/next";
 import prisma from "@/lib/prisma";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { ensureUserProfile } from "@/lib/ensureUserProfile";
+import { normalizePlusE164 } from "@/lib/countriesData";
 
 export const runtime = "nodejs";
 
@@ -33,12 +34,15 @@ function validateHttpUrl(value: string | null | undefined): string | null {
   }
 }
 
-function validatePhone(value: string | null | undefined): string | null {
+function validateContactPhone(value: string | null | undefined, countryHint: string | null): string | null {
   if (value === undefined || value === null) return null;
   const trimmed = String(value).trim();
   if (!trimmed.length) return null;
-  if (!/^\+\d{7,15}$/.test(trimmed)) return null;
-  return trimmed;
+  const n = normalizePlusE164(trimmed, countryHint) ?? normalizePlusE164(trimmed);
+  if (!n) return null;
+  const d = n.slice(1).replace(/\D/g, "");
+  if (d.length < 7 || d.length > 15) return null;
+  return n;
 }
 
 export async function PUT(req: Request) {
@@ -50,7 +54,7 @@ export async function PUT(req: Request) {
 
     const me = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { id: true, role: true },
+      select: { id: true, role: true, country: true },
     });
     if (!me) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -103,7 +107,7 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: "Agency name cannot be empty" }, { status: 400 });
     }
 
-    const phone = validatePhone(body.contactPhone ?? undefined);
+    const phone = validateContactPhone(body.contactPhone ?? undefined, me.country);
     if (body.contactPhone !== undefined && body.contactPhone !== null && String(body.contactPhone).trim() && !phone) {
       return NextResponse.json(
         { error: "Contact phone must be international format, e.g. +971501234567" },

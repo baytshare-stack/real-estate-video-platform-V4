@@ -4,7 +4,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import LocaleLink from "@/components/LocaleLink";
-import { getCountryByIso } from "@/lib/countriesData";
+import { formatE164ForDisplay, getCountryByIso } from "@/lib/countriesData";
 import { Pencil, X, Loader2, ArrowLeft } from "lucide-react";
 import ProfileInbox from "@/components/profile/ProfileInbox";
 import { useTranslation } from "@/i18n/LanguageProvider";
@@ -88,7 +88,7 @@ function buildForm(u: ProfileUserPayload): ProfileForm {
     name: u.profile?.name || u.fullName || "",
     username: u.username ?? "",
     email: u.email || "",
-    phoneE164: u.fullPhoneNumber || "",
+    phoneE164: formatE164ForDisplay(u.fullPhoneNumber) || u.fullPhoneNumber || "",
     city: u.city || "",
     countryIso: u.country || "",
     bio: u.profile?.bio || "",
@@ -99,6 +99,7 @@ function buildForm(u: ProfileUserPayload): ProfileForm {
     website: u.profile?.website || "",
     contactEmail: u.profile?.contactEmail || u.email || "",
     contactPhone:
+      formatE164ForDisplay(u.fullPhoneNumber) ||
       u.fullPhoneNumber ||
       (u.phoneCode && u.phoneNumber ? `${u.phoneCode}${u.phoneNumber}` : "") ||
       u.profile?.contactPhone ||
@@ -158,7 +159,7 @@ export default function ProfilePageClient({
       country: user.country,
       countryLabel,
       phoneVerified: user.phoneVerified,
-      fullPhoneNumber: user.fullPhoneNumber,
+      fullPhoneNumber: formatE164ForDisplay(user.fullPhoneNumber) || user.fullPhoneNumber,
     };
   }, [user]);
 

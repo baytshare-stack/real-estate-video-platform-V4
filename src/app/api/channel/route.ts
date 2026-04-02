@@ -5,6 +5,7 @@ import path from "path";
 import fs from "fs/promises";
 import prisma from "@/lib/prisma";
 import { safeFindUnique } from "@/lib/safePrisma";
+import { normalizePlusE164 } from "@/lib/countriesData";
 
 function parseOptionalString(value: FormDataEntryValue | null): string | null {
   if (!value) return null;
@@ -24,12 +25,14 @@ function validateHttpUrl(value: string | null): string | null {
   }
 }
 
-function validatePhoneInternational(value: string | null): string | null {
+function validatePhoneInternational(value: string | null, countryIsoHint: string | null): string | null {
   if (!value) return null;
   const trimmed = value.trim();
-  // Strict format: +<countryCode><number>
-  if (!/^\+\d{7,15}$/.test(trimmed)) return null;
-  return trimmed;
+  const n = normalizePlusE164(trimmed, countryIsoHint) ?? normalizePlusE164(trimmed);
+  if (!n) return null;
+  const d = n.slice(1).replace(/\D/g, "");
+  if (d.length < 7 || d.length > 15) return null;
+  return n;
 }
 
 function guessExtension(fileName: string, mimeType: string | null): string {
@@ -92,7 +95,7 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: "Country is required" }, { status: 400 });
     }
 
-    const phone = validatePhoneInternational(phoneRaw);
+    const phone = validatePhoneInternational(phoneRaw, country);
     if (!phone) {
       return NextResponse.json(
         { error: "Invalid phone number. Expected format: +<countryCode><number>" },
@@ -100,7 +103,7 @@ export async function PUT(request: Request) {
       );
     }
 
-    const whatsapp = validatePhoneInternational(whatsappRaw);
+    const whatsapp = validatePhoneInternational(whatsappRaw, country);
     if (!whatsapp) {
       return NextResponse.json({ error: "Invalid WhatsApp number." }, { status: 400 });
     }

@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth/next";
 import prisma from "@/lib/prisma";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { ensureUserProfile } from "@/lib/ensureUserProfile";
+import { inferPhoneCodeFromE164, normalizePlusE164 } from "@/lib/countriesData";
 import { canonicalPhoneDigitsFromE164 } from "@/lib/userPhone";
 
 export const runtime = "nodejs";
@@ -21,10 +22,6 @@ type Body = {
   country?: string | null;
 };
 
-function isE164(s: string): boolean {
-  return /^\+\d{7,15}$/.test(s.trim());
-}
-
 export async function PUT(req: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -34,7 +31,7 @@ export async function PUT(req: Request) {
 
     const me = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { id: true, role: true },
+      select: { id: true, role: true, country: true },
     });
     if (!me) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -102,19 +99,22 @@ export async function PUT(req: Request) {
           },
         });
       } else {
-        if (!isE164(raw)) {
+        const normalized = normalizePlusE164(raw, me.country) ?? normalizePlusE164(raw);
+        if (!normalized) {
           return NextResponse.json(
             { error: "Phone must be in international format, e.g. +971501234567" },
             { status: 400 }
           );
         }
-        const digits = canonicalPhoneDigitsFromE164(raw);
+        const digits = canonicalPhoneDigitsFromE164(normalized);
+        const inferredCode = inferPhoneCodeFromE164(normalized);
         await prisma.user.update({
           where: { id: userId },
           data: {
-            fullPhoneNumber: raw,
+            fullPhoneNumber: normalized,
             phone: digits,
             phoneNumber: digits,
+            ...(inferredCode ? { phoneCode: inferredCode } : {}),
           },
         });
       }
