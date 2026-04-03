@@ -13,19 +13,41 @@ export async function PATCH(
       return NextResponse.json({ error: "isBlocked must be boolean." }, { status: 400 });
     }
 
-    const updatedCount = await prisma.$executeRawUnsafe(
-      `UPDATE "User" SET "isBlocked" = $1 WHERE id = $2`,
-      body.isBlocked,
-      id
-    );
+    const result = await prisma.user.updateMany({
+      where: { id },
+      data: { isBlocked: body.isBlocked },
+    });
 
-    if (!updatedCount) {
+    if (!result.count) {
       return NextResponse.json({ error: "User not found." }, { status: 404 });
     }
 
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: "Failed to update user." }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  _request: Request,
+  context: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await context.params;
+    const user = await prisma.user.findUnique({
+      where: { id },
+      select: { id: true, role: true },
+    });
+    if (!user) {
+      return NextResponse.json({ error: "User not found." }, { status: 404 });
+    }
+    if (user.role === "ADMIN" || user.role === "SUPER_ADMIN") {
+      return NextResponse.json({ error: "Cannot delete admin accounts." }, { status: 403 });
+    }
+    await prisma.user.delete({ where: { id } });
+    return NextResponse.json({ ok: true });
+  } catch {
+    return NextResponse.json({ error: "Failed to delete user." }, { status: 500 });
   }
 }
 

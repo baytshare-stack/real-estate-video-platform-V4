@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, use } from 'react';
-import { ThumbsUp, Share2, PhoneCall, MessageCircle, MapPin, Bed, Bath, Maximize, Mail, CalendarClock } from 'lucide-react';
+import { useState, useEffect, useRef, use } from 'react';
+import { ThumbsUp, Share2, PhoneCall, MessageCircle, MapPin, Bed, Bath, Maximize, Mail, CalendarClock, Flag } from 'lucide-react';
 import VideoCard from '@/components/VideoCard';
 import ShareModal from '@/components/ShareModal';
 import LocaleLink from '@/components/LocaleLink';
@@ -15,6 +15,7 @@ import { formatSubscriberCount } from '@/lib/formatSubscribers';
 import TemplateMotionPlayer from '@/components/video/TemplateMotionPlayer';
 import { trackTemplateInteraction } from '@/lib/video-templates/track';
 import BookVisitModal from '@/components/watch/BookVisitModal';
+import WatchVideoAdsShell from '@/components/watch/WatchVideoAdsShell';
 
 function isNotifyPref(v: unknown): v is NotifyPref {
   return v === 'ALL' || v === 'PERSONALIZED' || v === 'NONE';
@@ -38,6 +39,8 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
   const [isLiked, setIsLiked] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isBookVisitOpen, setIsBookVisitOpen] = useState(false);
+  const [reportBusy, setReportBusy] = useState(false);
+  const nativeVideoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     const fetchVideo = async () => {
@@ -106,6 +109,33 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
     }
   };
 
+  const handleReportVideo = async () => {
+    if (sessionStatus !== "authenticated") return;
+    const ok = window.confirm("Report this listing to moderators?");
+    if (!ok) return;
+    setReportBusy(true);
+    try {
+      const res = await fetch("/api/video/report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          targetType: "VIDEO",
+          targetId: videoId,
+          reason: "User report from watch page",
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(data.error || "Report failed");
+      window.alert("Thanks — moderators will review this report.");
+    } catch (e) {
+      console.error(e);
+      window.alert(e instanceof Error ? e.message : "Could not submit report.");
+    } finally {
+      setReportBusy(false);
+    }
+  };
+
   const handleSubscribe = async () => {
     if (sessionStatus !== "authenticated") return;
     const chId = videoData?.channelId || videoData?.channel?.id;
@@ -158,6 +188,10 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
       : null;
   const chIdForTrack = video.channelId || channel.id;
 
+  const videoAds = Array.isArray(video.videoAds) ? video.videoAds : [];
+  const isNativeFile =
+    Boolean(video.videoUrl) && !getYouTubeEmbedUrl(video.videoUrl) && !video.isTemplate;
+
   return (
     <>
     <div className="mx-auto grid max-w-[1600px] gap-4 px-2 py-3 sm:gap-6 sm:p-4 lg:grid lg:grid-cols-[1fr_400px] lg:p-6">
@@ -165,10 +199,12 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
       {/* Primary Column: Video & Details */}
       <div className="flex min-w-0 w-full flex-col gap-4 overflow-hidden">
         
-        {/* The Video Player Area */}
-        <div
-          className={[
-            "bg-black rounded-2xl overflow-hidden border border-gray-800 shadow-2xl relative flex items-center justify-center",
+        {/* The Video Player Area + platform ads */}
+        <WatchVideoAdsShell
+          ads={videoAds}
+          videoRef={isNativeFile ? nativeVideoRef : undefined}
+          outerClassName={[
+            "bg-black rounded-2xl overflow-hidden border border-gray-800 shadow-2xl flex items-center justify-center",
             video.isShort
               ? "aspect-[9/16] w-full max-w-[400px] mx-auto"
               : "w-full aspect-video",
@@ -192,7 +228,13 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
                 getYouTubeEmbedUrl(video.videoUrl) ? (
                   <YouTubePlayer watchUrl={video.videoUrl} title={video.title} className="w-full h-full min-h-0" />
                 ) : (
-                  <video src={video.videoUrl} controls className="w-full h-full object-contain" poster={video.thumbnailUrl} />
+                  <video
+                    ref={nativeVideoRef}
+                    src={video.videoUrl}
+                    controls
+                    className="w-full h-full object-contain"
+                    poster={video.thumbnailUrl}
+                  />
                 )
             ) : (
                <div className="text-gray-500 flex flex-col items-center">
@@ -200,7 +242,7 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
                   <p>Processing Video Stream</p>
                </div>
             )}
-        </div>
+        </WatchVideoAdsShell>
 
         {/* Video Title */}
         <h1 className="text-xl md:text-2xl font-bold text-white mt-2 font-[family-name:var(--font-geist-sans)] line-clamp-2 leading-tight">{video.title}</h1>
@@ -253,11 +295,22 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
                 </button>
                 <div className="w-[1px] h-5 md:h-6 bg-gray-700"></div>
                 <button 
-                  onClick={() => setIsShareModalOpen(true)}
-                  className="flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-1.5 hover:bg-white/10 rounded-full transition-colors text-white text-sm font-medium"
+                    onClick={() => setIsShareModalOpen(true)}
+                    className="flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-1.5 hover:bg-white/10 rounded-full transition-colors text-white text-sm font-medium"
                 >
                     <Share2 className="w-4 h-4 md:w-5 md:h-5" /> {t('watch', 'share')}
                 </button>
+                {sessionStatus === "authenticated" ? (
+                  <button
+                    type="button"
+                    disabled={reportBusy}
+                    onClick={() => void handleReportVideo()}
+                    className="flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-1.5 hover:bg-white/10 rounded-full transition-colors text-white/80 text-sm font-medium disabled:opacity-50"
+                    title="Report listing"
+                  >
+                    <Flag className="w-4 h-4 md:w-5 md:h-5" /> Report
+                  </button>
+                ) : null}
                 <div className="hidden h-5 md:h-6 w-px bg-gray-700 sm:block" />
                 <span className="hidden text-xs text-gray-400 sm:inline md:text-sm">
                   {formatSubscriberCount(subscriberCount)} {t('watch', 'subscribers')}

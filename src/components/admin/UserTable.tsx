@@ -58,9 +58,11 @@ const MOCK_USERS: UserTableRow[] = [
 export default function UserTable({
   users,
   onToggleStatus,
+  onDeleteUser,
 }: {
   users?: UserTableRow[];
   onToggleStatus?: (userId: string, nextStatus: UserStatus) => Promise<void> | void;
+  onDeleteUser?: (userId: string) => Promise<void> | void;
 }) {
   const [q, setQ] = React.useState("");
   const [role, setRole] = React.useState<"" | UserRole>("");
@@ -88,6 +90,25 @@ export default function UserTable({
       await onToggleStatus?.(u.id, nextStatus);
     } catch {
       setRows((prev) => prev.map((x) => (x.id === u.id ? { ...x, status: u.status } : x)));
+    } finally {
+      setBusyId("");
+    }
+  };
+
+  const removeUser = async (u: UserTableRow) => {
+    if (u.role === "admin") {
+      window.alert("Admin accounts cannot be deleted from the dashboard.");
+      return;
+    }
+    const ok = window.confirm(`Permanently delete user "${u.name}"? This cannot be undone.`);
+    if (!ok) return;
+    setBusyId(u.id);
+    const prev = rows;
+    setRows((p) => p.filter((x) => x.id !== u.id));
+    try {
+      await onDeleteUser?.(u.id);
+    } catch {
+      setRows(prev);
     } finally {
       setBusyId("");
     }
@@ -133,7 +154,7 @@ export default function UserTable({
               <th className="px-4 py-3 font-medium">Role</th>
               <th className="px-4 py-3 font-medium">Created</th>
               <th className="px-4 py-3 font-medium">Status</th>
-              <th className="px-4 py-3 font-medium text-right">Action</th>
+              <th className="px-4 py-3 font-medium text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-white/10">
@@ -167,20 +188,35 @@ export default function UserTable({
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <button
-                      type="button"
-                      disabled={busyId === u.id}
-                      onClick={() => void toggle(u)}
-                      className={[
-                        "rounded-xl border px-3 py-2 text-xs font-medium transition",
-                        u.status === "active"
-                          ? "border-amber-400/20 bg-amber-500/10 text-amber-200 hover:bg-amber-500/15"
-                          : "border-emerald-400/20 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/15",
-                        busyId === u.id ? "opacity-60 cursor-not-allowed" : "",
-                      ].join(" ")}
-                    >
-                      {u.status === "active" ? "Block" : "Unblock"}
-                    </button>
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <button
+                        type="button"
+                        disabled={busyId === u.id}
+                        onClick={() => void toggle(u)}
+                        className={[
+                          "rounded-xl border px-3 py-2 text-xs font-medium transition",
+                          u.status === "active"
+                            ? "border-amber-400/20 bg-amber-500/10 text-amber-200 hover:bg-amber-500/15"
+                            : "border-emerald-400/20 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/15",
+                          busyId === u.id ? "opacity-60 cursor-not-allowed" : "",
+                        ].join(" ")}
+                      >
+                        {u.status === "active" ? "Block" : "Unblock"}
+                      </button>
+                      {onDeleteUser ? (
+                        <button
+                          type="button"
+                          disabled={busyId === u.id || u.role === "admin"}
+                          onClick={() => void removeUser(u)}
+                          className={[
+                            "rounded-xl border border-red-400/20 bg-red-500/10 px-3 py-2 text-xs font-medium text-red-200 transition hover:bg-red-500/15",
+                            busyId === u.id || u.role === "admin" ? "opacity-50 cursor-not-allowed" : "",
+                          ].join(" ")}
+                        >
+                          Delete
+                        </button>
+                      ) : null}
+                    </div>
                   </td>
                 </tr>
               ))

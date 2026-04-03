@@ -71,11 +71,13 @@ export default function VideoTable({
   onDelete,
   onApprove,
   onReject,
+  onSaveTitle,
 }: {
   videos?: AdminVideoRow[];
   onDelete?: (videoId: string) => Promise<void> | void;
   onApprove?: (videoId: string) => Promise<void> | void;
   onReject?: (videoId: string) => Promise<void> | void;
+  onSaveTitle?: (videoId: string, title: string) => Promise<void> | void;
 }) {
   const [rows, setRows] = React.useState<AdminVideoRow[]>(videos ?? MOCK_VIDEOS);
   const [filter, setFilter] = React.useState<"" | FilterMode>("");
@@ -83,6 +85,7 @@ export default function VideoTable({
 
   const [editing, setEditing] = React.useState<AdminVideoRow | null>(null);
   const [editTitle, setEditTitle] = React.useState("");
+  const [saveError, setSaveError] = React.useState("");
 
   React.useEffect(() => {
     setRows(videos ?? MOCK_VIDEOS);
@@ -149,6 +152,29 @@ export default function VideoTable({
   const closeEdit = () => {
     setEditing(null);
     setEditTitle("");
+    setSaveError("");
+  };
+
+  const saveEdit = async () => {
+    if (!editing) return;
+    const t = editTitle.trim();
+    if (!t) {
+      setSaveError("Title is required.");
+      return;
+    }
+    setSaveError("");
+    setBusyId(editing.id);
+    const prev = rows;
+    setRows((p) => p.map((x) => (x.id === editing.id ? { ...x, title: t } : x)));
+    try {
+      await onSaveTitle?.(editing.id, t);
+      closeEdit();
+    } catch (e: unknown) {
+      setRows(prev);
+      setSaveError(e instanceof Error ? e.message : "Save failed.");
+    } finally {
+      setBusyId("");
+    }
   };
 
   return (
@@ -323,7 +349,7 @@ export default function VideoTable({
           <div className="relative w-full max-w-2xl rounded-2xl border border-white/10 bg-[#0f0f0f] p-5 shadow-2xl">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
-                <h3 className="text-lg font-semibold text-white">Edit video (mock)</h3>
+                <h3 className="text-lg font-semibold text-white">Edit video title</h3>
                 <p className="mt-1 text-sm text-white/60">
                   ID: <span className="font-mono text-white/70">{editing?.id ?? "-"}</span>
                 </p>
@@ -346,22 +372,19 @@ export default function VideoTable({
                   className="w-full rounded-xl px-4 py-3 bg-white/5 border border-white/10 text-white placeholder:text-white/35 outline-none transition focus-visible:border-indigo-400/60 focus-visible:ring-2 focus-visible:ring-indigo-500/40"
                 />
               </div>
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                <p className="text-sm text-white/60">
-                  This is a mock edit screen. Hook up real update logic later via your admin API.
-                </p>
-              </div>
+              {saveError ? (
+                <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+                  {saveError}
+                </div>
+              ) : null}
               <div className="flex justify-end gap-3">
                 <button
                   type="button"
-                  onClick={() => {
-                    // Mock action only.
-                    console.log("Mock save:", editing?.id, editTitle);
-                    closeEdit();
-                  }}
-                  className="rounded-xl bg-indigo-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-indigo-500"
+                  disabled={busyId === editing?.id}
+                  onClick={() => void saveEdit()}
+                  className="rounded-xl bg-indigo-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-indigo-500 disabled:opacity-60"
                 >
-                  Save (mock)
+                  {busyId === editing?.id ? "Saving…" : "Save"}
                 </button>
               </div>
             </div>

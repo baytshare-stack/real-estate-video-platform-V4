@@ -2,35 +2,19 @@
 
 import * as React from "react";
 
-type CampaignStatus = "DRAFT" | "ACTIVE" | "PAUSED";
-type CreativeType = "IMAGE" | "VIDEO";
+type AdPosition = "BEFORE" | "MID" | "AFTER" | "OVERLAY";
 
-type CampaignRow = {
+type VideoAdRow = {
   id: string;
-  name: string;
-  status: CampaignStatus;
-  createdAt: string;
-  creativesCount: number;
-  placementsCount: number;
-};
-
-type CreativeRow = {
-  id: string;
-  campaignId: string;
-  type: CreativeType;
-  mediaUrl: string;
-  clickUrl: string | null;
-  impressions: number;
-  clicks: number;
-  createdAt: string;
-};
-
-type PlacementRow = {
-  id: string;
-  campaignId: string;
+  title: string;
+  description: string | null;
   videoId: string;
   videoTitle: string;
+  videoThumbnail: string | null;
+  position: AdPosition;
+  isActive: boolean;
   createdAt: string;
+  updatedAt: string;
 };
 
 function formatDate(iso: string) {
@@ -40,191 +24,133 @@ function formatDate(iso: string) {
 }
 
 export default function AdminAdsPage() {
-  const [campaigns, setCampaigns] = React.useState<CampaignRow[]>([]);
-  const [selectedCampaignId, setSelectedCampaignId] = React.useState<string>("");
-  const [creatives, setCreatives] = React.useState<CreativeRow[]>([]);
-  const [placements, setPlacements] = React.useState<PlacementRow[]>([]);
+  const [ads, setAds] = React.useState<VideoAdRow[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string>("");
 
-  const [newCampaignName, setNewCampaignName] = React.useState("");
-  const [newCampaignStatus, setNewCampaignStatus] = React.useState<CampaignStatus>("DRAFT");
+  const [createTitle, setCreateTitle] = React.useState("");
+  const [createDescription, setCreateDescription] = React.useState("");
+  const [createVideoId, setCreateVideoId] = React.useState("");
+  const [createPosition, setCreatePosition] = React.useState<AdPosition>("OVERLAY");
 
-  const [newCreativeType, setNewCreativeType] = React.useState<CreativeType>("IMAGE");
-  const [newCreativeMediaUrl, setNewCreativeMediaUrl] = React.useState("");
-  const [newCreativeClickUrl, setNewCreativeClickUrl] = React.useState("");
+  const [editing, setEditing] = React.useState<VideoAdRow | null>(null);
+  const [editTitle, setEditTitle] = React.useState("");
+  const [editDescription, setEditDescription] = React.useState("");
+  const [editVideoId, setEditVideoId] = React.useState("");
+  const [editPosition, setEditPosition] = React.useState<AdPosition>("OVERLAY");
+  const [editActive, setEditActive] = React.useState(true);
 
-  const [assignVideoId, setAssignVideoId] = React.useState("");
-
-  const loadCampaigns = React.useCallback(async () => {
+  const load = React.useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/admin/ads/campaigns", { cache: "no-store" });
-      const data = (await res.json()) as { campaigns?: CampaignRow[]; error?: string };
-      if (!res.ok) throw new Error(data.error || "Failed to load campaigns.");
-      setCampaigns(data.campaigns || []);
-    } catch (e: any) {
-      setError(e?.message || "Failed to load campaigns.");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const loadCampaignDetails = React.useCallback(async (campaignId: string) => {
-    if (!campaignId) {
-      setCreatives([]);
-      setPlacements([]);
-      return;
-    }
-    setLoading(true);
-    setError("");
-    try {
-      const [crRes, plRes] = await Promise.all([
-        fetch(`/api/admin/ads/creatives?campaignId=${encodeURIComponent(campaignId)}`, { cache: "no-store" }),
-        fetch(`/api/admin/ads/placements?campaignId=${encodeURIComponent(campaignId)}`, { cache: "no-store" }),
-      ]);
-      const crData = (await crRes.json()) as { creatives?: CreativeRow[]; error?: string };
-      const plData = (await plRes.json()) as { placements?: PlacementRow[]; error?: string };
-      if (!crRes.ok) throw new Error(crData.error || "Failed to load creatives.");
-      if (!plRes.ok) throw new Error(plData.error || "Failed to load placements.");
-      setCreatives(crData.creatives || []);
-      setPlacements(plData.placements || []);
-    } catch (e: any) {
-      setError(e?.message || "Failed to load campaign details.");
+      const res = await fetch("/api/admin/video-ads", { cache: "no-store" });
+      const data = (await res.json()) as { ads?: VideoAdRow[]; error?: string };
+      if (!res.ok) throw new Error(data.error || "Failed to load ads.");
+      setAds(data.ads || []);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to load ads.");
     } finally {
       setLoading(false);
     }
   }, []);
 
   React.useEffect(() => {
-    void loadCampaigns();
-  }, [loadCampaigns]);
+    void load();
+  }, [load]);
 
-  React.useEffect(() => {
-    void loadCampaignDetails(selectedCampaignId);
-  }, [loadCampaignDetails, selectedCampaignId]);
-
-  const createCampaign = async () => {
+  const createAd = async () => {
     setError("");
     try {
-      const res = await fetch("/api/admin/ads/campaigns", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newCampaignName, status: newCampaignStatus }),
-      });
-      const data = (await res.json()) as { id?: string; error?: string };
-      if (!res.ok) throw new Error(data.error || "Failed to create campaign.");
-      setNewCampaignName("");
-      await loadCampaigns();
-      if (data.id) setSelectedCampaignId(data.id);
-    } catch (e: any) {
-      setError(e?.message || "Failed to create campaign.");
-    }
-  };
-
-  const updateCampaignStatus = async (campaignId: string, status: CampaignStatus) => {
-    setError("");
-    try {
-      const res = await fetch(`/api/admin/ads/campaigns/${campaignId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
-      });
-      const data = (await res.json()) as { ok?: true; error?: string };
-      if (!res.ok) throw new Error(data.error || "Failed to update campaign.");
-      await loadCampaigns();
-    } catch (e: any) {
-      setError(e?.message || "Failed to update campaign.");
-    }
-  };
-
-  const deleteCampaign = async (campaignId: string) => {
-    const ok = window.confirm("Delete this campaign? This will remove creatives and placements.");
-    if (!ok) return;
-    setError("");
-    try {
-      const res = await fetch(`/api/admin/ads/campaigns/${campaignId}`, { method: "DELETE" });
-      const data = (await res.json()) as { ok?: true; error?: string };
-      if (!res.ok) throw new Error(data.error || "Failed to delete campaign.");
-      if (selectedCampaignId === campaignId) setSelectedCampaignId("");
-      await loadCampaigns();
-    } catch (e: any) {
-      setError(e?.message || "Failed to delete campaign.");
-    }
-  };
-
-  const addCreative = async () => {
-    if (!selectedCampaignId) return;
-    setError("");
-    try {
-      const res = await fetch("/api/admin/ads/creatives", {
+      const res = await fetch("/api/admin/video-ads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          campaignId: selectedCampaignId,
-          type: newCreativeType,
-          mediaUrl: newCreativeMediaUrl,
-          clickUrl: newCreativeClickUrl,
+          title: createTitle,
+          description: createDescription || null,
+          videoId: createVideoId,
+          position: createPosition,
+          isActive: true,
         }),
       });
       const data = (await res.json()) as { id?: string; error?: string };
-      if (!res.ok) throw new Error(data.error || "Failed to add creative.");
-      setNewCreativeMediaUrl("");
-      setNewCreativeClickUrl("");
-      await loadCampaignDetails(selectedCampaignId);
-      await loadCampaigns();
-    } catch (e: any) {
-      setError(e?.message || "Failed to add creative.");
+      if (!res.ok) throw new Error(data.error || "Failed to create ad.");
+      setCreateTitle("");
+      setCreateDescription("");
+      setCreateVideoId("");
+      setCreatePosition("OVERLAY");
+      await load();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Create failed.");
     }
   };
 
-  const deleteCreative = async (creativeId: string) => {
-    const ok = window.confirm("Delete this creative?");
+  const deleteAd = async (id: string) => {
+    const ok = window.confirm("Delete this ad?");
     if (!ok) return;
     setError("");
     try {
-      const res = await fetch(`/api/admin/ads/creatives/${creativeId}`, { method: "DELETE" });
-      const data = (await res.json()) as { ok?: true; error?: string };
-      if (!res.ok) throw new Error(data.error || "Failed to delete creative.");
-      await loadCampaignDetails(selectedCampaignId);
-      await loadCampaigns();
-    } catch (e: any) {
-      setError(e?.message || "Failed to delete creative.");
+      const res = await fetch(`/api/admin/video-ads/${id}`, { method: "DELETE" });
+      const data = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok) throw new Error(data.error || "Failed to delete.");
+      await load();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Delete failed.");
     }
   };
 
-  const assignToVideo = async () => {
-    if (!selectedCampaignId) return;
+  const toggleActive = async (row: VideoAdRow) => {
     setError("");
+    const next = !row.isActive;
+    setAds((prev) => prev.map((a) => (a.id === row.id ? { ...a, isActive: next } : a)));
     try {
-      const res = await fetch("/api/admin/ads/placements", {
-        method: "POST",
+      const res = await fetch(`/api/admin/video-ads/${row.id}`, {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ campaignId: selectedCampaignId, videoId: assignVideoId }),
+        body: JSON.stringify({ isActive: next }),
       });
-      const data = (await res.json()) as { id?: string; error?: string };
-      if (!res.ok) throw new Error(data.error || "Failed to assign to video.");
-      setAssignVideoId("");
-      await loadCampaignDetails(selectedCampaignId);
-      await loadCampaigns();
-    } catch (e: any) {
-      setError(e?.message || "Failed to assign to video.");
+      const data = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok) throw new Error(data.error || "Failed to update.");
+    } catch (e: unknown) {
+      setAds((prev) => prev.map((a) => (a.id === row.id ? { ...a, isActive: row.isActive } : a)));
+      setError(e instanceof Error ? e.message : "Update failed.");
     }
   };
 
-  const removePlacement = async (placementId: string) => {
-    const ok = window.confirm("Remove this placement?");
-    if (!ok) return;
+  const openEdit = (row: VideoAdRow) => {
+    setEditing(row);
+    setEditTitle(row.title);
+    setEditDescription(row.description ?? "");
+    setEditVideoId(row.videoId);
+    setEditPosition(row.position);
+    setEditActive(row.isActive);
+  };
+
+  const closeEdit = () => {
+    setEditing(null);
+  };
+
+  const saveEdit = async () => {
+    if (!editing) return;
     setError("");
     try {
-      const res = await fetch(`/api/admin/ads/placements/${placementId}`, { method: "DELETE" });
-      const data = (await res.json()) as { ok?: true; error?: string };
-      if (!res.ok) throw new Error(data.error || "Failed to remove placement.");
-      await loadCampaignDetails(selectedCampaignId);
-      await loadCampaigns();
-    } catch (e: any) {
-      setError(e?.message || "Failed to remove placement.");
+      const res = await fetch(`/api/admin/video-ads/${editing.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: editTitle,
+          description: editDescription.trim() || null,
+          videoId: editVideoId.trim(),
+          position: editPosition,
+          isActive: editActive,
+        }),
+      });
+      const data = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok) throw new Error(data.error || "Failed to save.");
+      closeEdit();
+      await load();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Save failed.");
     }
   };
 
@@ -232,14 +158,14 @@ export default function AdminAdsPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-white">Ads</h1>
+          <h1 className="text-2xl font-semibold text-white">Video ads</h1>
           <p className="mt-1 text-sm text-white/60">
-            Create campaigns, add creatives (media URLs), assign to videos, and track impressions/clicks.
+            Title, copy, target video, position (pre / mid / post / overlay), and live toggle.
           </p>
         </div>
         <button
           type="button"
-          onClick={() => void loadCampaigns()}
+          onClick={() => void load()}
           className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white/80 transition hover:bg-white/10 hover:text-white"
         >
           Refresh
@@ -252,232 +178,193 @@ export default function AdminAdsPage() {
         </div>
       ) : null}
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-4">
-        {/* Campaigns */}
-        <div className="rounded-2xl border border-white/10 bg-white/5 overflow-hidden">
-          <div className="p-4 border-b border-white/10">
-            <h2 className="text-white font-semibold">Campaigns</h2>
-            <p className="text-xs text-white/50 mt-1">Select a campaign to manage creatives and placements.</p>
-          </div>
-          <div className="p-4 space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-[1fr_180px_120px] gap-3">
-              <input
-                value={newCampaignName}
-                onChange={(e) => setNewCampaignName(e.target.value)}
-                placeholder="New campaign name…"
-                className="w-full rounded-xl px-4 py-3 bg-white/5 border border-white/10 text-white placeholder:text-white/35 outline-none transition focus-visible:border-indigo-400/60 focus-visible:ring-2 focus-visible:ring-indigo-500/40"
-              />
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-4 md:p-5">
+        <h2 className="text-white font-semibold">Create ad</h2>
+        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+          <input
+            value={createTitle}
+            onChange={(e) => setCreateTitle(e.target.value)}
+            placeholder="Title"
+            className="w-full rounded-xl px-4 py-3 bg-white/5 border border-white/10 text-white placeholder:text-white/35 outline-none"
+          />
+          <input
+            value={createVideoId}
+            onChange={(e) => setCreateVideoId(e.target.value)}
+            placeholder="Video ID"
+            className="w-full rounded-xl px-4 py-3 bg-white/5 border border-white/10 text-white placeholder:text-white/35 outline-none font-mono text-sm"
+          />
+          <textarea
+            value={createDescription}
+            onChange={(e) => setCreateDescription(e.target.value)}
+            placeholder="Description (optional)"
+            rows={2}
+            className="md:col-span-2 w-full rounded-xl px-4 py-3 bg-white/5 border border-white/10 text-white placeholder:text-white/35 outline-none resize-none"
+          />
+          <div className="md:col-span-2 flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="flex-1">
+              <label className="block text-xs text-white/60 mb-1">Position</label>
               <select
-                value={newCampaignStatus}
-                onChange={(e) => setNewCampaignStatus(e.target.value as CampaignStatus)}
-                className="w-full rounded-xl px-4 py-3 bg-white/5 border border-white/10 text-white outline-none transition focus-visible:border-indigo-400/60 focus-visible:ring-2 focus-visible:ring-indigo-500/40"
+                value={createPosition}
+                onChange={(e) => setCreatePosition(e.target.value as AdPosition)}
+                className="w-full rounded-xl px-4 py-3 bg-white/5 border border-white/10 text-white outline-none"
               >
-                <option value="DRAFT">DRAFT</option>
-                <option value="ACTIVE">ACTIVE</option>
-                <option value="PAUSED">PAUSED</option>
+                <option value="BEFORE">Before (above player)</option>
+                <option value="MID">Mid-roll (HTML5 at 50%; ~12s cue for embeds)</option>
+                <option value="AFTER">After (below player)</option>
+                <option value="OVERLAY">Overlay (banner on video)</option>
               </select>
-              <button
-                type="button"
-                onClick={() => void createCampaign()}
-                className="rounded-xl bg-indigo-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-indigo-500"
-              >
-                Create
-              </button>
             </div>
-
-            <div className="overflow-x-auto">
-              <table className="min-w-[900px] w-full text-sm">
-                <thead className="text-left text-white/70">
-                  <tr>
-                    <th className="py-2 pr-4 font-medium">Name</th>
-                    <th className="py-2 pr-4 font-medium">Status</th>
-                    <th className="py-2 pr-4 font-medium">Creatives</th>
-                    <th className="py-2 pr-4 font-medium">Placements</th>
-                    <th className="py-2 pr-4 font-medium">Created</th>
-                    <th className="py-2 pr-0 font-medium text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/10">
-                  {campaigns.map((c) => {
-                    const selected = c.id === selectedCampaignId;
-                    return (
-                      <tr key={c.id} className={selected ? "bg-indigo-500/10" : ""}>
-                        <td className="py-3 pr-4">
-                          <button
-                            type="button"
-                            onClick={() => setSelectedCampaignId(c.id)}
-                            className="text-left font-medium text-white hover:text-indigo-300 transition"
-                          >
-                            {c.name}
-                          </button>
-                        </td>
-                        <td className="py-3 pr-4">
-                          <select
-                            value={c.status}
-                            onChange={(e) => void updateCampaignStatus(c.id, e.target.value as CampaignStatus)}
-                            className="rounded-xl px-3 py-2 bg-white/5 border border-white/10 text-white outline-none"
-                          >
-                            <option value="DRAFT">DRAFT</option>
-                            <option value="ACTIVE">ACTIVE</option>
-                            <option value="PAUSED">PAUSED</option>
-                          </select>
-                        </td>
-                        <td className="py-3 pr-4 tabular-nums text-white/70">{c.creativesCount}</td>
-                        <td className="py-3 pr-4 tabular-nums text-white/70">{c.placementsCount}</td>
-                        <td className="py-3 pr-4 text-white/60">{formatDate(c.createdAt)}</td>
-                        <td className="py-3 pr-0 text-right">
-                          <button
-                            type="button"
-                            onClick={() => void deleteCampaign(c.id)}
-                            className="rounded-xl border border-red-400/20 bg-red-500/10 px-3 py-2 text-xs font-medium text-red-200 transition hover:bg-red-500/15"
-                          >
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  {campaigns.length === 0 ? (
-                    <tr>
-                      <td className="py-6 text-white/60" colSpan={6}>
-                        {loading ? "Loading…" : "No campaigns yet."}
-                      </td>
-                    </tr>
-                  ) : null}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-        {/* Details */}
-        <div className="space-y-4">
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-            <h2 className="text-white font-semibold">Creatives</h2>
-            <p className="text-xs text-white/50 mt-1">
-              Add image/video creatives by URL (upload integration can be added next).
-            </p>
-
-            <div className="mt-4 grid grid-cols-1 gap-3">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <select
-                  value={newCreativeType}
-                  onChange={(e) => setNewCreativeType(e.target.value as CreativeType)}
-                  disabled={!selectedCampaignId}
-                  className="w-full rounded-xl px-4 py-3 bg-white/5 border border-white/10 text-white outline-none disabled:opacity-60"
-                >
-                  <option value="IMAGE">IMAGE</option>
-                  <option value="VIDEO">VIDEO</option>
-                </select>
-                <button
-                  type="button"
-                  onClick={() => void addCreative()}
-                  disabled={!selectedCampaignId}
-                  className="rounded-xl bg-indigo-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  Add creative
-                </button>
-              </div>
-              <input
-                value={newCreativeMediaUrl}
-                onChange={(e) => setNewCreativeMediaUrl(e.target.value)}
-                disabled={!selectedCampaignId}
-                placeholder="Media URL (image/video)…"
-                className="w-full rounded-xl px-4 py-3 bg-white/5 border border-white/10 text-white placeholder:text-white/35 outline-none disabled:opacity-60"
-              />
-              <input
-                value={newCreativeClickUrl}
-                onChange={(e) => setNewCreativeClickUrl(e.target.value)}
-                disabled={!selectedCampaignId}
-                placeholder="Click URL (optional)…"
-                className="w-full rounded-xl px-4 py-3 bg-white/5 border border-white/10 text-white placeholder:text-white/35 outline-none disabled:opacity-60"
-              />
-            </div>
-
-            <div className="mt-4 space-y-2">
-              {creatives.map((cr) => (
-                <div
-                  key={cr.id}
-                  className="rounded-2xl border border-white/10 bg-white/5 p-3 flex items-start justify-between gap-3"
-                >
-                  <div className="min-w-0">
-                    <p className="text-xs text-white/50">
-                      {cr.type} • {formatDate(cr.createdAt)}
-                    </p>
-                    <p className="mt-1 text-sm text-white/80 break-all line-clamp-2">{cr.mediaUrl}</p>
-                    <div className="mt-2 flex items-center gap-3 text-xs text-white/60 tabular-nums">
-                      <span>Impr: {cr.impressions}</span>
-                      <span>Clicks: {cr.clicks}</span>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => void deleteCreative(cr.id)}
-                    className="rounded-xl border border-red-400/20 bg-red-500/10 px-3 py-2 text-xs font-medium text-red-200 transition hover:bg-red-500/15"
-                  >
-                    Delete
-                  </button>
-                </div>
-              ))}
-              {selectedCampaignId && creatives.length === 0 ? (
-                <div className="text-sm text-white/60">No creatives yet.</div>
-              ) : null}
-              {!selectedCampaignId ? (
-                <div className="text-sm text-white/60">Select a campaign to manage creatives.</div>
-              ) : null}
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-            <h2 className="text-white font-semibold">Assign to videos</h2>
-            <p className="text-xs text-white/50 mt-1">Paste a Video ID to attach this campaign.</p>
-
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-[1fr_140px] gap-3">
-              <input
-                value={assignVideoId}
-                onChange={(e) => setAssignVideoId(e.target.value)}
-                disabled={!selectedCampaignId}
-                placeholder="Video ID…"
-                className="w-full rounded-xl px-4 py-3 bg-white/5 border border-white/10 text-white placeholder:text-white/35 outline-none disabled:opacity-60"
-              />
-              <button
-                type="button"
-                onClick={() => void assignToVideo()}
-                disabled={!selectedCampaignId}
-                className="rounded-xl bg-indigo-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                Assign
-              </button>
-            </div>
-
-            <div className="mt-4 space-y-2">
-              {placements.map((p) => (
-                <div
-                  key={p.id}
-                  className="rounded-2xl border border-white/10 bg-white/5 p-3 flex items-start justify-between gap-3"
-                >
-                  <div className="min-w-0">
-                    <p className="text-xs text-white/50">{formatDate(p.createdAt)}</p>
-                    <p className="mt-1 text-sm text-white/80 line-clamp-1">{p.videoTitle}</p>
-                    <p className="mt-1 text-xs text-white/50 font-mono break-all">{p.videoId}</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => void removePlacement(p.id)}
-                    className="rounded-xl border border-red-400/20 bg-red-500/10 px-3 py-2 text-xs font-medium text-red-200 transition hover:bg-red-500/15"
-                  >
-                    Remove
-                  </button>
-                </div>
-              ))}
-              {selectedCampaignId && placements.length === 0 ? (
-                <div className="text-sm text-white/60">No placements yet.</div>
-              ) : null}
-            </div>
+            <button
+              type="button"
+              onClick={() => void createAd()}
+              disabled={!createTitle.trim() || !createVideoId.trim()}
+              className="rounded-xl bg-indigo-600 px-5 py-3 text-sm font-medium text-white transition hover:bg-indigo-500 disabled:opacity-50"
+            >
+              Create
+            </button>
           </div>
         </div>
       </div>
+
+      <div className="rounded-2xl border border-white/10 bg-white/5 overflow-hidden">
+        <div className="p-4 border-b border-white/10 flex items-center justify-between gap-3">
+          <h2 className="text-white font-semibold">All ads</h2>
+          <span className="text-xs text-white/50">{loading ? "Loading…" : `${ads.length} total`}</span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-[1100px] w-full text-sm">
+            <thead className="text-left text-white/70 bg-white/5">
+              <tr>
+                <th className="py-3 px-4 font-medium">Active</th>
+                <th className="py-3 px-4 font-medium">Title</th>
+                <th className="py-3 px-4 font-medium">Video</th>
+                <th className="py-3 px-4 font-medium">Position</th>
+                <th className="py-3 px-4 font-medium">Updated</th>
+                <th className="py-3 px-4 font-medium text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/10">
+              {ads.map((a) => (
+                <tr key={a.id} className="text-white/80">
+                  <td className="py-3 px-4">
+                    <button
+                      type="button"
+                      onClick={() => void toggleActive(a)}
+                      className={[
+                        "rounded-full px-3 py-1 text-xs font-medium border transition",
+                        a.isActive
+                          ? "border-emerald-400/30 bg-emerald-500/15 text-emerald-200"
+                          : "border-white/10 bg-white/5 text-white/50",
+                      ].join(" ")}
+                    >
+                      {a.isActive ? "On" : "Off"}
+                    </button>
+                  </td>
+                  <td className="py-3 px-4">
+                    <p className="font-medium text-white line-clamp-1">{a.title}</p>
+                    {a.description ? (
+                      <p className="text-xs text-white/50 line-clamp-1 mt-0.5">{a.description}</p>
+                    ) : null}
+                  </td>
+                  <td className="py-3 px-4">
+                    <p className="line-clamp-1 text-white/90">{a.videoTitle}</p>
+                    <p className="text-xs text-white/45 font-mono break-all">{a.videoId}</p>
+                  </td>
+                  <td className="py-3 px-4 text-white/70">{a.position}</td>
+                  <td className="py-3 px-4 text-white/50 tabular-nums">{formatDate(a.updatedAt)}</td>
+                  <td className="py-3 px-4 text-right">
+                    <div className="flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => openEdit(a)}
+                        className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-white/80 hover:bg-white/10"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void deleteAd(a.id)}
+                        className="rounded-xl border border-red-400/20 bg-red-500/10 px-3 py-2 text-xs font-medium text-red-200 hover:bg-red-500/15"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {!loading && ads.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-8 px-4 text-center text-white/50">
+                    No video ads yet. A demo overlay is created automatically when the catalog is empty.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {editing ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={closeEdit} />
+          <div className="relative w-full max-w-lg rounded-2xl border border-white/10 bg-[#0f0f0f] p-5 shadow-2xl">
+            <h3 className="text-lg font-semibold text-white">Edit ad</h3>
+            <div className="mt-4 space-y-3">
+              <input
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                className="w-full rounded-xl px-4 py-3 bg-white/5 border border-white/10 text-white outline-none"
+              />
+              <textarea
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+                rows={3}
+                className="w-full rounded-xl px-4 py-3 bg-white/5 border border-white/10 text-white outline-none resize-none"
+              />
+              <input
+                value={editVideoId}
+                onChange={(e) => setEditVideoId(e.target.value)}
+                className="w-full rounded-xl px-4 py-3 bg-white/5 border border-white/10 text-white font-mono text-sm outline-none"
+              />
+              <select
+                value={editPosition}
+                onChange={(e) => setEditPosition(e.target.value as AdPosition)}
+                className="w-full rounded-xl px-4 py-3 bg-white/5 border border-white/10 text-white outline-none"
+              >
+                <option value="BEFORE">BEFORE</option>
+                <option value="MID">MID</option>
+                <option value="AFTER">AFTER</option>
+                <option value="OVERLAY">OVERLAY</option>
+              </select>
+              <label className="flex items-center gap-2 text-sm text-white/80">
+                <input
+                  type="checkbox"
+                  checked={editActive}
+                  onChange={(e) => setEditActive(e.target.checked)}
+                  className="rounded border-white/20"
+                />
+                Active
+              </label>
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={closeEdit}
+                className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/80"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void saveEdit()}
+                className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
-

@@ -12,36 +12,46 @@ export async function PATCH(
     const body = (await request.json()) as Partial<{
       isShort: boolean;
       moderationStatus: ModerationStatus;
+      title: string;
+      description: string | null;
     }>;
 
-    const sets: string[] = [];
-    const params: any[] = [];
+    const data: {
+      isShort?: boolean;
+      moderationStatus?: ModerationStatus;
+      title?: string;
+      description?: string | null;
+    } = {};
 
-    if (typeof body.isShort === "boolean") {
-      params.push(body.isShort);
-      sets.push(`"isShort" = $${params.length}`);
-    }
+    if (typeof body.isShort === "boolean") data.isShort = body.isShort;
 
     if (
       body.moderationStatus === "PENDING" ||
       body.moderationStatus === "APPROVED" ||
       body.moderationStatus === "REJECTED"
     ) {
-      params.push(body.moderationStatus);
-      sets.push(`"moderationStatus" = $${params.length}`);
+      data.moderationStatus = body.moderationStatus;
     }
 
-    if (!sets.length) {
+    if (typeof body.title === "string") {
+      const t = body.title.trim();
+      if (!t) {
+        return NextResponse.json({ error: "title cannot be empty." }, { status: 400 });
+      }
+      data.title = t;
+    }
+    if (body.description !== undefined) {
+      data.description =
+        body.description === null ? null : String(body.description).trim() || null;
+    }
+
+    if (!Object.keys(data).length) {
       return NextResponse.json({ error: "No valid fields to update." }, { status: 400 });
     }
 
-    params.push(id);
-    const updated = await prisma.$executeRawUnsafe(
-      `UPDATE "Video" SET ${sets.join(", ")} WHERE id = $${params.length}`,
-      ...params
-    );
-
-    if (!updated) {
+    try {
+      await prisma.video.update({ where: { id }, data });
+    } catch {
       return NextResponse.json({ error: "Video not found." }, { status: 404 });
     }
 
@@ -57,8 +67,9 @@ export async function DELETE(
 ) {
   try {
     const { id } = await context.params;
-    const deleted = await prisma.$executeRawUnsafe(`DELETE FROM "Video" WHERE id = $1`, id);
-    if (!deleted) {
+    try {
+      await prisma.video.delete({ where: { id } });
+    } catch {
       return NextResponse.json({ error: "Video not found." }, { status: 404 });
     }
     return NextResponse.json({ ok: true });
