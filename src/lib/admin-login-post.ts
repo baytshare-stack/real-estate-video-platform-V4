@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import prisma from "@/lib/prisma";
-import { safeFindUnique } from "@/lib/safePrisma";
+import { safeFindFirst } from "@/lib/safePrisma";
 import {
   ADMIN_SESSION_COOKIE,
   adminSessionCookieOptions,
@@ -25,9 +25,9 @@ export async function handleAdminLoginPost(request: Request) {
       return NextResponse.json({ error: "Email and password are required." }, { status: 400 });
     }
 
-    const user = await safeFindUnique(() =>
-      prisma.user.findUnique({
-        where: { email },
+    const user = await safeFindFirst(() =>
+      prisma.user.findFirst({
+        where: { email: { equals: email, mode: "insensitive" } },
         select: { id: true, role: true, passwordHash: true, email: true },
       })
     );
@@ -43,8 +43,9 @@ export async function handleAdminLoginPost(request: Request) {
       );
     }
 
-    if (!user || user.role !== "ADMIN" || !user.passwordHash) {
-      if (DEBUG) console.info("[admin-auth] rejected: user missing, not ADMIN, or no password hash");
+    const isAdminRole = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
+    if (!user || !isAdminRole || !user.passwordHash) {
+      if (DEBUG) console.info("[admin-auth] rejected: user missing, not admin role, or no password hash");
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
     }
 

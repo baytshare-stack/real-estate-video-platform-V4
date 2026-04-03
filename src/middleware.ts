@@ -6,6 +6,7 @@ import {
   parseLocaleFromPathname,
   prefixWithLocale,
   resolveLocaleFromRequest,
+  stripLocaleFromPathname,
 } from "@/i18n/routing";
 import { ADMIN_SESSION_COOKIE, verifyAdminToken } from "@/lib/admin-jwt";
 
@@ -29,23 +30,24 @@ function setLocaleCookie(res: NextResponse, locale: Locale) {
 }
 
 function requiresAdminAuth(pathname: string): boolean {
-  if (pathname === "/admin-login" || pathname.startsWith("/admin-login/")) {
+  const path = stripLocaleFromPathname(pathname);
+  if (path === "/admin-login" || path.startsWith("/admin-login/")) {
     return false;
   }
-  if (pathname.startsWith("/admin")) {
-    if (pathname === "/admin/login" || pathname.startsWith("/admin/login/")) {
+  if (path.startsWith("/admin")) {
+    if (path === "/admin/login" || path.startsWith("/admin/login/")) {
       return false;
     }
     return true;
   }
-  if (pathname.startsWith("/api/admin/")) {
-    if (pathname === "/api/admin/auth") {
+  if (path.startsWith("/api/admin/")) {
+    if (path === "/api/admin/auth") {
       return false;
     }
-    if (pathname === "/api/admin/auth/login" || pathname.startsWith("/api/admin/auth/login/")) {
+    if (path === "/api/admin/auth/login" || path.startsWith("/api/admin/auth/login/")) {
       return false;
     }
-    if (pathname === "/api/admin/auth/logout" || pathname.startsWith("/api/admin/auth/logout/")) {
+    if (path === "/api/admin/auth/logout" || path.startsWith("/api/admin/auth/logout/")) {
       return false;
     }
     return true;
@@ -53,11 +55,29 @@ function requiresAdminAuth(pathname: string): boolean {
   return false;
 }
 
+/** Admin + admin API live outside `[locale]`; `/en/admin/...` would otherwise 404. */
+function isLocalePrefixedAdminPath(restPath: string): boolean {
+  return (
+    restPath === "/admin-login" ||
+    restPath.startsWith("/admin-login/") ||
+    restPath === "/admin" ||
+    restPath.startsWith("/admin/") ||
+    restPath.startsWith("/api/admin")
+  );
+}
+
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const cookieLocale = request.cookies.get(LOCALE_COOKIE)?.value as Locale | undefined;
   const acceptLang = request.headers.get("accept-language");
   const fallbackLocale = resolveLocaleFromRequest(pathname, cookieLocale, acceptLang);
+
+  const { locale: pathLocale, restPath } = parseLocaleFromPathname(pathname);
+  if (pathLocale && locales.includes(pathLocale) && isLocalePrefixedAdminPath(restPath)) {
+    const url = request.nextUrl.clone();
+    url.pathname = restPath;
+    return setLocaleCookie(NextResponse.redirect(url), pathLocale);
+  }
 
   if (requiresAdminAuth(pathname)) {
     const token = request.cookies.get(ADMIN_SESSION_COOKIE)?.value;
@@ -75,10 +95,8 @@ export async function middleware(request: NextRequest) {
     return nextWithRequestLocale(request, fallbackLocale);
   }
 
-  const { locale: prefixLocale, restPath } = parseLocaleFromPathname(pathname);
-
-  if (prefixLocale && locales.includes(prefixLocale)) {
-    return nextWithRequestLocale(request, prefixLocale);
+  if (pathLocale && locales.includes(pathLocale)) {
+    return nextWithRequestLocale(request, pathLocale);
   }
 
   const targetLocale = fallbackLocale;

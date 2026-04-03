@@ -9,6 +9,7 @@
     "start": "next start",
     "prisma:generate": "prisma generate",
     "prisma:seed": "tsx prisma/seed.ts",
+    "seed:admin": "tsx prisma/seed-admin-user.ts",
     "lint": "eslint . --ext .ts,.tsx,.js,.jsx",
     "verify:phone": "tsx src/lib/phone-format.verify.ts"
   },

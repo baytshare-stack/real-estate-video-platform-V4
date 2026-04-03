@@ -79,7 +79,11 @@ export default function AdminLoginPage() {
         | { error: string };
 
       if (!res.ok) {
-        setError("Invalid credentials");
+        const msg =
+          res.status === 400 && "error" in data && typeof data.error === "string"
+            ? data.error
+            : "Invalid credentials";
+        setError(msg);
         return;
       }
 

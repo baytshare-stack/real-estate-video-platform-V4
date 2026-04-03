@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
 import prisma from "@/lib/prisma";
+import { hashCredentialPassword } from "@/lib/hash-user-password";
 import { safeFindFirst } from "@/lib/safePrisma";
 
 const DEFAULT_EMAIL = "admin@bytak1tube.com";
@@ -21,7 +21,7 @@ async function ensureAdminResolved(
   password: string,
   displayName: string
 ): Promise<{ created: boolean; updated: boolean; userId: string }> {
-  const passwordHash = await bcrypt.hash(password, 12);
+  const passwordHash = await hashCredentialPassword(password);
 
   const existing = await safeFindFirst(() =>
     prisma.user.findFirst({
