@@ -357,9 +357,9 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
                     <button
                         type="button"
                         onClick={() => setIsBookVisitOpen(true)}
-                        className="flex-1 border border-blue-500/40 bg-blue-600/15 hover:bg-blue-600/25 text-blue-100 flex items-center justify-center gap-2 py-3 px-4 md:px-6 rounded-xl font-bold text-base md:text-lg transition-colors shadow-lg shadow-blue-900/20"
+                        className="flex-1 border border-blue-500/40 bg-blue-600/15 hover:bg-blue-600/25 text-blue-100 flex items-center justify-center gap-1.5 py-2 px-3 md:px-4 rounded-lg font-semibold text-sm md:text-base transition-colors shadow-md shadow-blue-900/15"
                     >
-                        <CalendarClock className="w-5 h-5 md:w-6 md:h-6 shrink-0" /> {t('watch', 'bookVisit')}
+                        <CalendarClock className="w-4 h-4 md:w-5 md:h-5 shrink-0" /> {t('watch', 'bookVisit')}
                     </button>
                     {contact.whatsappLink ? (
                     <a 
@@ -371,9 +371,9 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
                             trackTemplateInteraction(videoId, chIdForTrack, 'whatsapp');
                           }
                         }}
-                        className="flex-1 bg-[#25D366] hover:bg-[#20bd5a] text-white flex items-center justify-center gap-2 py-3 px-4 md:px-6 rounded-xl font-bold text-base md:text-lg transition-colors shadow-lg shadow-[#25D366]/20"
+                        className="flex-1 bg-[#25D366] hover:bg-[#20bd5a] text-white flex items-center justify-center gap-1.5 py-2 px-3 md:px-4 rounded-lg font-semibold text-sm md:text-base transition-colors shadow-md shadow-[#25D366]/15"
                     >
-                        <MessageCircle className="w-5 h-5 md:w-6 md:h-6" /> WhatsApp
+                        <MessageCircle className="w-4 h-4 md:w-5 md:h-5 shrink-0" /> WhatsApp
                     </a>
                     ) : null}
                     {contact.rawPhone ? (
@@ -384,9 +384,9 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
                             trackTemplateInteraction(videoId, chIdForTrack, 'call');
                           }
                         }}
-                        className="flex-1 bg-white hover:bg-gray-200 text-black flex items-center justify-center gap-2 py-3 px-4 md:px-6 rounded-xl font-bold text-base md:text-lg transition-colors shadow-lg shadow-white/10"
+                        className="flex-1 bg-white hover:bg-gray-200 text-black flex items-center justify-center gap-1.5 py-2 px-3 md:px-4 rounded-lg font-semibold text-sm md:text-base transition-colors shadow-md shadow-white/10"
                     >
-                        <PhoneCall className="w-5 h-5 md:w-6 md:h-6" /> {contact.rawPhone}
+                        <PhoneCall className="w-4 h-4 md:w-5 md:h-5 shrink-0" /> {contact.rawPhone}
                     </a>
                     ) : null}
                     {contact.email ? (
