@@ -1,3 +1,5 @@
+"use client";
+
 import { Star } from "lucide-react";
 
 export default function StarRating({

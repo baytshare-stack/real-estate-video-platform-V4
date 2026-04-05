@@ -603,3 +603,72 @@ model VisitBooking {
   @@index([videoId])
   @@index([agentUserId, updatedAt(sort: Desc)])
 }
+
+/// Admin-managed property categories for upload forms; maps to legacy PropertyType / VideoPropertyType enums.
+model ListingPropertyType {
+  id          String            @id @default(cuid())
+  slug        String            @unique
+  labelAr     String
+  labelEn     String
+  mapProperty PropertyType
+  mapVideo    VideoPropertyType
+  sortOrder   Int               @default(0)
+  active      Boolean           @default(true)
+  createdAt   DateTime          @default(now())
+
+  @@map("ListingPropertyType")
+}
+
+/// Admin-managed countries for upload forms (stored keys match Property.country strings).
+model ListingCountry {
+  id           String               @id @default(cuid())
+  key          String               @unique
+  labelAr      String
+  labelEn      String
+  currency     String               @default("USD")
+  areaUnit     String               @default("sqm")
+  sortOrder    Int                  @default(0)
+  active       Boolean              @default(true)
+  createdAt    DateTime             @default(now())
+  governorates ListingGovernorate[]
+
+  @@map("ListingCountry")
+}
+
+/// Governorates / cities within a country (Property.city stores `key`).
+model ListingGovernorate {
+  id        String         @id @default(cuid())
+  countryId String
+  country   ListingCountry @relation(fields: [countryId], references: [id], onDelete: Cascade)
+  key       String
+  labelAr   String
+  labelEn   String
+  sortOrder Int            @default(0)
+  active    Boolean        @default(true)
+  createdAt DateTime       @default(now())
+
+  @@unique([countryId, key])
+  @@map("ListingGovernorate")
+}
+
+/// Singleton row id = "site" — public theme + layout for the marketing app (`[locale]` routes).
+model SiteAppearance {
+  id             String   @id
+  updatedAt      DateTime @updatedAt
+  primaryHex     String   @default("#3b82f6")
+  accentHex      String   @default("#6366f1")
+  backgroundHex  String   @default("#0f0f0f")
+  surfaceHex     String   @default("#121212")
+  textHex        String   @default("#f1f1f1")
+  mutedHex       String   @default("#a1a1aa")
+  borderHex      String   @default("rgba(255,255,255,0.1)")
+  fontBodyKey    String   @default("inter")
+  fontHeadingKey String   @default("inter")
+  baseFontPx     Int      @default(16)
+  headingScale   Float    @default(1.06)
+  logoUrl        String?
+  /// { sidebarDesktop, sidebarMobile, headerRight, homeSections } string[]
+  layoutJson     Json?
+  /// discover / profile / videoCard UI toggles & layout variants
+  uiConfigJson   Json?
+}

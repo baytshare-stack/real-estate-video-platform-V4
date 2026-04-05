@@ -9,6 +9,7 @@ import {
   listDiscoverUsers,
   parseDiscoverParams,
 } from "@/lib/discover-queries";
+import { discoverGridUlClass, getSiteAppearance } from "@/lib/site-appearance";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,6 +27,9 @@ export default async function AgentsPage({
   const sp = await searchParams;
   const params = parseDiscoverParams(sp);
   const { items, total, page, pageSize } = await listDiscoverUsers("AGENT", params);
+  const appearance = await getSiteAppearance();
+  const disc = appearance.ui.discover;
+  const gridClass = discoverGridUlClass("agents", disc);
 
   const filterValues = {
     q: sp.q ? String(Array.isArray(sp.q) ? sp.q[0] : sp.q) : "",
@@ -47,7 +51,9 @@ export default async function AgentsPage({
 
   return (
     <div className="min-h-screen p-4 pb-24 md:p-6 md:pb-8 max-w-[2000px] mx-auto">
-      <DiscoverListDebug page="agents" roleLabel="AGENT" total={total} shown={items.length} />
+      {disc.showListDebug ? (
+        <DiscoverListDebug page="agents" roleLabel="AGENT" total={total} shown={items.length} />
+      ) : null}
       <PageHeader
         iconName="Users"
         iconColor="text-sky-400"
@@ -56,18 +62,16 @@ export default async function AgentsPage({
       />
 
       <div className="mt-6 space-y-8">
-        <DiscoverFilters
-          basePath="/agents"
-          values={filterValues}
-          title="Search & filters"
-        />
+        {disc.showFilters ? (
+          <DiscoverFilters basePath="/agents" values={filterValues} title="Search & filters" />
+        ) : null}
 
         {items.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-white/15 bg-white/[0.02] py-20 text-center text-white/50">
             No agents match your filters yet. Try adjusting search or location.
           </div>
         ) : (
-          <ul className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+          <ul className={gridClass}>
             {items.map((agent) => (
               <li key={agent.id}>
                 <AgentCard agent={agent} />
@@ -76,17 +80,21 @@ export default async function AgentsPage({
           </ul>
         )}
 
-        <DiscoverPagination
-          basePath="/agents"
-          total={total}
-          page={page}
-          pageSize={pageSize}
-          query={paginationQuery}
-        />
+        {disc.showPagination ? (
+          <DiscoverPagination
+            basePath="/agents"
+            total={total}
+            page={page}
+            pageSize={pageSize}
+            query={paginationQuery}
+          />
+        ) : null}
 
-        <p className="text-center text-xs text-white/35">
-          Showing {items.length} of {total} agents · {DISCOVER_PAGE_SIZE} per page
-        </p>
+        {disc.showResultsFooter ? (
+          <p className="text-center text-xs text-white/35">
+            Showing {items.length} of {total} agents · {DISCOVER_PAGE_SIZE} per page
+          </p>
+        ) : null}
       </div>
     </div>
   );

@@ -238,11 +238,27 @@ export default function AdminDashboardClient() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl md:text-3xl font-semibold text-white">Admin Dashboard</h1>
-        <p className="mt-1 text-sm text-white/60">
-          Live metrics, moderation, CRM, and reports — synced from the database.
-        </p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-semibold text-white">Admin Dashboard</h1>
+          <p className="mt-1 text-sm text-white/60">
+            Live metrics, moderation, CRM, and reports — synced from the database.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/admin/settings/listing-catalog"
+            className="inline-flex shrink-0 items-center justify-center rounded-xl border border-emerald-400/30 bg-emerald-500/15 px-4 py-2.5 text-sm font-medium text-emerald-100 transition hover:bg-emerald-500/25"
+          >
+            Listing catalog
+          </Link>
+          <Link
+            href="/admin/settings/appearance"
+            className="inline-flex shrink-0 items-center justify-center rounded-xl border border-indigo-400/30 bg-indigo-500/15 px-4 py-2.5 text-sm font-medium text-indigo-100 transition hover:bg-indigo-500/25"
+          >
+            Site look & theme
+          </Link>
+        </div>
       </div>
 
       {error ? (

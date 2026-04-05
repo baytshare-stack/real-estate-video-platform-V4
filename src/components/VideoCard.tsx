@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRef, useState } from "react";
 import { Bed, Bath, Maximize } from "lucide-react";
 import { isYouTubeWatchUrl } from "@/lib/youtube";
+import { useSiteAppearance } from "@/components/site/SiteAppearanceProvider";
 
 interface VideoCardProps {
   id: string;
@@ -45,6 +46,8 @@ export default function VideoCard({
   sizeSqm,
   status,
 }: VideoCardProps) {
+  const { ui } = useSiteAppearance();
+  const vidLayout = ui.videoCard.layout;
   const fallbackShortThumbnail =
     "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&q=80&w=400&h=700";
   const fallbackLongThumbnail =
@@ -134,6 +137,139 @@ export default function VideoCard({
     );
   }
 
+  const thumbBlock = (
+    <>
+      <img
+        src={resolvedThumbnail}
+        alt={title}
+        loading="lazy"
+        className={`h-full w-full object-cover transition-transform duration-300 ${
+          isPreviewing ? "opacity-0" : "opacity-100 group-hover:scale-105"
+        }`}
+      />
+      {videoUrl ? (
+        <video
+          ref={previewVideoRef}
+          src={videoUrl}
+          muted
+          loop
+          playsInline
+          preload="metadata"
+          className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-200 ${
+            isPreviewing ? "opacity-100" : "pointer-events-none opacity-0"
+          }`}
+        />
+      ) : null}
+      {status ? (
+        <div
+          className={`absolute right-2 top-2 rounded-lg px-2 py-1 text-xs font-bold tracking-wide text-white shadow-lg ${
+            status === "FOR_SALE" ? "bg-blue-600/90" : "bg-purple-600/90"
+          }`}
+        >
+          {status === "FOR_SALE" ? "FOR SALE" : "FOR RENT"}
+        </div>
+      ) : null}
+    </>
+  );
+
+  if (vidLayout === "poster") {
+    return (
+      <div className="group flex min-w-0 w-full cursor-pointer flex-col gap-2 transition-transform duration-200 hover:scale-[1.01]">
+        <Link href={`/watch/${id}`} className="min-w-0">
+          <div
+            className="relative aspect-video w-full min-w-0 overflow-hidden rounded-xl border border-gray-800/50 bg-gray-900"
+            onMouseEnter={startPreview}
+            onMouseLeave={stopPreview}
+          >
+            {thumbBlock}
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/95 via-black/65 to-transparent p-3">
+              <p className="text-sm font-bold text-white">{formattedPrice}</p>
+              <h3 className="mt-0.5 line-clamp-2 text-sm font-medium leading-snug text-white">{title}</h3>
+              <p className="mt-1 line-clamp-1 text-xs text-white/80">{location}</p>
+            </div>
+          </div>
+        </Link>
+        <div className="flex items-center gap-2 px-1">
+          <Link href={`/channel/${channelId ?? "demo"}`}>
+            <div className="h-8 w-8 flex-shrink-0 overflow-hidden rounded-full border border-gray-700 bg-gray-800">
+              <img
+                src={channelAvatarUrl || `https://ui-avatars.com/api/?name=${channelName}&background=random`}
+                alt={channelName}
+                loading="lazy"
+                className="h-full w-full object-cover"
+              />
+            </div>
+          </Link>
+          <Link href={`/channel/${channelId ?? "demo"}`} className="min-w-0 truncate text-xs text-gray-400 hover:text-white">
+            {channelName} · {formattedViews} views
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (vidLayout === "dense") {
+    return (
+      <div className="group flex min-w-0 w-full cursor-pointer flex-col gap-2 transition-transform duration-200 hover:scale-[1.01]">
+        <Link href={`/watch/${id}`} className="min-w-0">
+          <div
+            className="relative aspect-video w-full min-w-0 overflow-hidden rounded-lg border border-gray-800/50 bg-gray-900"
+            onMouseEnter={startPreview}
+            onMouseLeave={stopPreview}
+          >
+            {thumbBlock}
+            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/55 to-transparent p-2 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+              <p className="text-xs font-semibold text-white">{formattedPrice}</p>
+              <p className="line-clamp-1 text-[11px] text-gray-200">{location}</p>
+            </div>
+          </div>
+        </Link>
+        <div className="flex gap-2 px-0.5">
+          <Link href={`/channel/${channelId ?? "demo"}`}>
+            <div className="mt-0.5 h-8 w-8 flex-shrink-0 overflow-hidden rounded-full border border-gray-700 bg-gray-800">
+              <img
+                src={channelAvatarUrl || `https://ui-avatars.com/api/?name=${channelName}&background=random`}
+                alt={channelName}
+                loading="lazy"
+                className="h-full w-full object-cover"
+              />
+            </div>
+          </Link>
+          <div className="min-w-0 flex-1 overflow-hidden">
+            <Link href={`/watch/${id}`}>
+              <h3 className="line-clamp-2 text-sm font-medium leading-snug text-white transition-colors group-hover:text-blue-400">
+                {title}
+              </h3>
+            </Link>
+            <p className="mt-0.5 text-xs font-semibold text-gray-300">
+              {formattedPrice} <span className="font-normal text-gray-500">· {location}</span>
+            </p>
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-medium text-gray-500">
+              {bedrooms ? (
+                <span className="flex items-center gap-0.5">
+                  <Bed className="h-3 w-3" /> {bedrooms}
+                </span>
+              ) : null}
+              {bathrooms ? (
+                <span className="flex items-center gap-0.5">
+                  <Bath className="h-3 w-3" /> {bathrooms}
+                </span>
+              ) : null}
+              {sizeSqm ? (
+                <span className="flex items-center gap-0.5">
+                  <Maximize className="h-3 w-3" /> {sizeSqm}
+                </span>
+              ) : null}
+            </div>
+            <Link href={`/channel/${channelId ?? "demo"}`}>
+              <p className="mt-1 truncate text-[11px] text-gray-500 hover:text-gray-300">{channelName}</p>
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="group flex min-w-0 w-full cursor-pointer flex-col gap-3 transition-transform duration-200 hover:scale-[1.01]">
       <Link href={`/watch/${id}`} className="min-w-0">
@@ -142,96 +278,67 @@ export default function VideoCard({
           onMouseEnter={startPreview}
           onMouseLeave={stopPreview}
         >
-          <img
-            src={resolvedThumbnail}
-            alt={title}
-            loading="lazy"
-            className={`object-cover w-full h-full transition-transform duration-300 ${
-              isPreviewing ? "opacity-0" : "opacity-100 group-hover:scale-105"
-            }`}
-          />
-          {videoUrl ? (
-            <video
-              ref={previewVideoRef}
-              src={videoUrl}
-              muted
-              loop
-              playsInline
-              preload="metadata"
-              className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-200 ${
-                isPreviewing ? "opacity-100" : "opacity-0 pointer-events-none"
-              }`}
-            />
-          ) : null}
-          <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/90 via-black/55 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-            <p className="text-white text-sm font-semibold">{formattedPrice}</p>
-            <p className="text-gray-200 text-xs line-clamp-1">{location}</p>
-            {bedrooms ? <p className="text-gray-300 text-xs">{bedrooms} bedrooms</p> : null}
+          {thumbBlock}
+          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/55 to-transparent p-3 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+            <p className="text-sm font-semibold text-white">{formattedPrice}</p>
+            <p className="line-clamp-1 text-xs text-gray-200">{location}</p>
+            {bedrooms ? <p className="text-xs text-gray-300">{bedrooms} bedrooms</p> : null}
           </div>
-          {status ? (
-            <div
-              className={`absolute top-2 right-2 px-3 py-1 rounded-lg text-white font-bold text-xs tracking-wide shadow-lg ${
-                status === "FOR_SALE" ? "bg-blue-600/90" : "bg-purple-600/90"
-              }`}
-            >
-              {status === "FOR_SALE" ? "FOR SALE" : "FOR RENT"}
-            </div>
-          ) : null}
         </div>
       </Link>
 
       <div className="flex gap-3 px-1">
         <Link href={`/channel/${channelId ?? "demo"}`}>
-          <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-800 border border-gray-700 flex-shrink-0 mt-1">
+          <div className="mt-1 h-10 w-10 flex-shrink-0 overflow-hidden rounded-full border border-gray-700 bg-gray-800">
             <img
               src={channelAvatarUrl || `https://ui-avatars.com/api/?name=${channelName}&background=random`}
               alt={channelName}
               loading="lazy"
-              className="w-full h-full object-cover"
+              className="h-full w-full object-cover"
             />
           </div>
         </Link>
 
-        <div className="flex flex-col overflow-hidden w-full">
+        <div className="flex w-full flex-col overflow-hidden">
           <Link href={`/watch/${id}`}>
-            <h3 className="text-white font-medium text-base line-clamp-2 leading-snug group-hover:text-blue-400 transition-colors">
+            <h3 className="line-clamp-2 text-base font-medium leading-snug text-white transition-colors group-hover:text-blue-400">
               {title}
             </h3>
           </Link>
 
-          <div className="text-gray-300 font-semibold text-sm mt-1">
-            {formattedPrice} <span className="text-gray-500 font-normal ml-1">• {location}</span>
+          <div className="mt-1 text-sm font-semibold text-gray-300">
+            {formattedPrice} <span className="ml-1 font-normal text-gray-500">• {location}</span>
           </div>
 
-          <div className="flex items-center gap-3 text-gray-400 text-xs mt-1.5 font-medium">
+          <div className="mt-1.5 flex items-center gap-3 text-xs font-medium text-gray-400">
             {bedrooms ? (
               <div className="flex items-center gap-1">
-                <Bed className="w-3.5 h-3.5" /> {bedrooms} Beds
+                <Bed className="h-3.5 w-3.5" /> {bedrooms} Beds
               </div>
             ) : null}
             {bathrooms ? (
               <div className="flex items-center gap-1">
-                <Bath className="w-3.5 h-3.5" /> {bathrooms} Baths
+                <Bath className="h-3.5 w-3.5" /> {bathrooms} Baths
               </div>
             ) : null}
             {sizeSqm ? (
               <div className="flex items-center gap-1">
-                <Maximize className="w-3.5 h-3.5" /> {sizeSqm} sqm
+                <Maximize className="h-3.5 w-3.5" /> {sizeSqm} sqm
               </div>
             ) : null}
           </div>
 
           <Link href={`/channel/${channelId ?? "demo"}`}>
-            <div className="text-gray-400 text-xs mt-2 hover:text-white transition-colors flex items-center gap-1">
+            <div className="mt-2 flex items-center gap-1 text-xs text-gray-400 transition-colors hover:text-white">
               {channelName}
-              <svg className="w-3 h-3 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+              <svg className="h-3 w-3 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
                 <path
                   fillRule="evenodd"
                   d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
                   clipRule="evenodd"
                 />
               </svg>
-              <span className="w-1 h-1 rounded-full bg-gray-600 ml-1" />
+              <span className="ml-1 h-1 w-1 rounded-full bg-gray-600" />
               <span className="ml-1">{formattedViews} views</span>
             </div>
           </Link>

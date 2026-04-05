@@ -2,77 +2,14 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-import { PropertyStatus, PropertyType } from "@prisma/client";
+import { PropertyStatus } from "@prisma/client";
 import { cleanAddressForForm, videoPropertyTypeToFormPropertyType } from "@/lib/video-listing-maps";
+import { resolvePropertyTypesFromInput } from "@/lib/property-type-resolve";
 
 export const runtime = "nodejs";
 
 const FALLBACK_THUMBNAIL =
   "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&q=80&w=800&h=450";
-
-type VideoPropertyType =
-  | "APARTMENT"
-  | "VILLA"
-  | "TOWNHOUSE"
-  | "STUDIO"
-  | "DUPLEX"
-  | "LAND"
-  | "OTHER";
-
-const VIDEO_PROPERTY_TYPES: VideoPropertyType[] = [
-  "APARTMENT",
-  "VILLA",
-  "TOWNHOUSE",
-  "STUDIO",
-  "DUPLEX",
-  "LAND",
-  "OTHER",
-];
-
-const isVideoPropertyType = (v: string): v is VideoPropertyType =>
-  VIDEO_PROPERTY_TYPES.includes(v as VideoPropertyType);
-
-const mapVideoPropertyTypeToPropertyType = (v: VideoPropertyType): PropertyType => {
-  switch (v) {
-    case "APARTMENT":
-      return "APARTMENT";
-    case "VILLA":
-      return "VILLA";
-    case "TOWNHOUSE":
-      return "HOUSE";
-    case "STUDIO":
-      return "APARTMENT";
-    case "DUPLEX":
-      return "HOUSE";
-    case "LAND":
-      return "LAND";
-    case "OTHER":
-      return "COMMERCIAL";
-    default:
-      return "COMMERCIAL";
-  }
-};
-
-const mapPropertyTypeToVideoPropertyType = (p: PropertyType): VideoPropertyType => {
-  switch (p) {
-    case "APARTMENT":
-      return "APARTMENT";
-    case "VILLA":
-      return "VILLA";
-    case "LAND":
-      return "LAND";
-    case "HOUSE":
-      return "TOWNHOUSE";
-    case "OFFICE":
-      return "OTHER";
-    case "SHOP":
-      return "OTHER";
-    case "COMMERCIAL":
-      return "OTHER";
-    default:
-      return "OTHER";
-  }
-};
 
 type Body = {
   title?: string;
@@ -264,19 +201,11 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       return NextResponse.json({ error: "Invalid price" }, { status: 400 });
     }
 
-    const inputPropertyType = String(propertyType).toUpperCase();
-    let videoPropertyTypeValue: VideoPropertyType | null = null;
-    let propertyTypeValue: PropertyType | null = null;
-
-    if (isVideoPropertyType(inputPropertyType)) {
-      videoPropertyTypeValue = inputPropertyType;
-      propertyTypeValue = mapVideoPropertyTypeToPropertyType(videoPropertyTypeValue);
-    } else if (Object.values(PropertyType).includes(inputPropertyType as PropertyType)) {
-      propertyTypeValue = inputPropertyType as PropertyType;
-      videoPropertyTypeValue = mapPropertyTypeToVideoPropertyType(propertyTypeValue);
-    } else {
+    const resolvedTypes = await resolvePropertyTypesFromInput(String(propertyType));
+    if (!resolvedTypes) {
       return NextResponse.json({ error: "Invalid propertyType" }, { status: 400 });
     }
+    const { propertyType: propertyTypeValue, videoPropertyType: videoPropertyTypeValue } = resolvedTypes;
 
     const statusValue = String(status);
     if (!Object.values(PropertyStatus).includes(statusValue as PropertyStatus)) {
@@ -421,7 +350,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       await tx.property.update({
         where: { videoId: id },
         data: {
-          propertyType: propertyTypeValue as PropertyType,
+          propertyType: propertyTypeValue,
           status: statusValue as PropertyStatus,
           price: priceNumber,
           bedrooms: bedroomsNumber,

@@ -120,6 +120,20 @@ const COUNTRY_CONFIG: Record<string, { currency: string; areaUnit: "sqm" | "sqft
   SaudiArabia: { currency: "SAR", areaUnit: "sqm", cities: ["Riyadh", "Jeddah", "Dammam"] },
 };
 
+type ListingOptionsDto = {
+  propertyTypes: { slug: string; labelAr: string; labelEn: string }[];
+  countries: Array<{
+    key: string;
+    labelAr: string;
+    labelEn: string;
+    currency: string;
+    areaUnit: string;
+    governorates: { key: string; labelAr: string; labelEn: string }[];
+  }>;
+};
+
+const FALLBACK_PROPERTY_SLUGS = ["APARTMENT", "VILLA", "HOUSE", "OFFICE", "SHOP", "COMMERCIAL", "LAND"] as const;
+
 const uiTokens = {
   background: "bg-white dark:bg-slate-950",
   surface: "bg-white dark:bg-slate-900",
@@ -258,6 +272,7 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
   const [templateLoadError, setTemplateLoadError] = useState("");
   const [templateRetainUrls, setTemplateRetainUrls] = useState<(string | null)[]>(() => Array(12).fill(null));
   const [templateRemoteAudio, setTemplateRemoteAudio] = useState<string | null>(null);
+  const [listingOptions, setListingOptions] = useState<ListingOptionsDto | null>(null);
   const [editIsTemplate, setEditIsTemplate] = useState(false);
   const [templateEditor, setTemplateEditor] = useState<TemplateEditorState>({
     fontFamily: "Cairo",
@@ -288,20 +303,81 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
     [selectedTemplate, templateEditor]
   );
   const isYoutubeMode = Boolean(formData.videoUrl.trim()) && !Boolean(videoUpload.file);
-  const countries = useMemo(() => {
-    const keys = Object.keys(COUNTRY_CONFIG);
-    if (formData.country && !keys.includes(formData.country)) {
-      return [formData.country, ...keys];
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/listing-options", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = (await res.json()) as ListingOptionsDto;
+        if (
+          !cancelled &&
+          Array.isArray(data.propertyTypes) &&
+          data.propertyTypes.length > 0 &&
+          Array.isArray(data.countries) &&
+          data.countries.length > 0
+        ) {
+          setListingOptions(data);
+        }
+      } catch {
+        /* fallback to static lists */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const propertyTypeOptions = useMemo(() => {
+    if (listingOptions?.propertyTypes?.length) return listingOptions.propertyTypes;
+    return FALLBACK_PROPERTY_SLUGS.map((slug) => ({ slug, labelEn: slug, labelAr: slug }));
+  }, [listingOptions]);
+
+  const countryRows = useMemo(() => {
+    if (listingOptions?.countries?.length) return listingOptions.countries;
+    return Object.keys(COUNTRY_CONFIG).map((key) => ({
+      key,
+      labelEn: key,
+      labelAr: key,
+      currency: COUNTRY_CONFIG[key]!.currency,
+      areaUnit: COUNTRY_CONFIG[key]!.areaUnit,
+      governorates: COUNTRY_CONFIG[key]!.cities.map((c) => ({ key: c, labelEn: c, labelAr: c })),
+    }));
+  }, [listingOptions]);
+
+  const countriesForSelect = useMemo(() => {
+    if (formData.country && !countryRows.some((r) => r.key === formData.country)) {
+      const cfg = COUNTRY_CONFIG[formData.country];
+      return [
+        {
+          key: formData.country,
+          labelEn: formData.country,
+          labelAr: formData.country,
+          currency: cfg?.currency ?? "USD",
+          areaUnit: cfg?.areaUnit ?? "sqm",
+          governorates:
+            cfg?.cities.map((c) => ({ key: c, labelEn: c, labelAr: c })) ??
+            ([] as { key: string; labelEn: string; labelAr: string }[]),
+        },
+        ...countryRows,
+      ];
     }
-    return keys;
-  }, [formData.country]);
-  const cities = useMemo(() => {
-    const base = formData.country ? COUNTRY_CONFIG[formData.country]?.cities ?? [] : [];
-    if (formData.city && !base.includes(formData.city)) {
-      return [formData.city, ...base];
+    return countryRows;
+  }, [countryRows, formData.country]);
+
+  const selectedCountry = useMemo(
+    () => countriesForSelect.find((r) => r.key === formData.country),
+    [countriesForSelect, formData.country]
+  );
+
+  const citiesForSelect = useMemo(() => {
+    const base = selectedCountry?.governorates ?? [];
+    if (formData.city && !base.some((g) => g.key === formData.city)) {
+      return [{ key: formData.city, labelEn: formData.city, labelAr: formData.city }, ...base];
     }
     return base;
-  }, [formData.country, formData.city]);
+  }, [selectedCountry, formData.city]);
   const thumbnailPreviewUrl = useMemo(
     () => (thumbnailUpload.file ? URL.createObjectURL(thumbnailUpload.file) : ""),
     [thumbnailUpload.file]
@@ -572,6 +648,20 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
 
   const handleChange = (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = event.target;
+    if (name === "country") {
+      setFormData((prev) => {
+        const row = countryRows.find((r) => r.key === value) ?? countriesForSelect.find((r) => r.key === value);
+        const areaUnit = row?.areaUnit === "sqft" ? "sqft" : "sqm";
+        return {
+          ...prev,
+          country: value,
+          city: "",
+          currency: row?.currency ?? prev.currency,
+          sizeUnit: areaUnit,
+        };
+      });
+      return;
+    }
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
@@ -1318,9 +1408,13 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
                   onChange={handleChange}
                   className={uiTokens.select}
                 >
-                  {(["APARTMENT", "VILLA", "HOUSE", "OFFICE", "SHOP", "COMMERCIAL", "LAND"] as const).map((pt) => (
-                    <option key={pt} value={pt}>
-                      {t("upload", `types.${pt}`)}
+                  {propertyTypeOptions.map((pt) => (
+                    <option key={pt.slug} value={pt.slug}>
+                      {listingOptions?.propertyTypes?.length
+                        ? locale === "ar"
+                          ? pt.labelAr
+                          : pt.labelEn
+                        : t("upload", `types.${pt.slug as (typeof FALLBACK_PROPERTY_SLUGS)[number]}`)}
                     </option>
                   ))}
                 </select>
@@ -1419,9 +1513,9 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
                   className={uiTokens.select}
                 >
                   <option value="">{t("upload", "selectCountry")}</option>
-                  {countries.map((country) => (
-                    <option key={country} value={country}>
-                      {country}
+                  {countriesForSelect.map((row) => (
+                    <option key={row.key} value={row.key}>
+                      {locale === "ar" ? row.labelAr : row.labelEn}
                     </option>
                   ))}
                 </select>
@@ -1441,9 +1535,9 @@ export default function UploadVideoPageContent({ editVideoId }: { editVideoId?: 
                   <option value="">
                     {formData.country ? t("upload", "selectCity") : t("upload", "selectCountryFirst")}
                   </option>
-                  {cities.map((city) => (
-                    <option key={city} value={city}>
-                      {city}
+                  {citiesForSelect.map((g) => (
+                    <option key={g.key} value={g.key}>
+                      {locale === "ar" ? g.labelAr : g.labelEn}
                     </option>
                   ))}
                 </select>

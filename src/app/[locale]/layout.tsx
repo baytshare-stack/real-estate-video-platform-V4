@@ -2,11 +2,13 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Header from "@/components/Header";
 import Sidebar from "@/components/Sidebar";
+import { SiteAppearanceProvider } from "@/components/site/SiteAppearanceProvider";
 import { defaultLocale, locales, type Locale } from "@/i18n/config";
 import { getDictionary } from "@/i18n/dictionaries";
 import { LanguageProvider } from "@/i18n/LanguageProvider";
 import { getSiteSeo } from "@/i18n/seo";
 import { getSiteUrl } from "@/lib/site-url";
+import { getSiteAppearance } from "@/lib/site-appearance";
 
 export async function generateStaticParams() {
   return locales.map((locale) => ({ locale }));
@@ -44,18 +46,21 @@ export default async function LocaleLayout({
   const locale = loc as Locale;
   const dict = await getDictionary(locale);
   const fallbackDictionary = await getDictionary(defaultLocale);
+  const siteAppearance = await getSiteAppearance();
 
   return (
     <LanguageProvider locale={locale} dictionary={dict} fallbackDictionary={fallbackDictionary}>
-      <Header />
-      <div className="flex min-w-0 flex-row overflow-x-hidden pt-16">
-        <Sidebar />
-        <main className="min-h-[calc(100vh-64px)] min-w-0 flex-1 bg-[#0f0f0f] pb-[calc(4rem+env(safe-area-inset-bottom,0px))] xl:pb-0 xl:ps-64">
-          <div className="mx-auto w-full min-w-0 max-w-screen-2xl px-2.5 sm:px-4 md:px-6 lg:px-8 xl:px-10">
-            {children}
-          </div>
-        </main>
-      </div>
+      <SiteAppearanceProvider initial={siteAppearance}>
+        <Header />
+        <div className="flex min-w-0 flex-row overflow-x-hidden pt-16">
+          <Sidebar />
+          <main className="site-main min-h-[calc(100vh-64px)] min-w-0 flex-1 bg-[var(--site-bg,#0f0f0f)] pb-[calc(4rem+env(safe-area-inset-bottom,0px))] xl:pb-0 xl:ps-64">
+            <div className="mx-auto w-full min-w-0 max-w-screen-2xl px-2.5 sm:px-4 md:px-6 lg:px-8 xl:px-10">
+              {children}
+            </div>
+          </main>
+        </div>
+      </SiteAppearanceProvider>
     </LanguageProvider>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 
 type Category = { id: string; name: string };
 type LocationItem = { id: string; country: string; city: string; area: string };
@@ -172,9 +173,17 @@ export default function AdminSettingsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-white">Settings</h1>
-        <p className="mt-1 text-sm text-white/60">Mock admin configuration UI.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold text-white">Settings</h1>
+          <p className="mt-1 text-sm text-white/60">Mock admin configuration UI.</p>
+        </div>
+        <Link
+          href="/admin/settings/appearance"
+          className="rounded-xl border border-indigo-400/30 bg-indigo-500/15 px-4 py-2.5 text-sm font-medium text-indigo-100 transition hover:bg-indigo-500/25"
+        >
+          Site look & theme →
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">

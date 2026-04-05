@@ -4,7 +4,8 @@ import { safeFindFirst } from "@/lib/safePrisma";
 import { notifySubscribersNewVideo } from "@/lib/notifications";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-import { PropertyStatus, PropertyType } from "@prisma/client";
+import { PropertyStatus } from "@prisma/client";
+import { resolvePropertyTypesFromInput } from "@/lib/property-type-resolve";
 
 export const runtime = "nodejs";
 
@@ -89,72 +90,6 @@ export async function POST(req: Request) {
       audio: audioField,
     } = body;
 
-    type VideoPropertyType =
-      | "APARTMENT"
-      | "VILLA"
-      | "TOWNHOUSE"
-      | "STUDIO"
-      | "DUPLEX"
-      | "LAND"
-      | "OTHER";
-
-    const VIDEO_PROPERTY_TYPES: VideoPropertyType[] = [
-      "APARTMENT",
-      "VILLA",
-      "TOWNHOUSE",
-      "STUDIO",
-      "DUPLEX",
-      "LAND",
-      "OTHER",
-    ];
-
-    const isVideoPropertyType = (v: string): v is VideoPropertyType =>
-      VIDEO_PROPERTY_TYPES.includes(v as VideoPropertyType);
-
-    const mapVideoPropertyTypeToPropertyType = (v: VideoPropertyType): PropertyType => {
-      switch (v) {
-        case "APARTMENT":
-          return "APARTMENT";
-        case "VILLA":
-          return "VILLA";
-        case "TOWNHOUSE":
-          return "HOUSE";
-        case "STUDIO":
-          // Studio is a type of apartment for the existing Property model.
-          return "APARTMENT";
-        case "DUPLEX":
-          return "HOUSE";
-        case "LAND":
-          return "LAND";
-        case "OTHER":
-          // No exact OTHER in legacy PropertyType enum; COMMERCIAL is the closest catch-all.
-          return "COMMERCIAL";
-        default:
-          return "COMMERCIAL";
-      }
-    };
-
-    const mapPropertyTypeToVideoPropertyType = (p: PropertyType): VideoPropertyType => {
-      switch (p) {
-        case "APARTMENT":
-          return "APARTMENT";
-        case "VILLA":
-          return "VILLA";
-        case "LAND":
-          return "LAND";
-        case "HOUSE":
-          return "TOWNHOUSE";
-        case "OFFICE":
-          return "OTHER";
-        case "SHOP":
-          return "OTHER";
-        case "COMMERCIAL":
-          return "OTHER";
-        default:
-          return "OTHER";
-      }
-    };
-
     const missingFields: string[] = [];
     const isTemplateMode = Boolean(isTemplate);
     let templateRecord: { id: string; type: string; previewImage: string } | null = null;
@@ -210,19 +145,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid price" }, { status: 400 });
     }
 
-    const inputPropertyType = String(propertyType).toUpperCase();
-    let videoPropertyTypeValue: VideoPropertyType | null = null;
-    let propertyTypeValue: PropertyType | null = null;
-
-    if (isVideoPropertyType(inputPropertyType)) {
-      videoPropertyTypeValue = inputPropertyType;
-      propertyTypeValue = mapVideoPropertyTypeToPropertyType(videoPropertyTypeValue);
-    } else if (Object.values(PropertyType).includes(inputPropertyType as PropertyType)) {
-      propertyTypeValue = inputPropertyType as PropertyType;
-      videoPropertyTypeValue = mapPropertyTypeToVideoPropertyType(propertyTypeValue);
-    } else {
+    const resolvedTypes = await resolvePropertyTypesFromInput(String(propertyType));
+    if (!resolvedTypes) {
       return NextResponse.json({ error: "Invalid propertyType" }, { status: 400 });
     }
+    const { propertyType: propertyTypeValue, videoPropertyType: videoPropertyTypeValue } = resolvedTypes;
 
     const statusValue = String(status);
     if (!Object.values(PropertyStatus).includes(statusValue as PropertyStatus)) {
@@ -324,7 +251,7 @@ export async function POST(req: Request) {
         location: `${String(city).trim()}, ${String(country).trim()}`,
         property: {
           create: {
-            propertyType: propertyTypeValue as PropertyType,
+            propertyType: propertyTypeValue,
             status: statusValue as PropertyStatus,
             price: priceNumber,
             bedrooms: bedroomsNumber,

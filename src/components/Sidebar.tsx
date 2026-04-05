@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname } from 'next/navigation';
+import { usePathname } from "next/navigation";
 import {
   Home,
   Flame,
@@ -14,50 +14,95 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
-import { useState, useEffect } from 'react';
-import { useTranslation } from '@/i18n/LanguageProvider';
-import { stripLocaleFromPathname } from '@/i18n/routing';
-import LocaleLink from '@/components/LocaleLink';
+import { useState, useEffect, useMemo } from "react";
+import { useTranslation } from "@/i18n/LanguageProvider";
+import { stripLocaleFromPathname } from "@/i18n/routing";
+import LocaleLink from "@/components/LocaleLink";
+import { useSiteAppearance } from "@/components/site/SiteAppearanceProvider";
+import type { SidebarDesktopKey, SidebarMobileKey } from "@/lib/site-appearance";
+
+type NavDef = {
+  href: string;
+  icon: typeof Home;
+  label: (t: ReturnType<typeof useTranslation>["t"]) => string;
+};
+
+const DESKTOP_NAV: Record<SidebarDesktopKey, NavDef> = {
+  home: { href: "/", icon: Home, label: (t) => t("nav", "home") },
+  shorts: { href: "/shorts", icon: Flame, label: (t) => t("sidebar", "shorts") },
+  subscribers: { href: "/subscribers", icon: Users, label: (t) => t("sidebar", "subscribers") },
+  subscriptions: { href: "/subscriptions", icon: PlaySquare, label: (t) => t("sidebar", "subscriptions") },
+  explore: { href: "/explore", icon: Compass, label: (t) => t("sidebar", "explore") },
+  agents: { href: "/agents", icon: UserRound, label: (t) => t("sidebar", "agents") },
+  agencies: { href: "/agencies", icon: Building2, label: (t) => t("sidebar", "agencies") },
+  trending: { href: "/trending", icon: TrendingUp, label: (t) => t("sidebar", "trending") },
+};
+
+const MOBILE_NAV: Record<SidebarMobileKey, NavDef> = {
+  home: DESKTOP_NAV.home,
+  shorts: DESKTOP_NAV.shorts,
+  explore: DESKTOP_NAV.explore,
+  agents: DESKTOP_NAV.agents,
+  agencies: DESKTOP_NAV.agencies,
+  studio: {
+    href: "/studio",
+    icon: Settings,
+    label: (t) => t("nav", "studio"),
+  },
+};
 
 export default function Sidebar() {
   const pathname = usePathname();
   const path = stripLocaleFromPathname(pathname || "/");
   const { t } = useTranslation();
+  const appearance = useSiteAppearance();
   const [collapsed, setCollapsed] = useState(false);
 
-  // Sync collision state with window size
+  const desktopOrder = appearance.layout.sidebarDesktop as SidebarDesktopKey[];
+  const mobileOrder = appearance.layout.sidebarMobile as SidebarMobileKey[];
+
+  const navItems = useMemo(
+    () =>
+      desktopOrder
+        .map((key) => (DESKTOP_NAV[key] ? { key, ...DESKTOP_NAV[key] } : null))
+        .filter(Boolean) as Array<NavDef & { key: string }>,
+    [desktopOrder]
+  );
+
+  const mobileNavItems = useMemo(
+    () =>
+      mobileOrder
+        .map((key) => (MOBILE_NAV[key] ? { key, ...MOBILE_NAV[key] } : null))
+        .filter(Boolean) as Array<NavDef & { key: string }>,
+    [mobileOrder]
+  );
+
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth < 1280) setCollapsed(false);
     };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  const navItems = [
-    { name: t("nav", "home"), href: "/", icon: Home },
-    { name: t("sidebar", "shorts"), href: "/shorts", icon: Flame },
-    { name: t("sidebar", "subscribers"), href: "/subscribers", icon: Users },
-    { name: t("sidebar", "subscriptions"), href: "/subscriptions", icon: PlaySquare },
-    { name: t("sidebar", "explore"), href: "/explore", icon: Compass },
-    { name: t("sidebar", "agents"), href: "/agents", icon: UserRound },
-    { name: t("sidebar", "agencies"), href: "/agencies", icon: Building2 },
-    { name: t("sidebar", "trending"), href: "/trending", icon: TrendingUp },
-  ];
+  const asideStyle = useMemo(
+    () =>
+      ({
+        backgroundColor: "var(--site-bg, #0f0f0f)",
+        borderColor: "var(--site-border, rgba(255,255,255,0.1))",
+      }) as React.CSSProperties,
+    []
+  );
 
-  const mobileNavItems = [
-    { name: t("nav", "home"), href: "/", icon: Home },
-    { name: t("sidebar", "shorts"), href: "/shorts", icon: Flame },
-    { name: t("sidebar", "explore"), href: "/explore", icon: Compass },
-    { name: t("sidebar", "agents"), href: "/agents", icon: UserRound },
-    { name: t("sidebar", "agencies"), href: "/agencies", icon: Building2 },
-  ];
+  const activeBar = "var(--site-primary, #2563eb)";
+  const activeTint = "color-mix(in srgb, var(--site-primary, #3b82f6) 18%, transparent)";
+  const activeText = "var(--site-primary, #60a5fa)";
 
   return (
     <>
-      {/* ── Desktop Sidebar ── */}
-      <aside 
-        className={`fixed start-0 top-16 z-40 hidden h-[calc(100vh-64px)] flex-col overflow-y-auto border-e border-white/10 bg-[#0f0f0f] py-3 hide-scrollbar transition-all duration-300 xl:flex ${collapsed ? 'w-20' : 'w-60'}`}
+      <aside
+        className={`fixed start-0 top-16 z-40 hidden h-[calc(100vh-64px)] flex-col overflow-y-auto border-e py-3 hide-scrollbar transition-all duration-300 xl:flex ${collapsed ? "w-20" : "w-60"}`}
+        style={asideStyle}
       >
         <div className="flex flex-col gap-1 px-3">
           {navItems.map((link) => {
@@ -67,17 +112,34 @@ export default function Sidebar() {
                 ? path === "/"
                 : path === link.href || path.startsWith(`${link.href}/`);
             return (
-              <LocaleLink 
-                key={link.href} 
+              <LocaleLink
+                key={link.key}
                 href={link.href}
-                className={`flex items-center gap-4 px-3 py-2.5 rounded-xl transition-all relative group ${isActive ? 'bg-blue-600/10 text-blue-400' : 'hover:bg-white/5 text-gray-300 hover:text-white'}`}
+                className={`group relative flex items-center gap-4 rounded-xl px-3 py-2.5 transition-all ${
+                  isActive ? "text-blue-400" : "text-gray-300 hover:bg-white/5 hover:text-white"
+                }`}
+                style={
+                  isActive
+                    ? { backgroundColor: activeTint, color: activeText }
+                    : undefined
+                }
               >
-                {isActive && <div className="absolute start-0 top-2 bottom-2 w-1 rounded-e-full bg-blue-600" />}
-                <Icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-blue-400' : 'group-hover:text-white'}`} />
-                {!collapsed && <span className="text-sm font-semibold tracking-wide truncate">{link.name}</span>}
+                {isActive && (
+                  <div
+                    className="absolute start-0 top-2 bottom-2 w-1 rounded-e-full"
+                    style={{ backgroundColor: activeBar }}
+                  />
+                )}
+                <Icon
+                  className={`h-5 w-5 flex-shrink-0 ${isActive ? "" : "group-hover:text-white"}`}
+                  style={isActive ? { color: activeText } : undefined}
+                />
+                {!collapsed && (
+                  <span className="truncate text-sm font-semibold tracking-wide">{link.label(t)}</span>
+                )}
                 {collapsed && (
-                  <div className="absolute left-16 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50">
-                    {link.name}
+                  <div className="pointer-events-none absolute left-16 z-50 whitespace-nowrap rounded bg-gray-800 px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
+                    {link.label(t)}
                   </div>
                 )}
               </LocaleLink>
@@ -85,25 +147,35 @@ export default function Sidebar() {
           })}
         </div>
 
-        <div className="mt-auto px-3 pt-4 border-t border-white/5">
-          <button 
+        <div
+          className="mt-auto border-t border-white/5 px-3 pt-4"
+          style={{ borderColor: "var(--site-border, rgba(255,255,255,0.05))" }}
+        >
+          <button
+            type="button"
             onClick={() => setCollapsed(!collapsed)}
-            className="w-full flex items-center gap-4 px-3 py-2.5 rounded-xl transition-colors hover:bg-white/5 text-gray-400 hover:text-white"
+            className="flex w-full items-center gap-4 rounded-xl px-3 py-2.5 text-gray-400 transition-colors hover:bg-white/5 hover:text-white"
           >
-            {collapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
+            {collapsed ? <ChevronRight className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}
             {!collapsed && <span className="text-sm font-medium">{t("sidebar", "collapse")}</span>}
           </button>
-          
-          <LocaleLink href="/settings" className="flex items-center gap-4 px-3 py-2.5 rounded-xl transition-colors hover:bg-white/5 text-gray-400 hover:text-white">
-            <Settings className="w-5 h-5 flex-shrink-0" />
+
+          <LocaleLink
+            href="/settings"
+            className="flex items-center gap-4 rounded-xl px-3 py-2.5 text-gray-400 transition-colors hover:bg-white/5 hover:text-white"
+          >
+            <Settings className="h-5 w-5 flex-shrink-0" />
             {!collapsed && <span className="text-sm font-medium">{t("sidebar", "settings")}</span>}
           </LocaleLink>
         </div>
       </aside>
 
-      {/* ── Mobile Bottom Navigation (scrollable row + safe area) ── */}
       <nav
-        className="xl:hidden fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-gray-950/95 backdrop-blur-md pb-[env(safe-area-inset-bottom,0px)]"
+        className="fixed inset-x-0 bottom-0 z-50 border-t pb-[env(safe-area-inset-bottom,0px)] backdrop-blur-md xl:hidden"
+        style={{
+          backgroundColor: "color-mix(in srgb, var(--site-bg, #0a0a0a) 92%, transparent)",
+          borderColor: "var(--site-border, rgba(255,255,255,0.1))",
+        }}
         aria-label="Primary"
       >
         <div className="flex h-14 min-h-14 items-stretch overflow-x-auto hide-scrollbar">
@@ -115,28 +187,20 @@ export default function Sidebar() {
                 : path === link.href || path.startsWith(`${link.href}/`);
             return (
               <LocaleLink
-                key={link.href}
+                key={link.key}
                 href={link.href}
                 className={`flex min-w-[4.25rem] max-w-[5.5rem] flex-1 flex-col items-center justify-center gap-0.5 px-1 py-1.5 transition-colors active:opacity-80 ${
-                  isActive ? "text-blue-400" : "text-gray-500"
+                  isActive ? "" : "text-gray-500"
                 }`}
+                style={isActive ? { color: activeText } : undefined}
               >
                 <Icon className="h-5 w-5 shrink-0" aria-hidden />
                 <span className="line-clamp-2 w-full text-center text-[9px] font-bold uppercase leading-tight tracking-tight">
-                  {link.name}
+                  {link.label(t)}
                 </span>
               </LocaleLink>
             );
           })}
-          <LocaleLink
-            href="/studio"
-            className={`flex min-w-[4.25rem] max-w-[5.5rem] flex-1 flex-col items-center justify-center gap-0.5 px-1 py-1.5 transition-colors active:opacity-80 ${
-              path === "/studio" ? "text-blue-400" : "text-gray-500"
-            }`}
-          >
-            <Settings className="h-5 w-5 shrink-0" aria-hidden />
-            <span className="text-center text-[9px] font-bold uppercase leading-tight tracking-tight">{t("nav", "studio")}</span>
-          </LocaleLink>
         </div>
       </nav>
     </>

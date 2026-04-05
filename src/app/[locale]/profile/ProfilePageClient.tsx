@@ -8,6 +8,7 @@ import { formatE164ForDisplay, getCountryByIso } from "@/lib/countriesData";
 import { Pencil, X, Loader2, ArrowLeft } from "lucide-react";
 import ProfileInbox from "@/components/profile/ProfileInbox";
 import ProfileMyVisits from "@/components/profile/ProfileMyVisits";
+import { useSiteAppearance } from "@/components/site/SiteAppearanceProvider";
 import { useTranslation } from "@/i18n/LanguageProvider";
 
 export type ChannelPayload = {
@@ -127,6 +128,8 @@ export default function ProfilePageClient({
   const { data: session, update: updateSession } = useSession();
   const router = useRouter();
   const { t, locale } = useTranslation();
+  const profileUi = useSiteAppearance().ui.profile;
+  const profileSpotlight = profileUi.layout === "spotlight";
   const [user, setUser] = useState<ProfileUserPayload>(initialUser);
   const [editOpen, setEditOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -477,8 +480,18 @@ export default function ProfilePageClient({
         </div>
       )}
 
-      <div className="mb-6 rounded-2xl border border-gray-800 bg-gray-900 p-6">
-        <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
+      <div
+        className={`mb-6 rounded-2xl border p-6 ${
+          profileSpotlight
+            ? "border-indigo-500/25 bg-gradient-to-br from-indigo-950/45 via-gray-900 to-gray-900"
+            : "border-gray-800 bg-gray-900"
+        }`}
+      >
+        <div
+          className={`flex flex-col gap-6 sm:flex-row sm:items-start ${
+            profileSpotlight ? "sm:flex-col sm:items-center sm:text-center" : ""
+          }`}
+        >
           <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-full border border-gray-700 bg-gray-800 sm:rounded-2xl">
             {avatarUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -527,8 +540,8 @@ export default function ProfilePageClient({
               {t("profile", "joined")} {joined}
             </p>
           </div>
-          <div className="w-full sm:w-auto">
-            <label className="block text-sm text-gray-400">
+          <div className={`w-full sm:w-auto ${profileSpotlight ? "sm:mx-auto" : ""}`}>
+            <label className={`block text-sm text-gray-400 ${profileSpotlight ? "text-center" : ""}`}>
               <span className="mb-2 block">{isAgency ? t("profile", "updateLogo") : t("profile", "updatePhoto")}</span>
               <input
                 type="file"
@@ -543,58 +556,64 @@ export default function ProfilePageClient({
         </div>
       </div>
 
-      <div className="mb-6 rounded-2xl border border-gray-800 bg-gray-900 p-6">
-        <h3 className="mb-3 text-lg font-semibold text-white">{t("profile", "accountContact")}</h3>
-        <div className="space-y-1 text-sm text-gray-400">
-          <p>
-            <span className="text-gray-500">{t("profile", "emailLogin")}</span> {meta.email}
-          </p>
-          <p>
-            <span className="text-gray-500">{t("profile", "username")}</span> {meta.username || "—"}
-          </p>
-          <p>
-            <span className="text-gray-500">{t("profile", "role")}</span> {roleDisplay(meta.role)}
-          </p>
-          {isAgency && user.channel?.phone ? (
+      {profileUi.showAccountCard ? (
+        <div className="mb-6 rounded-2xl border border-gray-800 bg-gray-900 p-6">
+          <h3 className="mb-3 text-lg font-semibold text-white">{t("profile", "accountContact")}</h3>
+          <div className="space-y-1 text-sm text-gray-400">
             <p>
-              <span className="text-gray-500">{t("profile", "officePhone")}</span> {user.channel.phone}
+              <span className="text-gray-500">{t("profile", "emailLogin")}</span> {meta.email}
             </p>
-          ) : null}
-          {isAgency && user.profile?.contactEmail ? (
             <p>
-              <span className="text-gray-500">{t("profile", "contactEmail")}</span> {user.profile.contactEmail}
+              <span className="text-gray-500">{t("profile", "username")}</span> {meta.username || "—"}
             </p>
-          ) : null}
-          <p>
-            <span className="text-gray-500">{t("profile", "country")}</span> {meta.countryLabel || meta.country || "—"}
-          </p>
-          {user.city ? (
             <p>
-              <span className="text-gray-500">{t("profile", "city")}</span> {user.city}
+              <span className="text-gray-500">{t("profile", "role")}</span> {roleDisplay(meta.role)}
             </p>
-          ) : null}
-          {meta.fullPhoneNumber && !isAgency ? (
+            {isAgency && user.channel?.phone ? (
+              <p>
+                <span className="text-gray-500">{t("profile", "officePhone")}</span> {user.channel.phone}
+              </p>
+            ) : null}
+            {isAgency && user.profile?.contactEmail ? (
+              <p>
+                <span className="text-gray-500">{t("profile", "contactEmail")}</span> {user.profile.contactEmail}
+              </p>
+            ) : null}
             <p>
-              <span className="text-gray-500">{t("profile", "phone")}</span> {meta.fullPhoneNumber}
+              <span className="text-gray-500">{t("profile", "country")}</span> {meta.countryLabel || meta.country || "—"}
             </p>
-          ) : null}
-          <p>
-            <span className="text-gray-500">{t("profile", "phoneVerified")}</span>{" "}
-            {meta.phoneVerified === false ? t("profile", "phoneVerifiedNo") : t("profile", "phoneVerifiedYes")}
-          </p>
+            {user.city ? (
+              <p>
+                <span className="text-gray-500">{t("profile", "city")}</span> {user.city}
+              </p>
+            ) : null}
+            {meta.fullPhoneNumber && !isAgency ? (
+              <p>
+                <span className="text-gray-500">{t("profile", "phone")}</span> {meta.fullPhoneNumber}
+              </p>
+            ) : null}
+            <p>
+              <span className="text-gray-500">{t("profile", "phoneVerified")}</span>{" "}
+              {meta.phoneVerified === false ? t("profile", "phoneVerifiedNo") : t("profile", "phoneVerifiedYes")}
+            </p>
+          </div>
         </div>
-      </div>
+      ) : null}
 
-      <section className="mb-8">
-        <h3 className="mb-1 text-lg font-semibold text-white">{t("profile", "myVisitsTitle")}</h3>
-        <p className="mb-4 text-sm text-gray-500">{t("profile", "myVisitsSubtitle")}</p>
-        <ProfileMyVisits />
-      </section>
+      {profileUi.showMyVisits ? (
+        <section className="mb-8">
+          <h3 className="mb-1 text-lg font-semibold text-white">{t("profile", "myVisitsTitle")}</h3>
+          <p className="mb-4 text-sm text-gray-500">{t("profile", "myVisitsSubtitle")}</p>
+          <ProfileMyVisits />
+        </section>
+      ) : null}
 
-      <section className="mb-8">
-        <h3 className="mb-3 text-lg font-semibold text-white">{t("profile", "messages")}</h3>
-        <ProfileInbox currentUserId={user.id} sessionName={session?.user?.name ?? displayName} />
-      </section>
+      {profileUi.showInbox ? (
+        <section className="mb-8">
+          <h3 className="mb-3 text-lg font-semibold text-white">{t("profile", "messages")}</h3>
+          <ProfileInbox currentUserId={user.id} sessionName={session?.user?.name ?? displayName} />
+        </section>
+      ) : null}
 
       <p className="text-center text-sm text-gray-500">
         <LocaleLink href="/" className="text-blue-500 hover:text-blue-400">

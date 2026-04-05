@@ -10,7 +10,22 @@
     -webkit-tap-highlight-color: transparent;
   }
   body {
-    @apply bg-[#0f0f0f] text-[#f1f1f1] w-full min-h-screen antialiased overflow-x-hidden;
+    background-color: var(--site-bg, #0f0f0f);
+    color: var(--site-text, #f1f1f1);
+    font-family: var(--site-font-body, "Inter", system-ui, sans-serif);
+    font-size: var(--site-font-size-base, 16px);
+    @apply w-full min-h-screen antialiased overflow-x-hidden;
+  }
+  .site-main h1,
+  .site-main h2,
+  .site-main h3 {
+    font-family: var(--site-font-heading, var(--site-font-body, inherit));
+  }
+  .site-main h1 {
+    font-size: calc(var(--site-font-size-base, 16px) * var(--site-heading-scale, 1.06) * 1.35);
+  }
+  .site-main h2 {
+    font-size: calc(var(--site-font-size-base, 16px) * var(--site-heading-scale, 1.06) * 1.12);
   }
 }
 

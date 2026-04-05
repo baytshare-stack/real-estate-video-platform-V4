@@ -6,8 +6,10 @@ import {
   BarChart3,
   BriefcaseBusiness,
   Gauge,
+  ListTree,
   LogOut,
   Megaphone,
+  Palette,
   Settings,
   Users,
   Video,
@@ -28,6 +30,8 @@ const NAV: NavItem[] = [
   { href: "/admin/ads", label: "Smart ads", icon: <Megaphone className="h-4 w-4" /> },
   { href: "/admin/crm", label: "CRM", icon: <BriefcaseBusiness className="h-4 w-4" /> },
   { href: "/admin/analytics", label: "Analytics", icon: <BarChart3 className="h-4 w-4" /> },
+  { href: "/admin/settings/appearance", label: "Site look", icon: <Palette className="h-4 w-4" /> },
+  { href: "/admin/settings/listing-catalog", label: "Listing catalog", icon: <ListTree className="h-4 w-4" /> },
   { href: "/admin/settings", label: "Settings", icon: <Settings className="h-4 w-4" /> },
 ];
 
@@ -66,7 +70,9 @@ export default function Sidebar({
             const active =
               item.href === "/admin/dashboard"
                 ? pathname === "/admin/dashboard" || pathname === "/admin"
-                : pathname?.startsWith(item.href) ?? false;
+                : item.href === "/admin/settings"
+                  ? pathname === "/admin/settings" || pathname === "/admin/settings/"
+                  : pathname?.startsWith(item.href) ?? false;
             return (
               <li key={item.href}>
                 <Link
