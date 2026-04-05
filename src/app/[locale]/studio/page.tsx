@@ -26,6 +26,7 @@ import VideoRow, { type VideoRowData } from "@/components/studio/VideoRow";
 import CrmLeadCard, { type CrmInteractor } from "@/components/studio/CrmLeadCard";
 import ChannelSettingsTab from "@/components/studio/ChannelSettingsTab";
 import StudioBookingsTable from "@/components/studio/StudioBookingsTable";
+import FinalPriceLeadsPanel, { type FinalPriceLeadRow } from "@/components/studio/FinalPriceLeadsPanel";
 import { useTranslation } from "@/i18n/LanguageProvider";
 
 const ERR_SIGN_IN = "STUDIO_SIGN_IN";
@@ -75,6 +76,7 @@ export default function StudioPage() {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
   const [overview, setOverview] = useState<OverviewData | null>(null);
   const [crm, setCrm] = useState<CrmInteractor[] | null>(null);
+  const [finalPriceLeads, setFinalPriceLeads] = useState<FinalPriceLeadRow[]>([]);
   const [loadingOverview, setLoadingOverview] = useState(true);
   const [loadingCrm, setLoadingCrm] = useState(false);
   const [overviewError, setOverviewError] = useState<string | null>(null);
@@ -118,19 +120,20 @@ export default function StudioPage() {
   }, []);
 
   const fetchCrm = useCallback(async () => {
-    if (crm !== null) return;
     setLoadingCrm(true);
     try {
       const res = await fetch("/api/studio/crm");
       if (!res.ok) throw new Error();
       const data = await res.json();
       setCrm(data.interactors);
+      setFinalPriceLeads(Array.isArray(data.finalPriceLeads) ? data.finalPriceLeads : []);
     } catch {
       setCrm([]);
+      setFinalPriceLeads([]);
     } finally {
       setLoadingCrm(false);
     }
-  }, [crm]);
+  }, []);
 
   useEffect(() => {
     if (activeTab === "crm") fetchCrm();
@@ -579,7 +582,7 @@ export default function StudioPage() {
         )}
 
         {activeTab === "crm" && (
-          <div className="mx-auto max-w-5xl space-y-6">
+          <div className="mx-auto max-w-6xl space-y-8">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h1 className="text-2xl font-black text-white">{t("studio", "crm.title")}</h1>
@@ -603,24 +606,30 @@ export default function StudioPage() {
               <div className="flex items-center justify-center py-24">
                 <div className="h-10 w-10 animate-spin rounded-full border-4 border-blue-600/30 border-t-blue-600" />
               </div>
-            ) : filteredCrm.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-24 text-center">
-                <Users className="mx-auto mb-4 h-16 w-16 text-gray-700" />
-                <p className="mb-1 text-lg font-semibold text-gray-400">
-                  {crmSearch ? t("studio", "crm.noMatchTitle") : t("studio", "crm.emptyTitle")}
-                </p>
-                <p className="text-sm text-gray-600">
-                  {crmSearch ? t("studio", "crm.noMatchBody") : t("studio", "crm.emptyBody")}
-                </p>
-              </div>
             ) : (
               <>
-                <p className="text-sm text-gray-500">{crmLeadCountLabel}</p>
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                  {filteredCrm.map((lead) => (
-                    <CrmLeadCard key={lead.user.id} lead={lead} />
-                  ))}
-                </div>
+                <FinalPriceLeadsPanel leads={finalPriceLeads} />
+
+                {filteredCrm.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-16 text-center">
+                    <Users className="mx-auto mb-4 h-16 w-16 text-gray-700" />
+                    <p className="mb-1 text-lg font-semibold text-gray-400">
+                      {crmSearch ? t("studio", "crm.noMatchTitle") : t("studio", "crm.emptyTitle")}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      {crmSearch ? t("studio", "crm.noMatchBody") : t("studio", "crm.emptyBody")}
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-sm text-gray-500">{crmLeadCountLabel}</p>
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                      {filteredCrm.map((lead) => (
+                        <CrmLeadCard key={lead.user.id} lead={lead} />
+                      ))}
+                    </div>
+                  </>
+                )}
               </>
             )}
           </div>

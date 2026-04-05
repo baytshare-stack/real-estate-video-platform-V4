@@ -320,6 +320,8 @@ export async function POST(req: Request) {
         channelId: channel.id,
         // Used for auto-generated playlists on the channel page.
         propertyType: videoPropertyTypeValue,
+        category: String(videoPropertyTypeValue),
+        location: `${String(city).trim()}, ${String(country).trim()}`,
         property: {
           create: {
             propertyType: propertyTypeValue as PropertyType,

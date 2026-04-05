@@ -16,6 +16,7 @@ import TemplateMotionPlayer from '@/components/video/TemplateMotionPlayer';
 import { trackTemplateInteraction } from '@/lib/video-templates/track';
 import BookVisitModal from '@/components/watch/BookVisitModal';
 import WatchVideoAdsShell from '@/components/watch/WatchVideoAdsShell';
+import FinalPriceActions from '@/components/property/FinalPriceActions';
 
 function isNotifyPref(v: unknown): v is NotifyPref {
   return v === 'ALL' || v === 'PERSONALIZED' || v === 'NONE';
@@ -202,6 +203,7 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
         {/* The Video Player Area + platform ads */}
         <WatchVideoAdsShell
           ads={videoAds}
+          watchVideoId={videoId}
           videoRef={isNativeFile ? nativeVideoRef : undefined}
           outerClassName={[
             "bg-black rounded-2xl overflow-hidden border border-gray-800 shadow-2xl flex items-center justify-center",
@@ -320,12 +322,21 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
 
         {/* Property Information Card (Below Video Layout as requested) */}
         <div className="bg-gray-900/50 rounded-2xl p-4 md:p-5 border border-gray-800 mt-2">
-            <div className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-3 mb-2">
-                <h2 className="text-xl md:text-2xl font-bold text-white tracking-tight">{formattedPrice}</h2>
-                <div className="flex items-center gap-2 text-gray-400 text-xs md:text-sm">
-                   <span className="bg-blue-600/20 text-blue-400 px-2 py-0.5 rounded font-bold text-xs">{video.status === 'FOR_SALE' ? t('watch', 'forSale') : t('watch', 'forRent')}</span>
-                   <span>• {video.viewsCount || 0} {t('watch', 'views')} • {new Date(video.createdAt).toLocaleDateString()}</span>
-                </div>
+            <div className="mb-3 text-xs md:text-sm">
+              <FinalPriceActions
+                videoId={videoId}
+                listPriceLabel={formattedPrice}
+                trailing={
+                  <>
+                    <span className="bg-blue-600/20 px-2 py-0.5 text-[11px] font-bold text-blue-400 rounded sm:text-xs">
+                      {video.status === "FOR_SALE" ? t("watch", "forSale") : t("watch", "forRent")}
+                    </span>
+                    <span className="text-gray-400">
+                      • {video.viewsCount || 0} {t("watch", "views")} • {new Date(video.createdAt).toLocaleDateString()}
+                    </span>
+                  </>
+                }
+              />
             </div>
 
             {/* Quick Stats Banner */}
@@ -353,7 +364,7 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
             </p>
 
             {/* Contact + Book a Visit */}
-            <div className="mt-6 md:mt-8 flex flex-col sm:flex-row flex-wrap gap-3">
+            <div className="flex flex-col sm:flex-row flex-wrap gap-3">
                     <button
                         type="button"
                         onClick={() => setIsBookVisitOpen(true)}

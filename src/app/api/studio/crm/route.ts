@@ -278,5 +278,34 @@ export async function GET() {
 
   interactors.sort((a, b) => b.totalInteractions - a.totalInteractions);
 
-  return NextResponse.json({ interactors });
+  const finalPriceLeads = await safeFindMany(() =>
+    prisma.finalPriceLead.findMany({
+      where: { agentUserId: user.id },
+      orderBy: { createdAt: "desc" },
+      take: 500,
+      select: {
+        id: true,
+        visitorName: true,
+        visitorPhone: true,
+        specifications: true,
+        listedPriceLabel: true,
+        createdAt: true,
+        video: { select: { id: true, title: true } },
+      },
+    })
+  );
+
+  return NextResponse.json({
+    interactors,
+    finalPriceLeads: (finalPriceLeads ?? []).map((row) => ({
+      id: row.id,
+      visitorName: row.visitorName,
+      visitorPhone: row.visitorPhone,
+      specifications: row.specifications,
+      listedPriceLabel: row.listedPriceLabel,
+      videoId: row.video.id,
+      videoTitle: row.video.title,
+      createdAt: row.createdAt.toISOString(),
+    })),
+  });
 }

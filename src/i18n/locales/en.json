@@ -72,6 +72,22 @@
     "recommended": "Recommended Properties",
     "bookVisit": "Book a Visit"
   },
+  "finalPrice": {
+    "showListPrice": "Show price",
+    "hideListPrice": "Hide price",
+    "priceHidden": "Price hidden",
+    "requestFinalPrice": "Final price",
+    "modalTitle": "Request final price",
+    "name": "Your name",
+    "phone": "Mobile or WhatsApp",
+    "phoneCountryHint": "Include your country code before the number (e.g. +1 555 010 1234).",
+    "submit": "Send request",
+    "cancel": "Cancel",
+    "close": "OK",
+    "success": "The agent will contact you and share the best price they can offer.",
+    "sending": "Sending…",
+    "error": "Could not send your request. Please try again."
+  },
   "booking": {
     "title": "Book a visit",
     "close": "Close",
@@ -572,7 +588,21 @@
       "eventWhatsapp": "WhatsApp tap",
       "eventCall": "Call tap",
       "eventEmail": "Email tap",
-      "eventDefault": "Template activity"
+      "eventDefault": "Template activity",
+      "finalPriceSectionTitle": "Potential clients — final price requests",
+      "finalPriceSectionSubtitle": "Visitors who asked for the final price on your listings",
+      "finalPriceEmpty": "No final price requests yet.",
+      "finalPriceExport": "Export Excel (CSV)",
+      "finalPriceColVideo": "Video / listing",
+      "finalPriceColName": "Client name",
+      "finalPriceColPhone": "Phone",
+      "finalPriceColSpecs": "Specifications",
+      "finalPriceColPrice": "Listed price",
+      "finalPriceColDate": "Date",
+      "finalPriceColActions": "Reply",
+      "finalPriceWhatsapp": "WhatsApp",
+      "finalPriceCall": "Call",
+      "finalPriceWaMessage": "Hi {{name}}, regarding your final price request for: {{title}}"
     },
     "bookings": {
       "title": "Visit bookings",

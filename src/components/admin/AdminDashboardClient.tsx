@@ -280,9 +280,9 @@ export default function AdminDashboardClient() {
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <CRMPanel records={crmRecords} onSave={onCrmSave} />
         <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-5 shadow-sm">
-          <h2 className="text-white font-semibold">Video ads</h2>
+          <h2 className="text-white font-semibold">Smart ads</h2>
           <p className="mt-1 text-sm text-white/60">
-            Create overlay and roll positions, assign to listings, and toggle live placement.
+            Targeted inventory, scoring, CTR, and watch-page delivery (pre-roll, mid-roll, overlay).
           </p>
           <Link
             href="/admin/ads"

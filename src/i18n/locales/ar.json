@@ -72,6 +72,22 @@
     "recommended": "عقارات مقترحة",
     "bookVisit": "احجز زيارة"
   },
+  "finalPrice": {
+    "showListPrice": "عرض السعر",
+    "hideListPrice": "إخفاء السعر",
+    "priceHidden": "السعر مخفي",
+    "requestFinalPrice": "السعر النهائي",
+    "modalTitle": "طلب السعر النهائي",
+    "name": "الاسم",
+    "phone": "رقم الجوال أو واتساب",
+    "phoneCountryHint": "يُرجى إدخال رمز الدولة قبل الرقم (مثال: +966501234567).",
+    "submit": "إرسال الطلب",
+    "cancel": "إلغاء",
+    "close": "حسناً",
+    "success": "سوف يقوم الوكيل بالتواصل معك وإبلاغك بأفضل سعر ممكن الوصول إليه.",
+    "sending": "جارٍ الإرسال...",
+    "error": "تعذّر إرسال الطلب. حاول مرة أخرى."
+  },
   "booking": {
     "title": "حجز زيارة",
     "close": "إغلاق",
@@ -572,7 +588,21 @@
       "eventWhatsapp": "نقرة واتساب",
       "eventCall": "نقرة اتصال",
       "eventEmail": "نقرة بريد",
-      "eventDefault": "نشاط قالب"
+      "eventDefault": "نشاط قالب",
+      "finalPriceSectionTitle": "العميل المحتمل — طلبات السعر النهائي",
+      "finalPriceSectionSubtitle": "من طلبوا السعر النهائي من إعلاناتك",
+      "finalPriceEmpty": "لا طلبات سعر نهائي بعد.",
+      "finalPriceExport": "تصدير Excel (CSV)",
+      "finalPriceColVideo": "رابط / عنوان الفيديو",
+      "finalPriceColName": "اسم العميل",
+      "finalPriceColPhone": "رقم الهاتف",
+      "finalPriceColSpecs": "المواصفات",
+      "finalPriceColPrice": "السعر المعروض",
+      "finalPriceColDate": "التاريخ",
+      "finalPriceColActions": "رد سريع",
+      "finalPriceWhatsapp": "رد واتساب",
+      "finalPriceCall": "اتصال",
+      "finalPriceWaMessage": "مرحباً {{name}}، بخصوص طلبك للسعر النهائي للإعلان: {{title}}"
     },
     "bookings": {
       "title": "حجوزات الزيارات",

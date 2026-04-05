@@ -61,6 +61,9 @@ model User {
   visitBookingsVisitor VisitBooking[] @relation("VisitBookingsVisitor")
   visitBookingsAgent   VisitBooking[] @relation("VisitBookingsAgent")
   contentReports       ContentReport[]
+  adEvents             AdEvent[]
+  finalPriceLeadsOwned FinalPriceLead[] @relation("FinalPriceLeadAgent")
+  finalPriceLeadsSent  FinalPriceLead[] @relation("FinalPriceLeadVisitor")
 }
 
 model Account {
@@ -227,8 +230,14 @@ model Video {
   adPlacements AdPlacement[]
   videoAds     VideoAd[]
   visitBookings VisitBooking[]
+  adEvents      AdEvent[]
+  /// Denormalized listing category for smart ads (e.g. APARTMENT). Falls back to `propertyType` when null.
+  category      String?
+  /// Denormalized location label for smart ads (e.g. "Dubai, UAE"). Falls back to property city/country when null.
+  location      String?
   channel     Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
   template Template? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  finalPriceLeads FinalPriceLead[]
 
   @@index([channelId, moderationStatus])
   @@index([channelId, isShort])
@@ -448,6 +457,77 @@ enum VideoAdPosition {
   MID
   AFTER
   OVERLAY
+}
+
+/// Smart Ads Engine (Level 3) — slot inside the watch experience.
+enum PlatformAdPosition {
+  PRE_ROLL
+  MID_ROLL
+  OVERLAY
+}
+
+enum AdEventType {
+  IMPRESSION
+  CLICK
+}
+
+/// Data-driven smart ad creative with targeting (global inventory, not per-video rows).
+model Ad {
+  id              String             @id @default(cuid())
+  title           String
+  description     String?            @db.Text
+  mediaUrl        String
+  /// Optional landing URL when the creative is clicked.
+  clickUrl        String?
+  /// Empty string = match any category.
+  targetCategory  String             @default("")
+  /// Empty string = match any location.
+  targetLocation  String             @default("")
+  position        PlatformAdPosition
+  priority        Int                @default(0)
+  isActive        Boolean            @default(true)
+  impressions     Int                @default(0)
+  clicks          Int                @default(0)
+  createdAt       DateTime           @default(now())
+  events          AdEvent[]
+
+  @@index([isActive, position])
+  @@index([createdAt(sort: Desc)])
+}
+
+model AdEvent {
+  id        String      @id @default(cuid())
+  adId      String
+  ad        Ad          @relation(fields: [adId], references: [id], onDelete: Cascade)
+  videoId   String
+  video     Video       @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  type      AdEventType
+  createdAt DateTime    @default(now())
+
+  @@index([adId, createdAt(sort: Desc)])
+  @@index([videoId, createdAt(sort: Desc)])
+  @@index([type, createdAt(sort: Desc)])
+}
+
+/// Visitor requested the "final price" for a listing; notifies the listing owner and appears in Studio CRM.
+model FinalPriceLead {
+  id               String   @id @default(cuid())
+  videoId          String
+  video            Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  agentUserId      String
+  agent            User     @relation("FinalPriceLeadAgent", fields: [agentUserId], references: [id], onDelete: Cascade)
+  visitorName      String
+  visitorPhone     String
+  specifications   String   @db.Text
+  listedPriceLabel String
+  visitorUserId    String?
+  visitorUser      User?    @relation("FinalPriceLeadVisitor", fields: [visitorUserId], references: [id], onDelete: SetNull)
+  createdAt        DateTime @default(now())
+
+  @@index([agentUserId, createdAt(sort: Desc)])
+  @@index([videoId])
 }
 
 model VideoAd {
