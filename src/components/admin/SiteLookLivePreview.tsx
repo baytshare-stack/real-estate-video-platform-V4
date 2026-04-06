@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import type { SiteAppearanceDTO, SiteUiConfig } from "@/lib/site-appearance";
-import { appearanceToCssVars, discoverGridUlClass } from "@/lib/site-appearance";
+import { appearanceToCssVars, discoverGridUlClass, discoverThemeClass, homeThemeClass } from "@/lib/site-appearance";
 
 function MockAgentCard({ style }: { style: SiteUiConfig["discover"]["agentCardStyle"] }) {
   const img =
@@ -111,10 +111,18 @@ function MockProfile({ layout }: { layout: SiteUiConfig["profile"]["layout"] }) 
   );
 }
 
-export default function SiteLookLivePreview({ draft }: { draft: SiteAppearanceDTO }) {
+export default function SiteLookLivePreview({
+  draft,
+  activePage,
+}: {
+  draft: SiteAppearanceDTO;
+  activePage?: "home" | "discover" | "profile" | "user" | "video" | "theme";
+}) {
   const vars = appearanceToCssVars(draft);
   const ui = draft.ui;
   const gridAgents = discoverGridUlClass("agents", ui.discover);
+  const discoverTheme = discoverThemeClass(ui.discover.theme);
+  const homeTheme = homeThemeClass(ui.home.theme);
 
   return (
     <div className="lg:sticky lg:top-4">
@@ -150,9 +158,16 @@ export default function SiteLookLivePreview({ draft }: { draft: SiteAppearanceDT
             <span className="text-[11px] font-bold uppercase tracking-tight opacity-90">Header</span>
           </div>
 
-          <section>
+          {(!activePage || activePage === "home" || activePage === "theme") ? (
+          <section className={homeTheme} style={ui.home.heroBackground ? { backgroundColor: ui.home.heroBackground } : undefined}>
+            <p className="mb-1 text-[9px] text-white/50">Home theme: {ui.home.theme}</p>
+          </section>
+          ) : null}
+
+          {(!activePage || activePage === "discover" || activePage === "theme") ? (
+          <section className={discoverTheme} style={ui.discover.pageBackground ? { backgroundColor: ui.discover.pageBackground } : undefined}>
             <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--site-muted)]">
-              وكلاء · شبكة {ui.discover.agentsColumns} أعمدة
+              وكلاء · شبكة {ui.discover.agentsColumns} أعمدة · {ui.discover.theme}
             </p>
             <ul className={[gridAgents, "max-w-full"].join(" ")}>
               <li>
@@ -163,28 +178,34 @@ export default function SiteLookLivePreview({ draft }: { draft: SiteAppearanceDT
               </li>
             </ul>
           </section>
+          ) : null}
 
-          <section>
+          {(!activePage || activePage === "discover" || activePage === "theme") ? (
+          <section className={discoverTheme} style={ui.discover.pageBackground ? { backgroundColor: ui.discover.pageBackground } : undefined}>
             <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--site-muted)]">
-              وكالات · بطاقة
+              وكالات · بطاقة · {ui.discover.theme}
             </p>
             <div className="flex flex-wrap gap-2">
               <MockAgencyCard style={ui.discover.agencyCardStyle} />
             </div>
           </section>
+          ) : null}
 
+          {(!activePage || activePage === "video" || activePage === "theme") ? (
           <section>
             <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--site-muted)]">
-              بطاقة فيديو · {ui.videoCard.layout}
+              بطاقة فيديو · {ui.videoCard.layout} · {ui.videoCard.theme}
             </p>
             <div className="flex flex-wrap gap-2">
               <MockVideoCard layout={ui.videoCard.layout} />
             </div>
           </section>
+          ) : null}
 
-          <section>
+          {(!activePage || activePage === "profile" || activePage === "user" || activePage === "theme") ? (
+          <section style={ui.profile.panelBackground ? { backgroundColor: ui.profile.panelBackground, padding: "0.35rem", borderRadius: "0.5rem" } : undefined}>
             <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--site-muted)]">
-              بروفايل
+              بروفايل · {ui.profile.theme} · user:{ui.user.theme}
             </p>
             <MockProfile layout={ui.profile.layout} />
             {!ui.profile.showAccountCard ? (
@@ -195,6 +216,7 @@ export default function SiteLookLivePreview({ draft }: { draft: SiteAppearanceDT
             ) : null}
             {!ui.profile.showInbox ? <p className="text-[9px] text-amber-400/90">(الرسائل مخفية)</p> : null}
           </section>
+          ) : null}
         </div>
       </div>
     </div>

@@ -19,11 +19,16 @@ import type {
   VideoCardLayout,
 } from "@/lib/site-appearance";
 import {
+  DISCOVER_THEME_PRESETS,
   FONT_PRESETS,
   HEADER_RIGHT_KEYS,
   HOME_SECTION_KEYS,
+  HOME_THEME_PRESETS,
+  PROFILE_THEME_PRESETS,
   SIDEBAR_DESKTOP_KEYS,
   SIDEBAR_MOBILE_KEYS,
+  USER_THEME_PRESETS,
+  VIDEO_THEME_PRESETS,
 } from "@/lib/site-appearance";
 
 const DESKTOP_LABELS: Record<string, string> = {
@@ -653,6 +658,25 @@ export default function SiteAppearanceEditor() {
               subtitle="شبكة الفيديو والألوان حسب المنطقة. استخدم «محرّر مرئي» لسحب أقسام الصفحة وضبط المناطق بالنقر."
             />
             <div className="mt-3 max-w-md">
+              <div className="mb-4">
+                <div className="mb-1">
+                  <AdminToolLabel
+                    title="ثيم الصفحة الرئيسية"
+                    hint="اختر واحداً من 5 ثيمات عالمية للرئيسية، مع إمكانية المعاينة قبل الحفظ."
+                  />
+                </div>
+                <select
+                  className={selectClassName()}
+                  value={form.ui.home.theme}
+                  onChange={(e) => patchHome({ theme: e.target.value as SiteAppearanceDTO["ui"]["home"]["theme"] })}
+                >
+                  {HOME_THEME_PRESETS.map((t) => (
+                    <option key={t.key} value={t.key}>
+                      {t.label} - {t.note}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <div className="mb-1">
                 <AdminToolLabel
                   title="أعمدة بطاقات الفيديو"
@@ -681,6 +705,24 @@ export default function SiteAppearanceEditor() {
 
             <h4 className="mt-2 text-xs font-bold uppercase tracking-wider text-indigo-300/90">اكتشاف الوكلاء والوكالات</h4>
             <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <div className="mb-1">
+                  <AdminToolLabel title="ثيم الاكتشاف" hint="5 ثيمات لصفحات الوكلاء والوكالات." />
+                </div>
+                <select
+                  className={selectClassName()}
+                  value={form.ui.discover.theme}
+                  onChange={(e) =>
+                    patchDiscover({ theme: e.target.value as SiteAppearanceDTO["ui"]["discover"]["theme"] })
+                  }
+                >
+                  {DISCOVER_THEME_PRESETS.map((t) => (
+                    <option key={t.key} value={t.key}>
+                      {t.label} - {t.note}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <div>
                 <div className="mb-1">
                   <AdminToolLabel
@@ -796,6 +838,22 @@ export default function SiteAppearanceEditor() {
             <div className="mt-3 space-y-3">
               <div>
                 <div className="mb-1">
+                  <AdminToolLabel title="ثيم البروفايل" hint="5 ثيمات احترافية لعرض الهوية والبطاقات." />
+                </div>
+                <select
+                  className={selectClassName()}
+                  value={form.ui.profile.theme}
+                  onChange={(e) => patchProfileUi({ theme: e.target.value as SiteAppearanceDTO["ui"]["profile"]["theme"] })}
+                >
+                  {PROFILE_THEME_PRESETS.map((t) => (
+                    <option key={t.key} value={t.key}>
+                      {t.label} - {t.note}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <div className="mb-1">
                   <AdminToolLabel
                     title="تنسيق رأس البروفايل"
                     hint="كلاسيكي: صف أفقي. Spotlight: تمركز وخلفية مميزة للهوية."
@@ -840,7 +898,25 @@ export default function SiteAppearanceEditor() {
             </div>
 
             <h4 className="mt-6 text-xs font-bold uppercase tracking-wider text-indigo-300/90">بطاقة الفيديو في القوائم</h4>
-            <div className="mt-3">
+            <div className="mt-3 space-y-3">
+              <div>
+                <div className="mb-1">
+                  <AdminToolLabel title="ثيم بطاقات الفيديو" hint="5 ثيمات لأسلوب عرض البطاقات عبر المنصة." />
+                </div>
+                <select
+                  className={selectClassName()}
+                  value={form.ui.videoCard.theme}
+                  onChange={(e) =>
+                    patchVideoCard({ theme: e.target.value as SiteAppearanceDTO["ui"]["videoCard"]["theme"] })
+                  }
+                >
+                  {VIDEO_THEME_PRESETS.map((t) => (
+                    <option key={t.key} value={t.key}>
+                      {t.label} - {t.note}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <div className="mb-1">
                 <AdminToolLabel
                   title="تخطيط البطاقة"
@@ -855,6 +931,26 @@ export default function SiteAppearanceEditor() {
                 <option value="standard">قياسي</option>
                 <option value="dense">مضغوط</option>
                 <option value="poster">ملصق (عنوان على الصورة)</option>
+              </select>
+            </div>
+
+            <h4 className="mt-6 text-xs font-bold uppercase tracking-wider text-indigo-300/90">صفحات المستخدم</h4>
+            <div className="mt-3">
+              <div className="mb-1">
+                <AdminToolLabel title="ثيم المستخدم" hint="5 أنماط لصفحات المستخدم العامة داخل المنصة." />
+              </div>
+              <select
+                className={selectClassName()}
+                value={form.ui.user.theme}
+                onChange={(e) =>
+                  updateForm((f) => ({ ...f, ui: { ...f.ui, user: { ...f.ui.user, theme: e.target.value as SiteAppearanceDTO["ui"]["user"]["theme"] } } }))
+                }
+              >
+                {USER_THEME_PRESETS.map((t) => (
+                  <option key={t.key} value={t.key}>
+                    {t.label} - {t.note}
+                  </option>
+                ))}
               </select>
             </div>
           </div>

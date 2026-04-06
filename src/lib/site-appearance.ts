@@ -107,9 +107,15 @@ export type DiscoverColumns = 2 | 3 | 4;
 export type ProfileLayout = "classic" | "spotlight";
 export type VideoCardLayout = "standard" | "dense" | "poster";
 export type HomeVideoColumns = 2 | 3 | 4;
+export type HomeThemeKey = "metropolitan" | "noir" | "aurora" | "desert" | "minimal";
+export type DiscoverThemeKey = "studio" | "glass" | "magazine" | "executive" | "neo";
+export type ProfileThemeKey = "executive" | "creator" | "minimal" | "luxury" | "neon";
+export type UserThemeKey = "clean" | "corporate" | "charcoal" | "sunset" | "mono";
+export type VideoThemeKey = "cinema" | "editorial" | "modern" | "premium" | "stream";
 
 export type SiteUiHome = {
   videoGridColumns: HomeVideoColumns;
+  theme: HomeThemeKey;
   heroBackground?: string;
   heroForeground?: string;
   gridBackground?: string;
@@ -120,6 +126,9 @@ export type SiteUiHome = {
 export type SiteUiConfig = {
   home: SiteUiHome;
   discover: {
+    theme: DiscoverThemeKey;
+    pageBackground?: string;
+    cardAccent?: string;
     agentsColumns: DiscoverColumns;
     agenciesColumns: DiscoverColumns;
     gap: DiscoverGap;
@@ -131,6 +140,9 @@ export type SiteUiConfig = {
     showListDebug: boolean;
   };
   profile: {
+    theme: ProfileThemeKey;
+    panelBackground?: string;
+    accent?: string;
     layout: ProfileLayout;
     showAccountCard: boolean;
     showMyVisits: boolean;
@@ -138,14 +150,24 @@ export type SiteUiConfig = {
   };
   videoCard: {
     layout: VideoCardLayout;
+    theme: VideoThemeKey;
+    cardTint?: string;
+  };
+  user: {
+    theme: UserThemeKey;
+    pageBackground?: string;
   };
 };
 
 export const DEFAULT_UI_CONFIG: SiteUiConfig = {
   home: {
     videoGridColumns: 4,
+    theme: "metropolitan",
   },
   discover: {
+    theme: "studio",
+    pageBackground: undefined,
+    cardAccent: undefined,
     agentsColumns: 3,
     agenciesColumns: 3,
     gap: "normal",
@@ -157,6 +179,9 @@ export const DEFAULT_UI_CONFIG: SiteUiConfig = {
     showListDebug: true,
   },
   profile: {
+    theme: "executive",
+    panelBackground: undefined,
+    accent: undefined,
     layout: "classic",
     showAccountCard: true,
     showMyVisits: true,
@@ -164,6 +189,12 @@ export const DEFAULT_UI_CONFIG: SiteUiConfig = {
   },
   videoCard: {
     layout: "standard",
+    theme: "cinema",
+    cardTint: undefined,
+  },
+  user: {
+    theme: "clean",
+    pageBackground: undefined,
   },
 };
 
@@ -188,17 +219,104 @@ export function homeVideoGridClass(cols: HomeVideoColumns): string {
   return `${base} sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4`;
 }
 
+export const HOME_THEME_PRESETS: { key: HomeThemeKey; label: string; note: string }[] = [
+  { key: "metropolitan", label: "Metropolitan", note: "Bold clean marketplace feel." },
+  { key: "noir", label: "Noir Luxe", note: "Dark cinematic premium look." },
+  { key: "aurora", label: "Aurora Glass", note: "Soft gradient + glass tone." },
+  { key: "desert", label: "Desert Warm", note: "Warm luxury hospitality look." },
+  { key: "minimal", label: "Minimal White", note: "Crisp editorial product style." },
+];
+
+export const DISCOVER_THEME_PRESETS: { key: DiscoverThemeKey; label: string; note: string }[] = [
+  { key: "studio", label: "Studio", note: "Balanced modern cards." },
+  { key: "glass", label: "Glass", note: "Glassmorphism panels and blur." },
+  { key: "magazine", label: "Magazine", note: "Editorial blocks and spacing." },
+  { key: "executive", label: "Executive", note: "Corporate polished directory." },
+  { key: "neo", label: "Neo", note: "High-contrast modern gradients." },
+];
+
+export const PROFILE_THEME_PRESETS: { key: ProfileThemeKey; label: string; note: string }[] = [
+  { key: "executive", label: "Executive", note: "Professional business profile." },
+  { key: "creator", label: "Creator", note: "Content-first with highlights." },
+  { key: "minimal", label: "Minimal", note: "Lightweight clean profile." },
+  { key: "luxury", label: "Luxury", note: "Premium dark gold accents." },
+  { key: "neon", label: "Neon", note: "Modern night UI with glow." },
+];
+
+export const USER_THEME_PRESETS: { key: UserThemeKey; label: string; note: string }[] = [
+  { key: "clean", label: "Clean", note: "Neutral default user page style." },
+  { key: "corporate", label: "Corporate", note: "Sharp enterprise visual language." },
+  { key: "charcoal", label: "Charcoal", note: "Dark monochrome comfort." },
+  { key: "sunset", label: "Sunset", note: "Warm accent experience." },
+  { key: "mono", label: "Mono", note: "Strict black-and-white modern." },
+];
+
+export const VIDEO_THEME_PRESETS: { key: VideoThemeKey; label: string; note: string }[] = [
+  { key: "cinema", label: "Cinema", note: "Movie-like card emphasis." },
+  { key: "editorial", label: "Editorial", note: "Magazine title-forward cards." },
+  { key: "modern", label: "Modern", note: "Current platform neutral." },
+  { key: "premium", label: "Premium", note: "Luxury presentation style." },
+  { key: "stream", label: "Stream", note: "Streaming-centric compact visuals." },
+];
+
+export function homeThemeClass(key: HomeThemeKey): string {
+  switch (key) {
+    case "noir":
+      return "bg-gradient-to-b from-black/70 to-slate-950/70 border border-white/10 rounded-2xl p-3";
+    case "aurora":
+      return "bg-gradient-to-br from-cyan-900/30 via-indigo-900/20 to-violet-900/30 border border-cyan-400/20 rounded-2xl p-3";
+    case "desert":
+      return "bg-gradient-to-br from-amber-900/20 via-orange-900/15 to-zinc-900/40 border border-amber-300/20 rounded-2xl p-3";
+    case "minimal":
+      return "bg-white/[0.03] border border-white/10 rounded-2xl p-3";
+    default:
+      return "bg-slate-900/35 border border-white/10 rounded-2xl p-3";
+  }
+}
+
+export function discoverThemeClass(key: DiscoverThemeKey): string {
+  switch (key) {
+    case "glass":
+      return "rounded-2xl border border-cyan-300/25 bg-cyan-900/10 backdrop-blur-sm p-3";
+    case "magazine":
+      return "rounded-2xl border border-rose-300/20 bg-rose-900/10 p-3";
+    case "executive":
+      return "rounded-2xl border border-emerald-300/20 bg-emerald-900/10 p-3";
+    case "neo":
+      return "rounded-2xl border border-indigo-300/25 bg-indigo-900/15 p-3";
+    default:
+      return "rounded-2xl border border-white/10 bg-white/[0.02] p-3";
+  }
+}
+
+export function profileThemeClass(key: ProfileThemeKey): string {
+  switch (key) {
+    case "creator":
+      return "border-fuchsia-400/25 bg-gradient-to-br from-fuchsia-900/25 to-slate-900";
+    case "minimal":
+      return "border-slate-600 bg-slate-900/70";
+    case "luxury":
+      return "border-amber-300/30 bg-gradient-to-br from-amber-900/25 via-zinc-900 to-black";
+    case "neon":
+      return "border-cyan-400/30 bg-gradient-to-br from-cyan-900/25 to-indigo-950";
+    default:
+      return "border-gray-800 bg-gray-900";
+  }
+}
+
 export function parseUiConfig(raw: unknown): SiteUiConfig {
   const h0 = DEFAULT_UI_CONFIG.home;
   const d = DEFAULT_UI_CONFIG.discover;
   const p = DEFAULT_UI_CONFIG.profile;
   const v = DEFAULT_UI_CONFIG.videoCard;
+  const u = DEFAULT_UI_CONFIG.user;
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     return {
       home: { ...h0 },
       discover: { ...d },
       profile: { ...p },
       videoCard: { ...v },
+      user: { ...u },
     };
   }
   const o = raw as Record<string, unknown>;
@@ -220,6 +338,10 @@ export function parseUiConfig(raw: unknown): SiteUiConfig {
     o.videoCard && typeof o.videoCard === "object" && !Array.isArray(o.videoCard)
       ? (o.videoCard as Record<string, unknown>)
       : {};
+  const usr =
+    o.user && typeof o.user === "object" && !Array.isArray(o.user)
+      ? (o.user as Record<string, unknown>)
+      : {};
 
   const gap: DiscoverGap =
     disc.gap === "tight" || disc.gap === "wide" ? disc.gap : d.gap;
@@ -234,10 +356,34 @@ export function parseUiConfig(raw: unknown): SiteUiConfig {
   const profileLayout: ProfileLayout = prof.layout === "spotlight" ? "spotlight" : "classic";
   const vidLayout: VideoCardLayout =
     vc.layout === "dense" || vc.layout === "poster" ? vc.layout : "standard";
+  const homeTheme: HomeThemeKey =
+    hm.theme === "noir" || hm.theme === "aurora" || hm.theme === "desert" || hm.theme === "minimal"
+      ? hm.theme
+      : "metropolitan";
+  const discoverTheme: DiscoverThemeKey =
+    disc.theme === "glass" ||
+    disc.theme === "magazine" ||
+    disc.theme === "executive" ||
+    disc.theme === "neo"
+      ? disc.theme
+      : "studio";
+  const profileTheme: ProfileThemeKey =
+    prof.theme === "creator" || prof.theme === "minimal" || prof.theme === "luxury" || prof.theme === "neon"
+      ? prof.theme
+      : "executive";
+  const videoTheme: VideoThemeKey =
+    vc.theme === "editorial" || vc.theme === "modern" || vc.theme === "premium" || vc.theme === "stream"
+      ? vc.theme
+      : "cinema";
+  const userTheme: UserThemeKey =
+    usr.theme === "corporate" || usr.theme === "charcoal" || usr.theme === "sunset" || usr.theme === "mono"
+      ? usr.theme
+      : "clean";
 
   return {
     home: {
       videoGridColumns,
+      theme: homeTheme,
       heroBackground: optCssColor(hm.heroBackground) ?? h0.heroBackground,
       heroForeground: optCssColor(hm.heroForeground) ?? h0.heroForeground,
       gridBackground: optCssColor(hm.gridBackground) ?? h0.gridBackground,
@@ -245,6 +391,9 @@ export function parseUiConfig(raw: unknown): SiteUiConfig {
       mapBackground: optCssColor(hm.mapBackground) ?? h0.mapBackground,
     },
     discover: {
+      theme: discoverTheme,
+      pageBackground: optCssColor(disc.pageBackground) ?? d.pageBackground,
+      cardAccent: optCssColor(disc.cardAccent) ?? d.cardAccent,
       agentsColumns: col3(disc.agentsColumns, d.agentsColumns),
       agenciesColumns: col3(disc.agenciesColumns, d.agenciesColumns),
       gap,
@@ -257,6 +406,9 @@ export function parseUiConfig(raw: unknown): SiteUiConfig {
       showListDebug: typeof disc.showListDebug === "boolean" ? disc.showListDebug : d.showListDebug,
     },
     profile: {
+      theme: profileTheme,
+      panelBackground: optCssColor(prof.panelBackground) ?? p.panelBackground,
+      accent: optCssColor(prof.accent) ?? p.accent,
       layout: profileLayout,
       showAccountCard: typeof prof.showAccountCard === "boolean" ? prof.showAccountCard : p.showAccountCard,
       showMyVisits: typeof prof.showMyVisits === "boolean" ? prof.showMyVisits : p.showMyVisits,
@@ -264,6 +416,12 @@ export function parseUiConfig(raw: unknown): SiteUiConfig {
     },
     videoCard: {
       layout: vidLayout,
+      theme: videoTheme,
+      cardTint: optCssColor(vc.cardTint) ?? v.cardTint,
+    },
+    user: {
+      theme: userTheme,
+      pageBackground: optCssColor(usr.pageBackground) ?? u.pageBackground,
     },
   };
 }
@@ -274,6 +432,7 @@ export function dtoUiToJson(ui: SiteUiConfig): Record<string, unknown> {
     discover: { ...ui.discover },
     profile: { ...ui.profile },
     videoCard: { ...ui.videoCard },
+    user: { ...ui.user },
   };
 }
 
@@ -326,6 +485,7 @@ export const DEFAULT_SITE_APPEARANCE: SiteAppearanceDTO = {
     discover: { ...DEFAULT_UI_CONFIG.discover },
     profile: { ...DEFAULT_UI_CONFIG.profile },
     videoCard: { ...DEFAULT_UI_CONFIG.videoCard },
+    user: { ...DEFAULT_UI_CONFIG.user },
   },
 };
 

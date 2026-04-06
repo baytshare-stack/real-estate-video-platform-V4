@@ -9,7 +9,7 @@ import {
   listDiscoverUsers,
   parseDiscoverParams,
 } from "@/lib/discover-queries";
-import { discoverGridUlClass, getSiteAppearance } from "@/lib/site-appearance";
+import { discoverGridUlClass, discoverThemeClass, getSiteAppearance } from "@/lib/site-appearance";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,6 +30,8 @@ export default async function AgenciesPage({
   const appearance = await getSiteAppearance();
   const disc = appearance.ui.discover;
   const gridClass = discoverGridUlClass("agencies", disc);
+  const discoverTheme = discoverThemeClass(disc.theme);
+  const discoverStyle = disc.pageBackground ? { backgroundColor: disc.pageBackground } : undefined;
 
   const filterValues = {
     q: sp.q ? String(Array.isArray(sp.q) ? sp.q[0] : sp.q) : "",
@@ -61,7 +63,7 @@ export default async function AgenciesPage({
         subtitle="Explore companies showcasing properties on video — filter by region, trust, and performance."
       />
 
-      <div className="mt-6 space-y-8">
+      <div className={`mt-6 space-y-8 ${discoverTheme}`} style={discoverStyle}>
         {disc.showFilters ? (
           <DiscoverFilters basePath="/agencies" values={filterValues} title="Search & filters" />
         ) : null}

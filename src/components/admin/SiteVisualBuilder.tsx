@@ -4,7 +4,16 @@ import * as React from "react";
 import { createPortal } from "react-dom";
 import { GripVertical, Monitor, Palette, Redo2, Undo2, X } from "lucide-react";
 import type { SiteAppearanceDTO, HomeSectionKey } from "@/lib/site-appearance";
-import { HOME_SECTION_KEYS, appearanceToCssVars, homeVideoGridClass } from "@/lib/site-appearance";
+import {
+  DISCOVER_THEME_PRESETS,
+  HOME_SECTION_KEYS,
+  HOME_THEME_PRESETS,
+  PROFILE_THEME_PRESETS,
+  USER_THEME_PRESETS,
+  VIDEO_THEME_PRESETS,
+  appearanceToCssVars,
+  homeVideoGridClass,
+} from "@/lib/site-appearance";
 import SiteLookLivePreview from "@/components/admin/SiteLookLivePreview";
 
 const SECTION_AR: Record<HomeSectionKey, string> = {
@@ -15,7 +24,38 @@ const SECTION_AR: Record<HomeSectionKey, string> = {
   map: "الخريطة",
 };
 
-type PageKey = "home" | "discover" | "profile" | "video" | "theme";
+type PageKey = "home" | "discover" | "profile" | "user" | "video" | "theme";
+
+function DemoPicker({
+  items,
+  value,
+  onPick,
+}: {
+  items: { key: string; label: string; note: string }[];
+  value: string;
+  onPick: (key: string) => void;
+}) {
+  return (
+    <div className="grid grid-cols-1 gap-2">
+      {items.map((item) => (
+        <button
+          key={item.key}
+          type="button"
+          onClick={() => onPick(item.key)}
+          className={[
+            "rounded-lg border p-2 text-left transition",
+            value === item.key
+              ? "border-indigo-400 bg-indigo-500/15 text-white"
+              : "border-white/10 bg-white/[0.02] text-white/75 hover:border-white/25",
+          ].join(" ")}
+        >
+          <p className="text-[11px] font-semibold">{item.label}</p>
+          <p className="text-[10px] text-white/55">{item.note}</p>
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export default function SiteVisualBuilder({
   open,
@@ -256,31 +296,166 @@ export default function SiteVisualBuilder({
         );
       }
       return (
-        <div className="text-xs text-white/55">
-          اختر منطقةً في المعاينة أو اسحب الأقسام لإعادة ترتيب ظهور الفيديوهات والخريطة على الصفحة الرئيسية.
+        <div className="space-y-3 text-xs text-white/55">
+          <div>
+            <p className="mb-1 text-white/75">ثيم الصفحة الرئيسية (5 ثيمات)</p>
+            <select
+              className="w-full rounded-lg border border-white/10 bg-black/40 px-2 py-2 text-xs text-white"
+              value={draft.ui.home.theme}
+              onChange={(e) =>
+                onApply((d) => ({
+                  ...d,
+                  ui: { ...d.ui, home: { ...d.ui.home, theme: e.target.value as typeof d.ui.home.theme } },
+                }))
+              }
+            >
+              {HOME_THEME_PRESETS.map((t) => (
+                <option key={t.key} value={t.key}>
+                  {t.label} - {t.note}
+                </option>
+              ))}
+            </select>
+          </div>
+          <p>اختر منطقةً في المعاينة أو اسحب الأقسام لإعادة ترتيب ظهور الفيديوهات والخريطة على الصفحة الرئيسية.</p>
         </div>
       );
     }
 
     if (page === "discover") {
       return (
-        <div className="space-y-2 text-xs text-white/60">
-          استخدم لوحة «شكل الصفحات» في المحرّر الرئيسي لضبط شبكة الوكلاء/الوكالات وبطاقات الاكتشاف. المعاينة على اليمين تتحدّث
-          مباشرةً.
+        <div className="space-y-3 text-xs text-white/60">
+          <p className="text-[11px] text-white/75">اختيار ثيم صفحة الوكلاء/الوكالات (5 ثيمات).</p>
+          <DemoPicker
+            items={DISCOVER_THEME_PRESETS}
+            value={draft.ui.discover.theme}
+            onPick={(key) =>
+              onApply((d) => ({
+                ...d,
+                ui: { ...d.ui, discover: { ...d.ui.discover, theme: key as typeof d.ui.discover.theme } },
+              }))
+            }
+          />
+          <label className="block">
+            <span className="mb-1 block text-[11px] text-white/70">لون خلفية الاكتشاف</span>
+            <input
+              type="color"
+              className="h-9 w-full cursor-pointer rounded border border-white/10"
+              value={draft.ui.discover.pageBackground?.startsWith("#") ? draft.ui.discover.pageBackground.slice(0, 7) : "#0f172a"}
+              onChange={(e) =>
+                onApply((d) => ({
+                  ...d,
+                  ui: { ...d.ui, discover: { ...d.ui.discover, pageBackground: e.target.value } },
+                }))
+              }
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-[11px] text-white/70">لون تمييز الكروت</span>
+            <input
+              type="color"
+              className="h-9 w-full cursor-pointer rounded border border-white/10"
+              value={draft.ui.discover.cardAccent?.startsWith("#") ? draft.ui.discover.cardAccent.slice(0, 7) : "#38bdf8"}
+              onChange={(e) =>
+                onApply((d) => ({
+                  ...d,
+                  ui: { ...d.ui, discover: { ...d.ui.discover, cardAccent: e.target.value } },
+                }))
+              }
+            />
+          </label>
         </div>
       );
     }
     if (page === "profile") {
       return (
-        <div className="text-xs text-white/60">
-          تخطيط البروفايل وإظهار البطاقات يُضبط من المحرّر الرئيسي ضمن «صفحة البروفايل».
+        <div className="space-y-3 text-xs text-white/60">
+          <p className="text-[11px] text-white/75">ثيم صفحة البروفايل (5 ثيمات احترافية).</p>
+          <DemoPicker
+            items={PROFILE_THEME_PRESETS}
+            value={draft.ui.profile.theme}
+            onPick={(key) =>
+              onApply((d) => ({
+                ...d,
+                ui: { ...d.ui, profile: { ...d.ui.profile, theme: key as typeof d.ui.profile.theme } },
+              }))
+            }
+          />
+          <label className="block">
+            <span className="mb-1 block text-[11px] text-white/70">خلفية لوحة البروفايل</span>
+            <input
+              type="color"
+              className="h-9 w-full cursor-pointer rounded border border-white/10"
+              value={draft.ui.profile.panelBackground?.startsWith("#") ? draft.ui.profile.panelBackground.slice(0, 7) : "#111827"}
+              onChange={(e) =>
+                onApply((d) => ({
+                  ...d,
+                  ui: { ...d.ui, profile: { ...d.ui.profile, panelBackground: e.target.value } },
+                }))
+              }
+            />
+          </label>
+        </div>
+      );
+    }
+    if (page === "user") {
+      return (
+        <div className="space-y-3 text-xs text-white/60">
+          <p className="text-[11px] text-white/75">ثيم صفحات المستخدم العامة (5 خيارات).</p>
+          <DemoPicker
+            items={USER_THEME_PRESETS}
+            value={draft.ui.user.theme}
+            onPick={(key) =>
+              onApply((d) => ({
+                ...d,
+                ui: { ...d.ui, user: { ...d.ui.user, theme: key as typeof d.ui.user.theme } },
+              }))
+            }
+          />
+          <label className="block">
+            <span className="mb-1 block text-[11px] text-white/70">خلفية صفحات المستخدم</span>
+            <input
+              type="color"
+              className="h-9 w-full cursor-pointer rounded border border-white/10"
+              value={draft.ui.user.pageBackground?.startsWith("#") ? draft.ui.user.pageBackground.slice(0, 7) : "#0b1020"}
+              onChange={(e) =>
+                onApply((d) => ({
+                  ...d,
+                  ui: { ...d.ui, user: { ...d.ui.user, pageBackground: e.target.value } },
+                }))
+              }
+            />
+          </label>
         </div>
       );
     }
     if (page === "video") {
       return (
-        <div className="text-xs text-white/60">
-          شكل بطاقة الفيديو في القوائم يُغيَّر من المحرّر الرئيسي (قياسي / مضغوط / ملصق).
+        <div className="space-y-3 text-xs text-white/60">
+          <p className="text-[11px] text-white/75">ثيم بطاقات الفيديو (5 ثيمات).</p>
+          <DemoPicker
+            items={VIDEO_THEME_PRESETS}
+            value={draft.ui.videoCard.theme}
+            onPick={(key) =>
+              onApply((d) => ({
+                ...d,
+                ui: { ...d.ui, videoCard: { ...d.ui.videoCard, theme: key as typeof d.ui.videoCard.theme } },
+              }))
+            }
+          />
+          <label className="block">
+            <span className="mb-1 block text-[11px] text-white/70">لون تظليل البطاقة</span>
+            <input
+              type="color"
+              className="h-9 w-full cursor-pointer rounded border border-white/10"
+              value={draft.ui.videoCard.cardTint?.startsWith("#") ? draft.ui.videoCard.cardTint.slice(0, 7) : "#6366f1"}
+              onChange={(e) =>
+                onApply((d) => ({
+                  ...d,
+                  ui: { ...d.ui, videoCard: { ...d.ui.videoCard, cardTint: e.target.value } },
+                }))
+              }
+            />
+          </label>
         </div>
       );
     }
@@ -362,9 +537,16 @@ export default function SiteVisualBuilder({
         </div>
       );
     }
+    if (page === "profile" || page === "discover" || page === "video" || page === "user") {
+      return (
+        <div className="mx-auto max-w-3xl rounded-2xl border border-white/10 bg-black/30 p-4">
+          <SiteLookLivePreview draft={draft} activePage={page} />
+        </div>
+      );
+    }
     return (
       <div className="mx-auto max-w-lg rounded-2xl border border-white/10 bg-black/30 p-4">
-        <SiteLookLivePreview draft={draft} />
+        <SiteLookLivePreview draft={draft} activePage={page} />
       </div>
     );
   })();
@@ -420,6 +602,7 @@ export default function SiteVisualBuilder({
                 ["home", "الرئيسية"],
                 ["discover", "اكتشاف"],
                 ["profile", "بروفايل"],
+                ["user", "المستخدم"],
                 ["video", "بطاقة فيديو"],
                 ["theme", "ألوان وخط"],
               ] as const
@@ -430,6 +613,11 @@ export default function SiteVisualBuilder({
                   onClick={() => {
                     setPage(k);
                     setFocus(k === "theme" ? "theme" : null);
+                    if (k === "home") return;
+                    if (k === "discover") setFocus("discover");
+                    if (k === "profile") setFocus("profile");
+                    if (k === "video") setFocus("video");
+                    if (k === "user") setFocus("user");
                   }}
                   className={[
                     "w-full rounded-lg px-2 py-2 text-right transition",
@@ -444,13 +632,13 @@ export default function SiteVisualBuilder({
           <button
             type="button"
             onClick={() => {
-              setPage("theme");
-              setFocus("theme");
+              setPage("home");
+              setFocus("hero");
             }}
             className="mt-4 flex w-full items-center gap-2 rounded-lg border border-white/10 px-2 py-2 text-[11px] text-white/60"
           >
             <Palette className="h-3.5 w-3.5" />
-            تعديل سريع للثيم
+            ابدأ من الهيرو
           </button>
         </nav>
         <div className="min-w-0 flex-1 overflow-y-auto p-4">{canvas}</div>

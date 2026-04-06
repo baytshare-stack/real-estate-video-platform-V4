@@ -48,6 +48,18 @@ export default function VideoCard({
 }: VideoCardProps) {
   const { ui } = useSiteAppearance();
   const vidLayout = ui.videoCard.layout;
+  const vidTheme = ui.videoCard.theme;
+  const videoThemeCls =
+    vidTheme === "editorial"
+      ? "ring-1 ring-rose-300/20"
+      : vidTheme === "modern"
+        ? "ring-1 ring-sky-300/20"
+        : vidTheme === "premium"
+          ? "ring-1 ring-amber-300/25"
+          : vidTheme === "stream"
+            ? "ring-1 ring-emerald-300/20"
+            : "ring-1 ring-indigo-300/20";
+  const videoTint = ui.videoCard.cardTint;
   const fallbackShortThumbnail =
     "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&q=80&w=400&h=700";
   const fallbackLongThumbnail =
@@ -174,7 +186,10 @@ export default function VideoCard({
 
   if (vidLayout === "poster") {
     return (
-      <div className="group flex min-w-0 w-full cursor-pointer flex-col gap-2 transition-transform duration-200 hover:scale-[1.01]">
+      <div
+        className={`group flex min-w-0 w-full cursor-pointer flex-col gap-2 transition-transform duration-200 hover:scale-[1.01] ${videoThemeCls}`}
+        style={videoTint ? { boxShadow: `inset 0 0 0 1px ${videoTint}` } : undefined}
+      >
         <Link href={`/watch/${id}`} className="min-w-0">
           <div
             className="relative aspect-video w-full min-w-0 overflow-hidden rounded-xl border border-gray-800/50 bg-gray-900"
@@ -210,7 +225,10 @@ export default function VideoCard({
 
   if (vidLayout === "dense") {
     return (
-      <div className="group flex min-w-0 w-full cursor-pointer flex-col gap-2 transition-transform duration-200 hover:scale-[1.01]">
+      <div
+        className={`group flex min-w-0 w-full cursor-pointer flex-col gap-2 transition-transform duration-200 hover:scale-[1.01] ${videoThemeCls}`}
+        style={videoTint ? { boxShadow: `inset 0 0 0 1px ${videoTint}` } : undefined}
+      >
         <Link href={`/watch/${id}`} className="min-w-0">
           <div
             className="relative aspect-video w-full min-w-0 overflow-hidden rounded-lg border border-gray-800/50 bg-gray-900"
@@ -271,7 +289,10 @@ export default function VideoCard({
   }
 
   return (
-    <div className="group flex min-w-0 w-full cursor-pointer flex-col gap-3 transition-transform duration-200 hover:scale-[1.01]">
+    <div
+      className={`group flex min-w-0 w-full cursor-pointer flex-col gap-3 transition-transform duration-200 hover:scale-[1.01] ${videoThemeCls}`}
+      style={videoTint ? { boxShadow: `inset 0 0 0 1px ${videoTint}` } : undefined}
+    >
       <Link href={`/watch/${id}`} className="min-w-0">
         <div
           className="relative aspect-video w-full min-w-0 overflow-hidden rounded-xl border border-gray-800/50 bg-gray-900"

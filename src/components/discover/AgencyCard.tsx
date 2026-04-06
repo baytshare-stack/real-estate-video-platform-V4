@@ -42,6 +42,7 @@ function cardShell(style: DiscoverCardStyle): { article: string; media: string }
 export default function AgencyCard({ agency }: { agency: DiscoverUserRow }) {
   const { ui } = useSiteAppearance();
   const style = ui.discover.agencyCardStyle;
+  const theme = ui.discover.theme;
   const shell = cardShell(style);
   const name = discoverDisplayName(agency);
   const logo = discoverAvatarUrl(agency) ?? FALLBACK_LOGO;
@@ -54,9 +55,23 @@ export default function AgencyCard({ agency }: { agency: DiscoverUserRow }) {
     style === "minimal"
       ? "mt-auto inline-flex w-full items-center justify-center rounded-lg bg-violet-600/90 px-3 py-2 text-xs font-semibold text-white transition hover:bg-violet-500"
       : "mt-auto inline-flex w-full items-center justify-center rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition hover:bg-violet-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/60";
+  const themeCls =
+    theme === "glass"
+      ? "backdrop-blur-md ring-1 ring-cyan-300/20"
+      : theme === "magazine"
+        ? "ring-1 ring-rose-300/20"
+        : theme === "executive"
+          ? "ring-1 ring-emerald-300/20"
+          : theme === "neo"
+            ? "ring-1 ring-indigo-300/25"
+            : "";
+  const accent = ui.discover.cardAccent;
 
   return (
-    <article className={shell.article}>
+    <article
+      className={`${shell.article} ${themeCls}`}
+      style={accent ? { boxShadow: `inset 0 0 0 1px ${accent}` } : undefined}
+    >
       <div className={shell.media}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -106,7 +121,11 @@ export default function AgencyCard({ agency }: { agency: DiscoverUserRow }) {
             <span className="font-semibold text-white/90">{listings}</span> property videos
           </span>
         </div>
-        <LocaleLink href={`/agency/${agency.id}`} className={btnCls}>
+        <LocaleLink
+          href={`/agency/${agency.id}`}
+          className={btnCls}
+          style={accent ? { backgroundColor: accent } : undefined}
+        >
           View company
         </LocaleLink>
       </div>

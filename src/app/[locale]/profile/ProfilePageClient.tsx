@@ -9,6 +9,7 @@ import { Pencil, X, Loader2, ArrowLeft } from "lucide-react";
 import ProfileInbox from "@/components/profile/ProfileInbox";
 import ProfileMyVisits from "@/components/profile/ProfileMyVisits";
 import { useSiteAppearance } from "@/components/site/SiteAppearanceProvider";
+import { profileThemeClass } from "@/lib/site-appearance";
 import { useTranslation } from "@/i18n/LanguageProvider";
 
 export type ChannelPayload = {
@@ -128,8 +129,23 @@ export default function ProfilePageClient({
   const { data: session, update: updateSession } = useSession();
   const router = useRouter();
   const { t, locale } = useTranslation();
-  const profileUi = useSiteAppearance().ui.profile;
+  const appearance = useSiteAppearance();
+  const profileUi = appearance.ui.profile;
+  const userUi = appearance.ui.user;
   const profileSpotlight = profileUi.layout === "spotlight";
+  const profileTheme = profileThemeClass(profileUi.theme);
+  const profileThemeStyle = profileUi.panelBackground ? { backgroundColor: profileUi.panelBackground } : undefined;
+  const userThemeCls =
+    userUi.theme === "corporate"
+      ? "ring-1 ring-cyan-400/20"
+      : userUi.theme === "charcoal"
+        ? "bg-zinc-950/50"
+        : userUi.theme === "sunset"
+          ? "bg-gradient-to-b from-orange-950/20 to-transparent"
+          : userUi.theme === "mono"
+            ? "grayscale-[0.06]"
+            : "";
+  const userThemeStyle = userUi.pageBackground ? { backgroundColor: userUi.pageBackground } : undefined;
   const [user, setUser] = useState<ProfileUserPayload>(initialUser);
   const [editOpen, setEditOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -431,7 +447,7 @@ export default function ProfilePageClient({
   };
 
   return (
-    <div className="min-h-[calc(100vh-64px)] pb-24 xl:pb-8">
+    <div className={`min-h-[calc(100vh-64px)] pb-24 xl:pb-8 ${userThemeCls}`} style={userThemeStyle}>
       {fromStudio ? (
         <div className="mb-6">
           <LocaleLink
@@ -485,7 +501,8 @@ export default function ProfilePageClient({
           profileSpotlight
             ? "border-indigo-500/25 bg-gradient-to-br from-indigo-950/45 via-gray-900 to-gray-900"
             : "border-gray-800 bg-gray-900"
-        }`}
+        } ${profileTheme}`}
+        style={profileThemeStyle}
       >
         <div
           className={`flex flex-col gap-6 sm:flex-row sm:items-start ${

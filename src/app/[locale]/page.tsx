@@ -9,7 +9,7 @@ import PropertyMap from "@/components/PropertyMap";
 import prisma from "@/lib/prisma";
 import { safeFindMany } from "@/lib/safePrisma";
 import { localeFromParams, staticPageMetadata } from "@/i18n/seo";
-import { getSiteAppearance, homeVideoGridClass } from "@/lib/site-appearance";
+import { getSiteAppearance, homeThemeClass, homeVideoGridClass } from "@/lib/site-appearance";
 import type { HomeSectionKey } from "@/lib/site-appearance";
 
 export const dynamic = "force-dynamic";
@@ -41,6 +41,7 @@ export default async function Home() {
   const sectionOrder = appearance.layout.homeSections as HomeSectionKey[];
   const gridClass = homeVideoGridClass(appearance.ui.home.videoGridColumns);
   const hm = appearance.ui.home;
+  const homeTheme = homeThemeClass(hm.theme);
 
   const videos = await safeFindMany(() =>
     prisma.video.findMany({
@@ -100,7 +101,7 @@ export default async function Home() {
   const sections: Record<HomeSectionKey, ReactNode> = {
     hero_filters: (
       <div
-        className="rounded-xl p-2 md:p-4"
+        className={`rounded-xl p-2 md:p-4 ${homeTheme}`}
         style={{
           ...(hm.heroBackground ? { backgroundColor: hm.heroBackground } : {}),
           ...(hm.heroForeground ? { color: hm.heroForeground } : {}),
@@ -122,7 +123,7 @@ export default async function Home() {
     ),
     grid_top: (
       <div
-        className={`mb-10 ${gridClass}`}
+        className={`mb-10 ${gridClass} ${homeTheme}`}
         style={
           hm.gridBackground
             ? { backgroundColor: hm.gridBackground, padding: "1rem", borderRadius: "0.75rem" }
@@ -156,7 +157,7 @@ export default async function Home() {
     ),
     shorts: (
       <div
-        className="mb-10 border-t border-white/10 pt-6"
+        className={`mb-10 border-t border-white/10 pt-6 ${homeTheme}`}
         style={hm.shortsBackground ? { backgroundColor: hm.shortsBackground, borderRadius: "0.75rem" } : undefined}
       >
         <div className="mb-4 flex items-center gap-2">
@@ -174,7 +175,7 @@ export default async function Home() {
       displayVideos.length > 8 ? (
         <div
           key="grid_rest"
-          className={`${gridClass} pb-10`}
+          className={`${gridClass} pb-10 ${homeTheme}`}
           style={
             hm.gridBackground
               ? { backgroundColor: hm.gridBackground, padding: "1rem", borderRadius: "0.75rem" }
@@ -208,7 +209,7 @@ export default async function Home() {
       ) : null,
     map: (
       <div
-        className="mt-6 border-t border-white/10 pt-6"
+        className={`mt-6 border-t border-white/10 pt-6 ${homeTheme}`}
         style={
           hm.mapBackground
             ? { backgroundColor: hm.mapBackground, padding: "1rem", borderRadius: "0.75rem" }
