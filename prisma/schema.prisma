@@ -5,8 +5,11 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  /// Pooled URL (Neon `?pgbouncer=true` / `-pooler` host) for the app at runtime.
+  url       = env("DATABASE_URL")
+  /// Direct (non-pooler) URL for `prisma migrate` — advisory locks fail on transaction poolers (Vercel build P1002).
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
