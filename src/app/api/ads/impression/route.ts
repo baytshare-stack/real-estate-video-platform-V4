@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { recordViewerAdDayImpression } from "@/lib/ads-platform/frequency-cap";
+import { resolveAdViewerKey } from "@/lib/ads-platform/viewer-key";
 
 export const runtime = "nodejs";
 
@@ -23,6 +25,9 @@ export async function POST(req: Request) {
       update: { impressions: { increment: 1 }, views: { increment: 1 }, watchTime: { increment: 5 } },
       create: { adId: ad.id, impressions: 1, views: 1, watchTime: 5 },
     });
+
+    const { viewerKey } = await resolveAdViewerKey(req);
+    await recordViewerAdDayImpression(viewerKey, ad.id);
 
     return NextResponse.json({ ok: true });
   } catch (e) {

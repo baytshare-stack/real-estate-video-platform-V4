@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { buildVideoContext, pickBestAdForSlot } from "@/lib/ads-platform/engine";
+import { applyAdDeliveryCookies, getLastServedAdForSlot, resolveAdViewerKey } from "@/lib/ads-platform/viewer-key";
+
+export const runtime = "nodejs";
 
 export async function GET(req: Request) {
   try {
@@ -13,10 +16,14 @@ export async function GET(req: Request) {
 
     const ctx = await buildVideoContext(videoId);
     if (!ctx) return NextResponse.json({ error: "Video not found" }, { status: 404 });
-    const picked = await pickBestAdForSlot(ctx, slot);
+    const { viewerKey } = await resolveAdViewerKey(req);
+    const picked = await pickBestAdForSlot(ctx, slot, {
+      viewerKey,
+      lastServedAdIdForSlot: getLastServedAdForSlot(req, slot),
+    });
     const ad = picked?.ad;
 
-    return NextResponse.json(
+    const res = NextResponse.json(
       {
         ad: ad
           ? {
@@ -33,6 +40,8 @@ export async function GET(req: Request) {
       },
       { status: 200 }
     );
+    applyAdDeliveryCookies(res, { slot, servedAdId: ad?.id ?? null });
+    return res;
   } catch {
     return NextResponse.json({ error: "Failed to serve ad." }, { status: 500 });
   }

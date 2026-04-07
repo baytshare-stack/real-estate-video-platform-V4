@@ -1,5 +1,6 @@
 import { CampaignStatus, Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
+import { AD_FREQ_CAP_PER_DAY, getViewerDayImpressionCounts } from "@/lib/ads-platform/frequency-cap";
 
 export type VideoContext = {
   videoId: string;
@@ -43,6 +44,12 @@ type Candidate = {
     status: CampaignStatus;
   };
   targeting: TargetingSlice | null;
+  performance: { impressions: number; clicks: number } | null;
+};
+
+export type AdDeliveryOptions = {
+  viewerKey?: string | null;
+  lastServedAdIdForSlot?: string | null;
 };
 
 function normalize(value: string | null | undefined) {
@@ -102,6 +109,48 @@ function budgetAllowed(ad: Candidate) {
   return spent < totalBudget;
 }
 
+/** Remaining total budget ratio (read-only); does not change spend logic. */
+function remainingBudgetRatio(ad: Candidate): number {
+  const total = Number(ad.campaign.budget);
+  const spent = Number(ad.campaign.spent);
+  if (!Number.isFinite(total) || total <= 0) return 0;
+  return Math.max(0, Math.min(1, (total - spent) / total));
+}
+
+/**
+ * CTR-smoothed weight + bid + budget headroom + rotation penalty for last served.
+ * Low-CTR ads stay in the mix with a small floor (exploration) but lose to high CTR.
+ */
+function deliveryWeight(
+  ad: Candidate,
+  lastServedAdId: string | null | undefined
+): number {
+  const perf = ad.performance;
+  const imp = Math.max(perf?.impressions ?? 0, 0);
+  const clk = perf?.clicks ?? 0;
+  const smoothedCtr = (clk + 0.5) / (imp + 10);
+  const ctrFactor = 0.06 + Math.min(3.5, Math.pow(smoothedCtr + 0.01, 0.65) * 5);
+  const bid = Math.max(0.05, ad.campaign.bidWeight);
+  const budgetFactor = 0.1 + 0.9 * remainingBudgetRatio(ad);
+  let w = bid * ctrFactor * budgetFactor;
+  if (lastServedAdId && lastServedAdId === ad.id) w *= 0.12;
+  return w;
+}
+
+function weightedRandomPick<T>(items: T[], weight: (t: T) => number): T {
+  const w = items.map(weight);
+  const sum = w.reduce((a, b) => a + b, 0);
+  if (!(sum > 0) || !Number.isFinite(sum)) {
+    return items[Math.floor(Math.random() * items.length)]!;
+  }
+  let r = Math.random() * sum;
+  for (let i = 0; i < items.length; i++) {
+    r -= w[i]!;
+    if (r <= 0) return items[i]!;
+  }
+  return items[items.length - 1]!;
+}
+
 type MatchMode = "strict" | "city_fallback";
 
 function evaluateAd(
@@ -142,12 +191,13 @@ function evaluateAd(
   };
 }
 
-function pickFromPool(
+async function pickFromPool(
   candidates: Candidate[],
   ctx: VideoContext,
-  mode: MatchMode
-): { ad: Candidate; relevance: number } | null {
-  const eligible = candidates
+  mode: MatchMode,
+  options?: AdDeliveryOptions
+): Promise<{ ad: Candidate; relevance: number } | null> {
+  let eligible = candidates
     .filter(budgetAllowed)
     .map((ad) => {
       const { ok, reason } = evaluateAd(ad, ctx, mode);
@@ -158,18 +208,25 @@ function pickFromPool(
 
   if (!eligible.length) return null;
 
-  eligible.sort((a, b) => {
-    const w = b.campaign.bidWeight - a.campaign.bidWeight;
-    if (w !== 0) return w;
-    return b.createdAt.getTime() - a.createdAt.getTime();
-  });
+  const vk = options?.viewerKey?.trim();
+  if (vk) {
+    const cap = await getViewerDayImpressionCounts(vk, eligible.map((e) => e.id));
+    eligible = eligible.filter((ad) => (cap.get(ad.id) ?? 0) < AD_FREQ_CAP_PER_DAY);
+  }
 
-  const top = eligible[0]!;
+  if (!eligible.length) return null;
+
+  const last = options?.lastServedAdIdForSlot ?? null;
+  const picked = weightedRandomPick(eligible, (ad) => deliveryWeight(ad, last));
   const relevance = mode === "strict" ? 1 : 0.85;
-  return { ad: top, relevance };
+  return { ad: picked, relevance };
 }
 
-export async function pickBestAdForSlot(ctx: VideoContext, slot: "PRE_ROLL" | "MID_ROLL") {
+export async function pickBestAdForSlot(
+  ctx: VideoContext,
+  slot: "PRE_ROLL" | "MID_ROLL",
+  options?: AdDeliveryOptions
+) {
   const now = new Date();
   logDebug("video location / listing", {
     videoId: ctx.videoId,
@@ -212,12 +269,15 @@ export async function pickBestAdForSlot(ctx: VideoContext, slot: "PRE_ROLL" | "M
           priceMax: true,
         },
       },
+      performance: {
+        select: { impressions: true, clicks: true },
+      },
     },
     take: 200,
     orderBy: { createdAt: "desc" },
   })) as Candidate[];
 
-  const strict = pickFromPool(candidates, ctx, "strict");
+  const strict = await pickFromPool(candidates, ctx, "strict", options);
   if (strict) {
     logDebug("picked", strict.ad.id, "mode=strict", "bidWeight=", strict.ad.campaign.bidWeight);
     return {
@@ -228,7 +288,7 @@ export async function pickBestAdForSlot(ctx: VideoContext, slot: "PRE_ROLL" | "M
   }
 
   logDebug("no strict matches; trying city-level fallback");
-  const fallback = pickFromPool(candidates, ctx, "city_fallback");
+  const fallback = await pickFromPool(candidates, ctx, "city_fallback", options);
   if (fallback) {
     logDebug("picked", fallback.ad.id, "mode=city_fallback", "bidWeight=", fallback.ad.campaign.bidWeight);
     return {

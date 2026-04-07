@@ -299,8 +299,25 @@ model Ad {
   targeting   Targeting?
   performance AdPerformance?
   leads       Lead[]
+  viewerDayImpressions AdViewerDayImpression[]
 
   @@index([campaignId, status, placement])
+}
+
+/// Per-viewer frequency cap for ad delivery (UTC calendar day). Not campaign spend.
+model AdViewerDayImpression {
+  id        String   @id @default(cuid())
+  viewerKey String
+  adId      String
+  /// UTC date key YYYY-MM-DD for daily reset
+  dayUtc    String
+  count     Int      @default(0)
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+  ad        Ad       @relation(fields: [adId], references: [id], onDelete: Cascade)
+
+  @@unique([viewerKey, adId, dayUtc])
+  @@index([viewerKey, dayUtc])
 }
 
 model Targeting {
