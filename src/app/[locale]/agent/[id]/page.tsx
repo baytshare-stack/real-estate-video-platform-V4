@@ -10,7 +10,7 @@ import {
   Phone,
   Video,
 } from "lucide-react";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/lib/auth-options";
 import SubscribeButton from "@/components/channel/SubscribeButton";
 import SendMessageButton from "@/components/profile/SendMessageButton";
 import StarRating from "@/components/discover/StarRating";

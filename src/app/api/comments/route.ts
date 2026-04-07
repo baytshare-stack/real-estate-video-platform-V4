@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/lib/auth-options";
 import { listVideoCommentsForApi, createVideoCommentForApi } from "@/lib/video-comments-service";
 
 const NO_STORE = { "Cache-Control": "private, no-store, max-age=0" };

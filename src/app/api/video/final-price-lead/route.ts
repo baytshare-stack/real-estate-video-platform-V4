@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { getServerSession } from "next-auth/next";
 import prisma from "@/lib/prisma";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/lib/auth-options";
 import { createNotification, NOTIFICATION_TYPES, watchVideoUrl } from "@/lib/notifications";
 import { countDialDigits, normalizePhoneDigits } from "@/lib/normalizePhoneInput";
 

@@ -3,7 +3,7 @@ import prisma from "@/lib/prisma";
 import { safeFindFirst } from "@/lib/safePrisma";
 import { notifySubscribersNewVideo } from "@/lib/notifications";
 import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/lib/auth-options";
 import { PropertyStatus } from "@prisma/client";
 import { resolvePropertyTypesFromInput } from "@/lib/property-type-resolve";
 

@@ -1,5 +1,5 @@
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { authOptions } from '@/lib/auth-options';
 import Link from 'next/link';
 import { BookMarked, LogIn, Users } from 'lucide-react';
 import { type Locale, locales } from '@/i18n/config';

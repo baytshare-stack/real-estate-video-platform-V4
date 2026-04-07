@@ -6,7 +6,7 @@ import VideoCard from "@/components/VideoCard";
 import ShortVideoPlayer from "@/components/shorts/ShortVideoPlayer";
 import SubscribeButton from "@/components/channel/SubscribeButton";
 import { formatSubscriberCount } from "@/lib/formatSubscribers";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/lib/auth-options";
 import { notFound } from "next/navigation";
 import { getServerSession } from "next-auth";
 import Link from "next/link";

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import type { Prisma } from "@prisma/client";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/lib/auth-options";
 import prisma from "@/lib/prisma";
 import { whatsappDigits } from "@/lib/crmContactLinks";
 import { notifyAgentVisitorRescheduleInteraction } from "@/lib/bookingNotify";

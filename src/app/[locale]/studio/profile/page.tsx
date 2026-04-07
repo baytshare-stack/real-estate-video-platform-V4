@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { defaultLocale, locales, type Locale } from "@/i18n/config";
 import { prefixWithLocale } from "@/i18n/routing";
 import prisma from "@/lib/prisma";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/lib/auth-options";
 import { ensureUserProfile } from "@/lib/ensureUserProfile";
 import ProfilePageClient, { type ProfileUserPayload } from "../../profile/ProfilePageClient";
 

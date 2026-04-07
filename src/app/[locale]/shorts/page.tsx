@@ -2,7 +2,7 @@ import { headers } from "next/headers";
 import { getServerSession } from "next-auth";
 import ShortsFeed from "@/components/shorts/ShortsFeed";
 import type { ShortVideoPayload } from "@/components/shorts/types";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/lib/auth-options";
 import prisma from "@/lib/prisma";
 import { safeFindMany } from "@/lib/safePrisma";
 

@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth/next";
 import type { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { safeFindUnique } from "@/lib/safePrisma";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/lib/auth-options";
 import { ensureUserProfile } from "@/lib/ensureUserProfile";
 
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,32}$/;

@@ -2,7 +2,7 @@ import VideoGrid from '@/components/VideoGrid';
 import PageHeader from '@/components/PageHeader';
 import { Users } from 'lucide-react';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { authOptions } from '@/lib/auth-options';
 import Link from 'next/link';
 import { type Locale, locales } from '@/i18n/config';
 import { prefixWithLocale } from '@/i18n/routing';

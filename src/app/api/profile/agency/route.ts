@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import prisma from "@/lib/prisma";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/lib/auth-options";
 import { ensureUserProfile } from "@/lib/ensureUserProfile";
 import { inferPhoneCodeFromE164, normalizePlusE164 } from "@/lib/countriesData";
 import { canonicalPhoneDigitsFromE164 } from "@/lib/userPhone";

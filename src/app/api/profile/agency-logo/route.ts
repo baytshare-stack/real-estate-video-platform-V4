@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import prisma from "@/lib/prisma";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/lib/auth-options";
 import { assertImageFile } from "@/lib/localMediaUpload";
 import { uploadBufferToCloudinaryStream } from "@/lib/cloudinary";
 
