@@ -7,9 +7,15 @@ const prismaClientDir = path.join(process.cwd(), "src", "generated", "prisma");
 const nextConfig: NextConfig = {
   /**
    * Prisma client is generated under `src/generated/prisma` (see prisma/schema.prisma).
-   * Do not use `turbopack.resolveAlias` with absolute Windows paths — Turbopack errors with
-   * "windows imports are not implemented yet". Use `npm run dev` → `next dev --webpack`.
+   * Next.js 16 defaults to Turbopack for some pipelines; custom `webpack` triggers a warning unless
+   * `next build --webpack` / `next dev --webpack` is used, or turbopack is configured.
+   * Relative alias works on Vercel/Linux; absolute path kept for webpack on Windows.
    */
+  turbopack: {
+    resolveAlias: {
+      "@prisma/client": "./src/generated/prisma",
+    },
+  },
   webpack: (config) => {
     config.resolve.alias = {
       ...(config.resolve.alias as Record<string, string | false | string[]>),
