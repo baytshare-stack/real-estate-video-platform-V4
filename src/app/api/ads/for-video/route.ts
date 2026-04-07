@@ -22,6 +22,9 @@ export async function GET(req: Request) {
       lastServedAdIdForSlot,
     });
     const ad = picked?.ad ?? null;
+    if (!ad) {
+      console.info("[ads-serve] no eligible ad", { videoId, slot, context });
+    }
 
     const res = NextResponse.json({
       ad: ad

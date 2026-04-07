@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth-options";
-import { assertImageFile, assertVideoFile } from "@/lib/localMediaUpload";
+import { assertImageFile, assertVideoFile, saveImageFile, saveVideoFile } from "@/lib/localMediaUpload";
 import { uploadBufferToCloudinaryStream } from "@/lib/cloudinary";
 
 export const runtime = "nodejs";
@@ -65,9 +65,16 @@ export async function POST(req: Request) {
     if (hasVideo) {
       try {
         assertVideoFile(videoPart);
-        const buffer = Buffer.from(await videoPart.arrayBuffer());
-        const { secure_url } = await uploadBufferToCloudinaryStream(buffer, "video");
-        payload.url = secure_url;
+        try {
+          const buffer = Buffer.from(await videoPart.arrayBuffer());
+          const { secure_url } = await uploadBufferToCloudinaryStream(buffer, "video");
+          payload.url = secure_url;
+        } catch (cloudErr) {
+          // Local fallback for dev/staging when Cloudinary env vars are missing.
+          const local = await saveVideoFile(videoPart);
+          payload.url = local.publicPath;
+          console.warn("Video uploaded locally (Cloudinary unavailable):", cloudErr);
+        }
       } catch (err) {
         const detail = err instanceof Error ? err.message : "Could not upload video";
         console.error("CLOUDINARY UPLOAD (video):", err);
@@ -78,9 +85,16 @@ export async function POST(req: Request) {
     if (hasThumb) {
       try {
         assertImageFile(thumbPart);
-        const buffer = Buffer.from(await thumbPart.arrayBuffer());
-        const { secure_url } = await uploadBufferToCloudinaryStream(buffer, "image");
-        payload.thumbnailUrl = secure_url;
+        try {
+          const buffer = Buffer.from(await thumbPart.arrayBuffer());
+          const { secure_url } = await uploadBufferToCloudinaryStream(buffer, "image");
+          payload.thumbnailUrl = secure_url;
+        } catch (cloudErr) {
+          // Local fallback for dev/staging when Cloudinary env vars are missing.
+          const local = await saveImageFile(thumbPart);
+          payload.thumbnailUrl = local.publicPath;
+          console.warn("Thumbnail uploaded locally (Cloudinary unavailable):", cloudErr);
+        }
       } catch (err) {
         const detail = err instanceof Error ? err.message : "Could not upload thumbnail";
         console.error("CLOUDINARY UPLOAD (thumbnail):", err);

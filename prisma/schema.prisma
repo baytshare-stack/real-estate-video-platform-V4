@@ -270,6 +270,8 @@ enum WalletTransactionType {
   IMPRESSION
   CLICK
   LEAD
+  /// Funds moved from wallet into a campaign budget at creation (wallet ↓, campaign.budget set).
+  CAMPAIGN_ALLOC
 }
 
 model Wallet {

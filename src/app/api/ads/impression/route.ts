@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { recordViewerAdDayImpression } from "@/lib/ads-platform/frequency-cap";
 import { resolveAdViewerKey } from "@/lib/ads-platform/viewer-key";
-import { deductWalletForImpression } from "@/lib/ads-platform/billing";
+import { applyCampaignSpendForImpression } from "@/lib/ads-platform/billing";
 
 export const runtime = "nodejs";
 
@@ -25,6 +25,13 @@ export async function POST(req: Request) {
     if (!ad || ad.status !== "ACTIVE") {
       return NextResponse.json({ error: "Ad not found or inactive." }, { status: 404 });
     }
+
+    const bill = await applyCampaignSpendForImpression(ad.id);
+    if (!bill.ok) {
+      const status = bill.reason === "not_found" ? 404 : 402;
+      return NextResponse.json({ error: "Billing failed.", reason: bill.reason }, { status });
+    }
+
     await prisma.adPerformance.upsert({
       where: { adId: ad.id },
       update: { impressions: { increment: 1 }, views: { increment: 1 }, watchTime: { increment: 5 } },
@@ -33,11 +40,6 @@ export async function POST(req: Request) {
 
     const { viewerKey } = await resolveAdViewerKey(req);
     await recordViewerAdDayImpression(viewerKey, ad.id);
-
-    const advertiserUserId = ad.campaign?.advertiser?.userId;
-    if (advertiserUserId) {
-      await deductWalletForImpression(advertiserUserId, ad.id);
-    }
 
     return NextResponse.json({ ok: true });
   } catch (e) {

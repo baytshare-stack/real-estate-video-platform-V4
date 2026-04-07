@@ -17,6 +17,7 @@ export default function StudioBillingPage() {
     profile: { balance?: unknown } | null;
     campaigns: unknown[];
     wallet?: { balance?: unknown; totalSpent?: unknown };
+    totalCampaignSpend?: unknown;
     transactions?: Tx[];
   }>({ profile: null, campaigns: [] });
   const [analytics, setAnalytics] = React.useState<any>({ rows: [], summary: null });
@@ -45,7 +46,7 @@ export default function StudioBillingPage() {
   };
 
   const bal = Number(data.wallet?.balance ?? data.profile?.balance ?? 0);
-  const spent = Number(data.wallet?.totalSpent ?? 0);
+  const campaignSpendTotal = Number(data.totalCampaignSpend ?? 0);
 
   return (
     <div className="space-y-5">
@@ -53,8 +54,8 @@ export default function StudioBillingPage() {
       <div className="rounded border border-white/10 bg-white/5 p-4 text-white">
         <div className="text-sm text-white/70">Wallet balance</div>
         <div className="text-xl font-semibold">${bal.toFixed(2)}</div>
-        <div className="mt-2 text-sm text-white/70">Total spent (ads)</div>
-        <div className="text-lg">${spent.toFixed(2)}</div>
+        <div className="mt-2 text-sm text-white/70">Spent from campaign budgets (impressions, clicks, leads)</div>
+        <div className="text-lg">${campaignSpendTotal.toFixed(2)}</div>
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <input
             className="min-w-[6rem] rounded border border-white/10 bg-black/30 p-2"

@@ -2,6 +2,24 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireAdvertiserProfile } from "@/lib/ads-platform/auth";
 
+/** Accepts absolute http(s) URLs and same-origin paths from local upload (e.g. /uploads/videos/…). */
+function normalizeUrl(v: unknown): string | null {
+  const s = String(v || "").trim();
+  if (!s) return null;
+  if (s.includes("..")) return null;
+  try {
+    const u = new URL(s);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+    return u.toString();
+  } catch {
+    // Relative paths from POST /api/upload fallback (public/uploads → /uploads/…)
+    if (s.startsWith("/uploads/videos/") || s.startsWith("/uploads/images/")) {
+      return s;
+    }
+    return null;
+  }
+}
+
 export async function GET() {
   const auth = await requireAdvertiserProfile();
   if (!auth?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -49,9 +67,23 @@ export async function POST(req: Request) {
 
   const campaign = await prisma.campaign.findFirst({
     where: { id: body.campaignId, advertiserId: auth.profile.id },
-    select: { id: true },
+    select: { id: true, status: true },
   });
   if (!campaign) return NextResponse.json({ error: "Invalid campaignId" }, { status: 400 });
+  if (campaign.status !== "ACTIVE") {
+    return NextResponse.json({ error: "Campaign must be ACTIVE to serve ads." }, { status: 400 });
+  }
+
+  const type = body.type || "VIDEO";
+  const videoUrl = normalizeUrl(body.videoUrl);
+  const imageUrl = normalizeUrl(body.imageUrl);
+  const thumbnail = normalizeUrl(body.thumbnail);
+  if (type === "VIDEO" && !videoUrl) {
+    return NextResponse.json({ error: "VIDEO ads require a valid videoUrl." }, { status: 400 });
+  }
+  if (type === "IMAGE" && !imageUrl) {
+    return NextResponse.json({ error: "IMAGE ads require a valid imageUrl." }, { status: 400 });
+  }
 
   const t = body.targeting;
   const country = (t?.country ?? t?.countries?.[0] ?? "").trim();
@@ -61,10 +93,10 @@ export async function POST(req: Request) {
   const ad = await prisma.ad.create({
     data: {
       campaignId: campaign.id,
-      type: body.type || "VIDEO",
-      videoUrl: body.videoUrl || null,
-      imageUrl: body.imageUrl || null,
-      thumbnail: body.thumbnail || null,
+      type,
+      videoUrl,
+      imageUrl,
+      thumbnail,
       duration: Number(body.duration || 15),
       skipAfter: Number(body.skipAfter || 5),
       ctaType: body.ctaType || "WHATSAPP",

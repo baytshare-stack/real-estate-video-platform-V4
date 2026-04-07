@@ -33,6 +33,7 @@ export default function StudioCampaignsPage() {
   const [name, setName] = React.useState("");
   const [budget, setBudget] = React.useState("1000");
   const [dailyBudget, setDailyBudget] = React.useState("50");
+  const [campaignError, setCampaignError] = React.useState("");
 
   const metricsByCampaign = React.useMemo(() => {
     const m = new Map<string, { impr: number; clk: number }>();
@@ -80,14 +81,18 @@ export default function StudioCampaignsPage() {
   };
 
   const createCampaign = async () => {
+    setCampaignError("");
     const res = await fetch("/api/studio/campaigns", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, budget: Number(budget), dailyBudget: Number(dailyBudget) }),
     });
+    const j = await res.json().catch(() => ({}));
     if (res.ok) {
       setName("");
       await load();
+    } else {
+      setCampaignError(typeof j.error === "string" ? j.error : "Could not create campaign.");
     }
   };
 
@@ -184,6 +189,11 @@ export default function StudioCampaignsPage() {
               />
             </label>
           </div>
+          {campaignError ? (
+            <p className="mt-3 text-sm text-rose-300" role="alert">
+              {campaignError}
+            </p>
+          ) : null}
           <button
             type="button"
             className="mt-4 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white hover:bg-indigo-500"

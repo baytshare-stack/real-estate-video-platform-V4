@@ -24,6 +24,24 @@ type LeadFormState = {
   error: string;
 };
 
+const SKIP_DELAY_SECONDS = 5;
+
+function isLikelyHttpUrl(src: string | null | undefined) {
+  if (!src) return false;
+  try {
+    const u = new URL(src, typeof window !== "undefined" ? window.location.origin : "http://localhost");
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function isSupportedVideoSrc(src: string | null | undefined) {
+  if (!isLikelyHttpUrl(src)) return false;
+  const clean = String(src).split("?")[0]!.toLowerCase();
+  return clean.endsWith(".mp4");
+}
+
 async function fetchAd(videoId: string, slot: "PRE_ROLL" | "MID_ROLL") {
   const res = await fetch(`/api/ads/for-video?videoId=${encodeURIComponent(videoId)}&slot=${slot}`, { cache: "no-store" });
   const data = await res.json().catch(() => ({}));
@@ -64,6 +82,7 @@ export default function WatchVideoAdsShell({
     submitting: false,
     error: "",
   });
+  const adVideoRef = React.useRef<HTMLVideoElement | null>(null);
 
   React.useEffect(() => {
     if (!watchVideoId) return;
@@ -97,14 +116,17 @@ export default function WatchVideoAdsShell({
     const el = videoRef?.current;
     if (!el || !midRollAd || activeAd) return;
     const onTime = () => {
-      const t = Math.floor(el.currentTime || 0);
-      if (!shownMid.at30 && t >= 30) {
+      const current = Number(el.currentTime || 0);
+      const duration = Number(el.duration || 0);
+      if (!(duration > 0) || Number.isNaN(current)) return;
+      const p = current / duration;
+      if (!shownMid.at30 && p >= 0.3) {
         setShownMid((s) => ({ ...s, at30: true }));
         setActiveAd(midRollAd);
         setElapsed(0);
         el.pause();
         track(midRollAd.id, "impression");
-      } else if (!shownMid.at60 && t >= 60) {
+      } else if (!shownMid.at60 && p >= 0.6) {
         setShownMid((s) => ({ ...s, at60: true }));
         setActiveAd(midRollAd);
         setElapsed(0);
@@ -123,7 +145,26 @@ export default function WatchVideoAdsShell({
     if (el) void el.play().catch(() => {});
   }, [videoRef]);
 
-  const canSkip = activeAd ? elapsed >= 5 : false;
+  React.useEffect(() => {
+    if (!activeAd) return;
+    const isVideo = activeAd.type === "VIDEO";
+    const isImage = activeAd.type === "IMAGE";
+    if (isVideo && !isSupportedVideoSrc(activeAd.videoUrl)) {
+      onSkip();
+      return;
+    }
+    if (isImage && !isLikelyHttpUrl(activeAd.imageUrl)) {
+      onSkip();
+      return;
+    }
+    if (isImage) {
+      const timeoutMs = Math.max(1, activeAd.duration || 10) * 1000;
+      const t = window.setTimeout(onSkip, timeoutMs);
+      return () => window.clearTimeout(t);
+    }
+  }, [activeAd, onSkip]);
+
+  const canSkip = activeAd ? elapsed >= SKIP_DELAY_SECONDS : false;
   const progress = activeAd ? Math.min(100, (elapsed / Math.max(1, activeAd.duration)) * 100) : 0;
 
   const openLeadForm = React.useCallback((adId: string) => {
@@ -184,6 +225,7 @@ export default function WatchVideoAdsShell({
               <div className="relative flex-1 rounded-xl border border-white/10 bg-black overflow-hidden">
                 {activeAd.type === "VIDEO" && activeAd.videoUrl ? (
                   <video
+                    ref={adVideoRef}
                     src={activeAd.videoUrl}
                     poster={activeAd.thumbnail || undefined}
                     className="h-full w-full object-contain"
@@ -191,10 +233,11 @@ export default function WatchVideoAdsShell({
                     muted={muted}
                     playsInline
                     onEnded={onSkip}
+                    onError={onSkip}
                   />
                 ) : activeAd.imageUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={activeAd.imageUrl} alt="Ad" className="h-full w-full object-cover" />
+                  <img src={activeAd.imageUrl} alt="Ad" className="h-full w-full object-cover" onError={onSkip} />
                 ) : null}
               </div>
               <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
@@ -226,7 +269,7 @@ export default function WatchVideoAdsShell({
                     onClick={onSkip}
                     className="rounded-lg border border-white/20 px-3 py-2 text-xs disabled:opacity-40"
                   >
-                    {canSkip ? "Skip Ad" : `Skip in ${Math.max(0, 5 - elapsed)}s`}
+                    {canSkip ? "Skip Ad" : `Skip in ${Math.max(0, SKIP_DELAY_SECONDS - elapsed)}s`}
                   </button>
                 </div>
               </div>

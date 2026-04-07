@@ -158,7 +158,8 @@ export default function StudioAdsPage() {
       }
       const res = await fetch("/api/upload", { method: "POST", body: fd });
       const data = (await res.json()) as { url?: string; thumbnailUrl?: string; error?: string };
-      if (!res.ok) throw new Error(data.error || "Upload failed");
+      const detail = (data as { detail?: string }).detail;
+      if (!res.ok) throw new Error([data.error || "Upload failed", detail].filter(Boolean).join(": "));
       if (role === "video" && data.url) {
         setForm((s) => ({ ...s, videoUrl: data.url! }));
         setPreviewUrl(data.url);

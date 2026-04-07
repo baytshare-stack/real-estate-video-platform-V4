@@ -1,7 +1,9 @@
 import { CampaignStatus, Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { AD_FREQ_CAP_PER_DAY, getViewerDayImpressionCounts } from "@/lib/ads-platform/frequency-cap";
-import { ADS_WALLET_IMPRESSION_COST, getEffectiveAdvertiserBalances } from "@/lib/ads-platform/billing";
+import { ADS_WALLET_IMPRESSION_COST, getAdvertiserDeliveryLiquidityMap } from "@/lib/ads-platform/billing";
+
+const ZERO = new Prisma.Decimal(0);
 
 export type VideoContext = {
   videoId: string;
@@ -105,18 +107,19 @@ function matchesCityFallbackLocation(t: TargetingSlice, ctx: VideoContext): bool
   return normalize(t.country) === normalize(ctx.country) && normalize(t.city) === normalize(ctx.city);
 }
 
-function budgetAllowed(ad: Candidate) {
-  const spent = Number(ad.campaign.spent);
-  const totalBudget = Number(ad.campaign.budget);
-  return spent < totalBudget;
+/** Remaining campaign budget must cover at least one impression charge. */
+function campaignCanAffordNextImpression(ad: Candidate) {
+  const rem = ad.campaign.budget.sub(ad.campaign.spent);
+  return rem.gte(ADS_WALLET_IMPRESSION_COST);
 }
 
 /** Remaining total budget ratio (read-only); does not change spend logic. */
 function remainingBudgetRatio(ad: Candidate): number {
-  const total = Number(ad.campaign.budget);
-  const spent = Number(ad.campaign.spent);
-  if (!Number.isFinite(total) || total <= 0) return 0;
-  return Math.max(0, Math.min(1, (total - spent) / total));
+  const total = ad.campaign.budget;
+  const spent = ad.campaign.spent;
+  if (total.lte(ZERO)) return 0;
+  const ratio = total.sub(spent).div(total).toNumber();
+  return Math.max(0, Math.min(1, ratio));
 }
 
 /**
@@ -153,7 +156,7 @@ function weightedRandomPick<T>(items: T[], weight: (t: T) => number): T {
   return items[items.length - 1]!;
 }
 
-type MatchMode = "strict" | "city_fallback";
+type MatchMode = "strict" | "city_fallback" | "country_fallback" | "global";
 
 function evaluateAd(
   ad: Candidate,
@@ -161,22 +164,60 @@ function evaluateAd(
   mode: MatchMode
 ): { ok: boolean; reason: string } {
   const t = ad.targeting;
-
-  if (!adTargetingComplete(t)) {
-    return { ok: false, reason: "rejected: incomplete ad targeting (need non-empty country, city, area)" };
+  if (!t) {
+    return { ok: mode === "global", reason: mode === "global" ? "accepted: global ad" : "rejected: global ad only in global mode" };
   }
 
-  const locOk = mode === "strict" ? matchesStrictLocation(t, ctx) : matchesCityFallbackLocation(t, ctx);
+  // No targeting row OR completely empty location targeting => global ad.
+  const isGlobal =
+    !normalize(t.country) &&
+      !normalize(t.city) &&
+      !normalize(t.area) &&
+      (!t.propertyTypes?.length || t.propertyTypes.length === 0) &&
+      t.priceMin == null &&
+      t.priceMax == null;
+  if (isGlobal) {
+    return { ok: mode === "global", reason: mode === "global" ? "accepted: global ad" : "rejected: global ad only in global mode" };
+  }
+
+  // Partially filled targeting behaves as relaxed fallback:
+  // - if only country set -> country fallback
+  // - if country+city set -> city fallback
+  // - if full country+city+area set -> strict preferred
+  const hasCountry = Boolean(normalize(t.country));
+  const hasCity = Boolean(normalize(t.city));
+  const hasArea = Boolean(normalize(t.area));
+  const isCountryOnly = hasCountry && !hasCity && !hasArea;
+  const isCityLevel = hasCountry && hasCity && !hasArea;
+
+  if (!hasCountry) {
+    return { ok: false, reason: "rejected: targeting missing country" };
+  }
+
+  const locOk =
+    mode === "strict"
+      ? hasCountry && hasCity && hasArea && matchesStrictLocation(t, ctx)
+      : mode === "city_fallback"
+        ? (isCityLevel || (hasCountry && hasCity && hasArea)) && matchesCityFallbackLocation(t, ctx)
+        : mode === "country_fallback"
+          ? normalize(t.country) === normalize(ctx.country)
+          : false;
   if (!locOk) {
-    if (mode === "strict") {
+    if (mode === "strict" && !isCountryOnly && !isCityLevel) {
       return {
         ok: false,
         reason: `rejected: strict location mismatch (ad ${JSON.stringify({ country: t.country, city: t.city, area: t.area })} vs video ${JSON.stringify({ country: ctx.country, city: ctx.city, area: ctx.area })})`,
       };
     }
+    if (mode === "strict" && (isCountryOnly || isCityLevel)) {
+      return { ok: false, reason: "rejected: ad uses relaxed targeting; handled in fallback modes" };
+    }
     return {
       ok: false,
-      reason: `rejected: city fallback location mismatch (ad ${JSON.stringify({ country: t.country, city: t.city })} vs video ${JSON.stringify({ country: ctx.country, city: ctx.city })})`,
+      reason:
+        mode === "city_fallback"
+          ? `rejected: city fallback mismatch (ad ${JSON.stringify({ country: t.country, city: t.city })} vs video ${JSON.stringify({ country: ctx.country, city: ctx.city })})`
+          : `rejected: country fallback mismatch (ad ${JSON.stringify({ country: t.country })} vs video ${JSON.stringify({ country: ctx.country })})`,
     };
   }
 
@@ -189,7 +230,12 @@ function evaluateAd(
 
   return {
     ok: true,
-    reason: `accepted: ${mode === "strict" ? "strict area match" : "city-level fallback"} + optional filters OK`,
+    reason:
+      mode === "strict"
+        ? "accepted: strict area match + optional filters OK"
+        : mode === "city_fallback"
+          ? "accepted: city-level fallback + optional filters OK"
+          : "accepted: country-level fallback + optional filters OK",
   };
 }
 
@@ -200,7 +246,7 @@ async function pickFromPool(
   options?: AdDeliveryOptions
 ): Promise<{ ad: Candidate; relevance: number } | null> {
   let eligible = candidates
-    .filter(budgetAllowed)
+    .filter(campaignCanAffordNextImpression)
     .map((ad) => {
       const { ok, reason } = evaluateAd(ad, ctx, mode);
       logDebug("ad", ad.id, "| target", ad.targeting, "|", reason);
@@ -211,10 +257,10 @@ async function pickFromPool(
   if (!eligible.length) return null;
 
   const advertiserUserIds = [...new Set(eligible.map((e) => e.campaign.advertiser.userId))];
-  const balanceByUser = await getEffectiveAdvertiserBalances(advertiserUserIds);
+  const liquidityByUser = await getAdvertiserDeliveryLiquidityMap(advertiserUserIds);
   eligible = eligible.filter((ad) => {
-    const b = balanceByUser.get(ad.campaign.advertiser.userId);
-    return b != null && b.gte(ADS_WALLET_IMPRESSION_COST);
+    const liq = liquidityByUser.get(ad.campaign.advertiser.userId);
+    return liq != null && liq.gt(ZERO);
   });
 
   if (!eligible.length) return null;
@@ -289,7 +335,18 @@ export async function pickBestAdForSlot(
     orderBy: { createdAt: "desc" },
   })) as Candidate[];
 
-  const strict = await pickFromPool(candidates, ctx, "strict", options);
+  const mediaValid = (ad: Candidate) =>
+    ad.type === "VIDEO" ? Boolean(ad.videoUrl?.trim()) : Boolean(ad.imageUrl?.trim());
+  const withMedia = candidates.filter(mediaValid);
+  if (withMedia.length !== candidates.length) {
+    logDebug("filtered missing media", {
+      slot,
+      total: candidates.length,
+      missingMedia: candidates.length - withMedia.length,
+    });
+  }
+
+  const strict = await pickFromPool(withMedia, ctx, "strict", options);
   if (strict) {
     logDebug("picked", strict.ad.id, "mode=strict", "bidWeight=", strict.ad.campaign.bidWeight);
     return {
@@ -300,13 +357,35 @@ export async function pickBestAdForSlot(
   }
 
   logDebug("no strict matches; trying city-level fallback");
-  const fallback = await pickFromPool(candidates, ctx, "city_fallback", options);
-  if (fallback) {
-    logDebug("picked", fallback.ad.id, "mode=city_fallback", "bidWeight=", fallback.ad.campaign.bidWeight);
+  const cityFallback = await pickFromPool(withMedia, ctx, "city_fallback", options);
+  if (cityFallback) {
+    logDebug("picked", cityFallback.ad.id, "mode=city_fallback", "bidWeight=", cityFallback.ad.campaign.bidWeight);
     return {
-      ad: fallback.ad,
-      relevance: fallback.relevance,
-      score: fallback.ad.campaign.bidWeight + fallback.relevance,
+      ad: cityFallback.ad,
+      relevance: cityFallback.relevance,
+      score: cityFallback.ad.campaign.bidWeight + cityFallback.relevance,
+    };
+  }
+
+  logDebug("no city fallback; trying country-level fallback");
+  const countryFallback = await pickFromPool(withMedia, ctx, "country_fallback", options);
+  if (countryFallback) {
+    logDebug("picked", countryFallback.ad.id, "mode=country_fallback", "bidWeight=", countryFallback.ad.campaign.bidWeight);
+    return {
+      ad: countryFallback.ad,
+      relevance: 0.7,
+      score: countryFallback.ad.campaign.bidWeight + 0.7,
+    };
+  }
+
+  logDebug("no country fallback; trying global ads");
+  const globalPick = await pickFromPool(withMedia, ctx, "global", options);
+  if (globalPick) {
+    logDebug("picked", globalPick.ad.id, "mode=global", "bidWeight=", globalPick.ad.campaign.bidWeight);
+    return {
+      ad: globalPick.ad,
+      relevance: 0.55,
+      score: globalPick.ad.campaign.bidWeight + 0.55,
     };
   }
 

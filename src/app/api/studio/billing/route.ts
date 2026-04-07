@@ -26,6 +26,10 @@ export async function GET() {
   ]);
 
   const profile = { ...auth.profile, balance: wallet.balance };
+  let totalCampaignSpend = 0;
+  for (const c of campaigns) {
+    totalCampaignSpend += Number(c.spent);
+  }
 
   return NextResponse.json({
     profile,
@@ -34,6 +38,7 @@ export async function GET() {
       totalSpent: wallet.totalSpent,
       createdAt: wallet.createdAt,
     },
+    totalCampaignSpend,
     campaigns,
     transactions,
   });

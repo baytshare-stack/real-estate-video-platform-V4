@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireStudioUser } from "@/lib/ads-platform/auth";
-import { ensureWallet } from "@/lib/ads-platform/billing";
+import { ensureWallet, getOrCreateWallet } from "@/lib/ads-platform/billing";
 
 export async function GET() {
   const user = await requireStudioUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const profile = await prisma.advertiserProfile.findUnique({ where: { userId: user.id } });
-  return NextResponse.json({ profile });
+  if (!profile) return NextResponse.json({ profile: null });
+  const wallet = await getOrCreateWallet(user.id);
+  return NextResponse.json({ profile: { ...profile, balance: wallet.balance } });
 }
 
 export async function POST(req: Request) {
