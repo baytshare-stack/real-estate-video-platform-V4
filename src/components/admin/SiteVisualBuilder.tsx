@@ -3,7 +3,7 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 import { GripVertical, Monitor, Palette, Redo2, Undo2, X } from "lucide-react";
-import type { SiteAppearanceDTO, HomeSectionKey } from "@/lib/site-appearance";
+import type { SiteAppearanceDTO, HomeSectionKey } from "@/lib/site-appearance-shared";
 import {
   DISCOVER_THEME_PRESETS,
   HOME_SECTION_KEYS,
@@ -13,7 +13,7 @@ import {
   VIDEO_THEME_PRESETS,
   appearanceToCssVars,
   homeVideoGridClass,
-} from "@/lib/site-appearance";
+} from "@/lib/site-appearance-shared";
 import SiteLookLivePreview from "@/components/admin/SiteLookLivePreview";
 
 const SECTION_AR: Record<HomeSectionKey, string> = {

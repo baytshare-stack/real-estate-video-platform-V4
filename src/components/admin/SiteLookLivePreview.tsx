@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
-import type { SiteAppearanceDTO, SiteUiConfig } from "@/lib/site-appearance";
-import { appearanceToCssVars, discoverGridUlClass, discoverThemeClass, homeThemeClass } from "@/lib/site-appearance";
+import type { SiteAppearanceDTO, SiteUiConfig } from "@/lib/site-appearance-shared";
+import { appearanceToCssVars, discoverGridUlClass, discoverThemeClass, homeThemeClass } from "@/lib/site-appearance-shared";
 
 function MockAgentCard({ style }: { style: SiteUiConfig["discover"]["agentCardStyle"] }) {
   const img =

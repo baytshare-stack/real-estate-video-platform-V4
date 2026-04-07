@@ -11,7 +11,7 @@ import {
 import StarRating from "./StarRating";
 import LocaleLink from "@/components/LocaleLink";
 import { useSiteAppearance } from "@/components/site/SiteAppearanceProvider";
-import type { DiscoverCardStyle } from "@/lib/site-appearance";
+import type { DiscoverCardStyle } from "@/lib/site-appearance-shared";
 
 const FALLBACK_AVATAR =
   "https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=400&h=400";

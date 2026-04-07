@@ -11,7 +11,7 @@ import {
 import StarRating from "./StarRating";
 import LocaleLink from "@/components/LocaleLink";
 import { useSiteAppearance } from "@/components/site/SiteAppearanceProvider";
-import type { DiscoverCardStyle } from "@/lib/site-appearance";
+import type { DiscoverCardStyle } from "@/lib/site-appearance-shared";
 
 const FALLBACK_LOGO =
   "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=400&h=400";

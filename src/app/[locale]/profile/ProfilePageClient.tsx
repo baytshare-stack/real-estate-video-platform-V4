@@ -9,7 +9,7 @@ import { Pencil, X, Loader2, ArrowLeft } from "lucide-react";
 import ProfileInbox from "@/components/profile/ProfileInbox";
 import ProfileMyVisits from "@/components/profile/ProfileMyVisits";
 import { useSiteAppearance } from "@/components/site/SiteAppearanceProvider";
-import { profileThemeClass } from "@/lib/site-appearance";
+import { profileThemeClass } from "@/lib/site-appearance-shared";
 import { useTranslation } from "@/i18n/LanguageProvider";
 
 export type ChannelPayload = {

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { recordViewerAdDayImpression } from "@/lib/ads-platform/frequency-cap";
 import { resolveAdViewerKey } from "@/lib/ads-platform/viewer-key";
+import { deductWalletForImpression } from "@/lib/ads-platform/billing";
 
 export const runtime = "nodejs";
 
@@ -15,7 +16,11 @@ export async function POST(req: Request) {
 
     const ad = await prisma.ad.findUnique({
       where: { id: adId },
-      select: { id: true, status: true },
+      select: {
+        id: true,
+        status: true,
+        campaign: { select: { advertiser: { select: { userId: true } } } },
+      },
     });
     if (!ad || ad.status !== "ACTIVE") {
       return NextResponse.json({ error: "Ad not found or inactive." }, { status: 404 });
@@ -28,6 +33,11 @@ export async function POST(req: Request) {
 
     const { viewerKey } = await resolveAdViewerKey(req);
     await recordViewerAdDayImpression(viewerKey, ad.id);
+
+    const advertiserUserId = ad.campaign?.advertiser?.userId;
+    if (advertiserUserId) {
+      await deductWalletForImpression(advertiserUserId, ad.id);
+    }
 
     return NextResponse.json({ ok: true });
   } catch (e) {

@@ -1,23 +1,12 @@
 /**
- * Vercel / CI: Prisma requires DIRECT_URL when `directUrl` is set in schema.
- * If only DATABASE_URL is configured, fall back so schema validation (P1012) passes.
- * Neon pooler URLs may still fail migrate with P1002 — then set DIRECT_URL to Neon's "Direct" host.
+ * Production build: Prisma migrate + generate + Next (webpack).
+ * DIRECT_URL fallback: ensure-direct-url-env.cjs
  */
 const { execSync } = require("node:child_process");
+const path = require("node:path");
 
-const db = process.env.DATABASE_URL?.trim();
-const direct = process.env.DIRECT_URL?.trim();
-if (!direct && db) {
-  process.env.DIRECT_URL = db;
-  console.warn(
-    "[build] DIRECT_URL unset — using DATABASE_URL for Prisma. " +
-      "If migrate times out (Neon pooler / advisory lock), add DIRECT_URL = Neon Direct connection in Vercel."
-  );
-}
-if (!process.env.DIRECT_URL?.trim()) {
-  console.error("[build] Set DATABASE_URL or DIRECT_URL in the environment.");
-  process.exit(1);
-}
+const { applyDirectUrlFallback } = require(path.join(__dirname, "ensure-direct-url-env.cjs"));
+applyDirectUrlFallback();
 
 function run(cmd) {
   execSync(cmd, { stdio: "inherit", env: process.env, shell: true });

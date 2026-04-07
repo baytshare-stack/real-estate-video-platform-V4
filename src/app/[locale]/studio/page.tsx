@@ -21,6 +21,7 @@ import {
   LogIn,
   CalendarClock,
   Megaphone,
+  Landmark,
 } from "lucide-react";
 import StatCard from "@/components/studio/StatCard";
 import VideoRow, { type VideoRowData } from "@/components/studio/VideoRow";
@@ -306,6 +307,13 @@ export default function StudioPage() {
               <Megaphone className="h-4 w-4 shrink-0 text-emerald-400/90" />
               Ads
             </LocaleLink>
+            <LocaleLink
+              href="/studio/billing"
+              className="flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium text-gray-400 transition-colors hover:bg-white/5 hover:text-white"
+            >
+              <Landmark className="h-4 w-4 shrink-0 text-sky-400/90" />
+              Billing
+            </LocaleLink>
           </div>
         </div>
 
@@ -361,6 +369,13 @@ export default function StudioPage() {
           >
             <Megaphone className="h-4 w-4" />
             Ads
+          </LocaleLink>
+          <LocaleLink
+            href="/studio/billing"
+            className="inline-flex items-center gap-2 rounded-xl border border-sky-500/20 bg-sky-500/10 px-3 py-2 text-sm font-semibold text-sky-100 transition hover:bg-sky-500/15"
+          >
+            <Landmark className="h-4 w-4" />
+            Billing
           </LocaleLink>
         </div>
 

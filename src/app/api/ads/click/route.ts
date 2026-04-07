@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { deductWalletForClick } from "@/lib/ads-platform/billing";
 
 export const runtime = "nodejs";
 
@@ -15,6 +16,15 @@ export async function POST(req: Request) {
       update: { clicks: { increment: 1 } },
       create: { adId, clicks: 1 },
     });
+
+    const ad = await prisma.ad.findUnique({
+      where: { id: adId },
+      select: { id: true, campaign: { select: { advertiser: { select: { userId: true } } } } },
+    });
+    const advertiserUserId = ad?.campaign?.advertiser?.userId;
+    if (advertiserUserId) {
+      await deductWalletForClick(advertiserUserId, adId);
+    }
 
     return NextResponse.json({ ok: true });
   } catch (e) {

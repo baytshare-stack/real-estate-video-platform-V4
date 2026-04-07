@@ -19,7 +19,7 @@ import { useTranslation } from "@/i18n/LanguageProvider";
 import { stripLocaleFromPathname } from "@/i18n/routing";
 import LocaleLink from "@/components/LocaleLink";
 import { useSiteAppearance } from "@/components/site/SiteAppearanceProvider";
-import type { SidebarDesktopKey, SidebarMobileKey } from "@/lib/site-appearance";
+import type { SidebarDesktopKey, SidebarMobileKey } from "@/lib/site-appearance-shared";
 
 type NavDef = {
   href: string;

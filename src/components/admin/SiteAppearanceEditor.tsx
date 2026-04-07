@@ -17,7 +17,7 @@ import type {
   SiteAppearanceDTO,
   SiteLayoutConfig,
   VideoCardLayout,
-} from "@/lib/site-appearance";
+} from "@/lib/site-appearance-shared";
 import {
   DISCOVER_THEME_PRESETS,
   FONT_PRESETS,
@@ -29,7 +29,7 @@ import {
   SIDEBAR_MOBILE_KEYS,
   USER_THEME_PRESETS,
   VIDEO_THEME_PRESETS,
-} from "@/lib/site-appearance";
+} from "@/lib/site-appearance-shared";
 
 const DESKTOP_LABELS: Record<string, string> = {
   home: "Home",

@@ -6,7 +6,7 @@ import {
   DEFAULT_SITE_APPEARANCE,
   appearanceToCssVars,
   googleFontHref,
-} from "@/lib/site-appearance";
+} from "@/lib/site-appearance-shared";
 
 const SiteAppearanceContext = React.createContext<SiteAppearanceDTO>(DEFAULT_SITE_APPEARANCE);
 

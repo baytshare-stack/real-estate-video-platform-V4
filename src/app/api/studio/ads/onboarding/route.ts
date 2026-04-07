@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireStudioUser } from "@/lib/ads-platform/auth";
+import { ensureWallet } from "@/lib/ads-platform/billing";
 
 export async function GET() {
   const user = await requireStudioUser();
@@ -16,10 +17,14 @@ export async function POST(req: Request) {
   const businessName = String(body.businessName || "").trim();
   if (!businessName) return NextResponse.json({ error: "businessName is required" }, { status: 400 });
 
-  const profile = await prisma.advertiserProfile.upsert({
-    where: { userId: user.id },
-    update: { businessName },
-    create: { userId: user.id, businessName, isVerified: false, balance: 0 },
+  const profile = await prisma.$transaction(async (tx) => {
+    const p = await tx.advertiserProfile.upsert({
+      where: { userId: user.id },
+      update: { businessName },
+      create: { userId: user.id, businessName, isVerified: false, balance: 0 },
+    });
+    await ensureWallet(tx, user.id);
+    return p;
   });
   return NextResponse.json({ profile });
 }

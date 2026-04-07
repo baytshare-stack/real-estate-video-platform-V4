@@ -10,7 +10,7 @@ import LanguageSwitcher from "@/components/LanguageSwitcher";
 import NotificationBell from "@/components/NotificationBell";
 import LocaleLink from "@/components/LocaleLink";
 import { useSiteAppearance } from "@/components/site/SiteAppearanceProvider";
-import type { HeaderRightKey } from "@/lib/site-appearance";
+import type { HeaderRightKey } from "@/lib/site-appearance-shared";
 
 export default function Header() {
   const { data: session, status } = useSession();

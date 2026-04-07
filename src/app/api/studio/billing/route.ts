@@ -1,18 +1,42 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireAdvertiserProfile } from "@/lib/ads-platform/auth";
+import { getOrCreateWallet, rechargeWallet } from "@/lib/ads-platform/billing";
+
+export const runtime = "nodejs";
 
 export async function GET() {
   const auth = await requireAdvertiserProfile();
   if (!auth?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!auth.profile) return NextResponse.json({ profile: null, campaigns: [] });
+  if (!auth.profile) return NextResponse.json({ profile: null, campaigns: [], wallet: null, transactions: [] });
 
-  const campaigns = await prisma.campaign.findMany({
-    where: { advertiserId: auth.profile.id },
-    select: { id: true, name: true, budget: true, spent: true, dailyBudget: true, status: true },
-    orderBy: { createdAt: "desc" },
+  const wallet = await getOrCreateWallet(auth.user.id);
+  const [campaigns, transactions] = await Promise.all([
+    prisma.campaign.findMany({
+      where: { advertiserId: auth.profile.id },
+      select: { id: true, name: true, budget: true, spent: true, dailyBudget: true, status: true },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.walletTransaction.findMany({
+      where: { userId: auth.user.id },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+      select: { id: true, type: true, amount: true, adId: true, createdAt: true },
+    }),
+  ]);
+
+  const profile = { ...auth.profile, balance: wallet.balance };
+
+  return NextResponse.json({
+    profile,
+    wallet: {
+      balance: wallet.balance,
+      totalSpent: wallet.totalSpent,
+      createdAt: wallet.createdAt,
+    },
+    campaigns,
+    transactions,
   });
-  return NextResponse.json({ profile: auth.profile, campaigns });
 }
 
 export async function POST(req: Request) {
@@ -26,10 +50,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "amount must be > 0" }, { status: 400 });
   }
 
-  const profile = await prisma.advertiserProfile.update({
-    where: { id: auth.profile.id },
-    data: { balance: { increment: amount } },
-  });
-  return NextResponse.json({ profile });
+  try {
+    await rechargeWallet(auth.user.id, amount);
+    const wallet = await prisma.wallet.findUniqueOrThrow({
+      where: { userId: auth.user.id },
+      select: { balance: true, totalSpent: true },
+    });
+    const profile = await prisma.advertiserProfile.findUniqueOrThrow({
+      where: { id: auth.profile.id },
+    });
+    return NextResponse.json({ profile, wallet });
+  } catch {
+    return NextResponse.json({ error: "Recharge failed" }, { status: 500 });
+  }
 }
-

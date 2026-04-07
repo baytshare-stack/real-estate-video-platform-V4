@@ -1,6 +1,7 @@
 import { CampaignStatus, Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { AD_FREQ_CAP_PER_DAY, getViewerDayImpressionCounts } from "@/lib/ads-platform/frequency-cap";
+import { ADS_WALLET_IMPRESSION_COST, getEffectiveAdvertiserBalances } from "@/lib/ads-platform/billing";
 
 export type VideoContext = {
   videoId: string;
@@ -42,6 +43,7 @@ type Candidate = {
     startDate: Date;
     endDate: Date;
     status: CampaignStatus;
+    advertiser: { userId: string };
   };
   targeting: TargetingSlice | null;
   performance: { impressions: number; clicks: number } | null;
@@ -208,6 +210,15 @@ async function pickFromPool(
 
   if (!eligible.length) return null;
 
+  const advertiserUserIds = [...new Set(eligible.map((e) => e.campaign.advertiser.userId))];
+  const balanceByUser = await getEffectiveAdvertiserBalances(advertiserUserIds);
+  eligible = eligible.filter((ad) => {
+    const b = balanceByUser.get(ad.campaign.advertiser.userId);
+    return b != null && b.gte(ADS_WALLET_IMPRESSION_COST);
+  });
+
+  if (!eligible.length) return null;
+
   const vk = options?.viewerKey?.trim();
   if (vk) {
     const cap = await getViewerDayImpressionCounts(vk, eligible.map((e) => e.id));
@@ -257,6 +268,7 @@ export async function pickBestAdForSlot(
           startDate: true,
           endDate: true,
           status: true,
+          advertiser: { select: { userId: true } },
         },
       },
       targeting: {
