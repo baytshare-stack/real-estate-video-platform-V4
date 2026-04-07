@@ -1,108 +1,139 @@
 import { NextResponse } from "next/server";
-import type { PlatformAdPosition } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
-import { requireAdminApi } from "@/lib/admin-api-auth";
 
-export const runtime = "nodejs";
+type PatchBody = {
+  type?: "VIDEO" | "IMAGE";
+  videoUrl?: string | null;
+  imageUrl?: string | null;
+  thumbnail?: string | null;
+  duration?: number;
+  skipAfter?: number;
+  placement?: "PRE_ROLL" | "MID_ROLL";
+  ctaType?: "CALL" | "WHATSAPP" | "BOOK_VISIT";
+  ctaLabel?: string | null;
+  ctaUrl?: string | null;
+  status?: "DRAFT" | "ACTIVE" | "PAUSED" | "ENDED";
+  targeting?: {
+    country?: string;
+    city?: string;
+    area?: string;
+    propertyTypes?: string[];
+    priceMin?: number | null;
+    priceMax?: number | null;
+  };
+  campaignBudget?: number;
+  campaignDailyBudget?: number;
+  bidWeight?: number;
+};
 
-const POSITIONS: PlatformAdPosition[] = ["PRE_ROLL", "MID_ROLL", "OVERLAY"];
-
-function isPosition(v: unknown): v is PlatformAdPosition {
-  return typeof v === "string" && (POSITIONS as string[]).includes(v);
-}
-
-export async function PUT(request: Request, context: { params: Promise<{ id: string }> }) {
-  const gate = await requireAdminApi();
-  if (gate instanceof NextResponse) return gate;
-
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { id } = await context.params;
-    const body = (await request.json()) as {
-      title?: string;
-      description?: string | null;
-      mediaUrl?: string;
-      clickUrl?: string | null;
-      targetCategory?: string;
-      targetLocation?: string;
-      position?: string;
-      priority?: number;
-      isActive?: boolean;
-    };
-
-    const data: {
-      title?: string;
-      description?: string | null;
-      mediaUrl?: string;
-      clickUrl?: string | null;
-      targetCategory?: string;
-      targetLocation?: string;
-      position?: PlatformAdPosition;
-      priority?: number;
-      isActive?: boolean;
-    } = {};
-
-    if (typeof body.title === "string") {
-      const t = body.title.trim();
-      if (!t) return NextResponse.json({ error: "title cannot be empty." }, { status: 400 });
-      data.title = t;
-    }
-    if (body.description !== undefined) {
-      data.description = body.description === null ? null : String(body.description).trim() || null;
-    }
-    if (typeof body.mediaUrl === "string") {
-      const m = body.mediaUrl.trim();
-      if (!m) return NextResponse.json({ error: "mediaUrl cannot be empty." }, { status: 400 });
-      data.mediaUrl = m;
-    }
-    if (body.clickUrl !== undefined) {
-      data.clickUrl = body.clickUrl === null || !String(body.clickUrl).trim() ? null : String(body.clickUrl).trim();
-    }
-    if (typeof body.targetCategory === "string") data.targetCategory = body.targetCategory.trim();
-    if (typeof body.targetLocation === "string") data.targetLocation = body.targetLocation.trim();
-    if (body.position !== undefined) {
-      if (!isPosition(body.position)) {
-        return NextResponse.json({ error: "Invalid position." }, { status: 400 });
-      }
-      data.position = body.position;
-    }
-    if (body.priority !== undefined) {
-      if (typeof body.priority !== "number" || !Number.isFinite(body.priority)) {
-        return NextResponse.json({ error: "Invalid priority." }, { status: 400 });
-      }
-      data.priority = Math.trunc(body.priority);
-    }
-    if (typeof body.isActive === "boolean") data.isActive = body.isActive;
-
-    if (!Object.keys(data).length) {
-      return NextResponse.json({ error: "No valid fields to update." }, { status: 400 });
+    const { id } = await params;
+    if (!id?.trim()) {
+      return NextResponse.json({ error: "Invalid id." }, { status: 400 });
     }
 
-    await prisma.ad.update({ where: { id }, data });
-    return NextResponse.json({ ok: true });
-  } catch (e: unknown) {
-    const code = typeof e === "object" && e && "code" in e ? (e as { code?: string }).code : "";
-    if (code === "P2025") {
+    const existing = await prisma.ad.findUnique({
+      where: { id },
+      include: { targeting: true },
+    });
+    if (!existing) {
       return NextResponse.json({ error: "Ad not found." }, { status: 404 });
     }
-    console.error("admin ads put", e);
+
+    const body = (await req.json()) as PatchBody;
+
+    const adData: Prisma.AdUpdateInput = {};
+    if (body.type) adData.type = body.type;
+    if (body.videoUrl !== undefined) adData.videoUrl = body.videoUrl?.trim() || null;
+    if (body.imageUrl !== undefined) adData.imageUrl = body.imageUrl?.trim() || null;
+    if (body.thumbnail !== undefined) adData.thumbnail = body.thumbnail?.trim() || null;
+    if (typeof body.duration === "number" && !Number.isNaN(body.duration)) adData.duration = body.duration;
+    if (typeof body.skipAfter === "number" && !Number.isNaN(body.skipAfter)) adData.skipAfter = body.skipAfter;
+    if (body.placement) adData.placement = body.placement;
+    if (body.ctaType) adData.ctaType = body.ctaType;
+    if (body.ctaLabel !== undefined) adData.ctaLabel = body.ctaLabel?.trim() || null;
+    if (body.ctaUrl !== undefined) adData.ctaUrl = body.ctaUrl?.trim() || null;
+    if (body.status) adData.status = body.status;
+
+    const campaignData: Prisma.CampaignUpdateInput = {};
+    if (typeof body.campaignBudget === "number" && !Number.isNaN(body.campaignBudget)) {
+      campaignData.budget = body.campaignBudget;
+    }
+    if (typeof body.campaignDailyBudget === "number" && !Number.isNaN(body.campaignDailyBudget)) {
+      campaignData.dailyBudget = body.campaignDailyBudget;
+    }
+    if (typeof body.bidWeight === "number" && !Number.isNaN(body.bidWeight)) {
+      campaignData.bidWeight = body.bidWeight;
+    }
+
+    const t = body.targeting;
+
+    await prisma.$transaction(async (tx) => {
+      if (Object.keys(adData).length) {
+        await tx.ad.update({ where: { id }, data: adData });
+      }
+      if (Object.keys(campaignData).length) {
+        await tx.campaign.update({ where: { id: existing.campaignId }, data: campaignData });
+      }
+      if (t) {
+        const cur = existing.targeting;
+        const merged = {
+          country: t.country !== undefined ? String(t.country).trim() : (cur?.country ?? ""),
+          city: t.city !== undefined ? String(t.city).trim() : (cur?.city ?? ""),
+          area: t.area !== undefined ? String(t.area).trim() : (cur?.area ?? ""),
+          propertyTypes:
+            t.propertyTypes !== undefined ? t.propertyTypes.map(String) : (cur?.propertyTypes ?? []),
+          priceMin: t.priceMin !== undefined ? t.priceMin : cur?.priceMin ?? null,
+          priceMax: t.priceMax !== undefined ? t.priceMax : cur?.priceMax ?? null,
+        };
+        await tx.targeting.upsert({
+          where: { adId: id },
+          create: {
+            adId: id,
+            country: merged.country,
+            city: merged.city,
+            area: merged.area,
+            propertyTypes: merged.propertyTypes,
+            priceMin: merged.priceMin,
+            priceMax: merged.priceMax,
+          },
+          update: {
+            country: merged.country,
+            city: merged.city,
+            area: merged.area,
+            propertyTypes: merged.propertyTypes,
+            priceMin: merged.priceMin,
+            priceMax: merged.priceMax,
+          },
+        });
+      }
+    });
+
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    console.error("admin ads PATCH", e);
     return NextResponse.json({ error: "Failed to update ad." }, { status: 500 });
   }
 }
 
-export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
-  const gate = await requireAdminApi();
-  if (gate instanceof NextResponse) return gate;
-
+export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { id } = await context.params;
-    await prisma.ad.delete({ where: { id } });
-    return NextResponse.json({ ok: true });
-  } catch (e: unknown) {
-    const code = typeof e === "object" && e && "code" in e ? (e as { code?: string }).code : "";
-    if (code === "P2025") {
+    const { id } = await params;
+    if (!id?.trim()) {
+      return NextResponse.json({ error: "Invalid id." }, { status: 400 });
+    }
+
+    const existing = await prisma.ad.findUnique({ where: { id } });
+    if (!existing) {
       return NextResponse.json({ error: "Ad not found." }, { status: 404 });
     }
-    console.error("admin ads delete", e);
+
+    await prisma.ad.delete({ where: { id } });
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    console.error("admin ads DELETE", e);
     return NextResponse.json({ error: "Failed to delete ad." }, { status: 500 });
   }
 }

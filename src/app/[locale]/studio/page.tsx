@@ -20,6 +20,7 @@ import {
   Clapperboard,
   LogIn,
   CalendarClock,
+  Megaphone,
 } from "lucide-react";
 import StatCard from "@/components/studio/StatCard";
 import VideoRow, { type VideoRowData } from "@/components/studio/VideoRow";
@@ -286,6 +287,28 @@ export default function StudioPage() {
           })}
         </nav>
 
+        <div className="border-t border-white/[0.07] px-3 py-3">
+          <p className="mb-2 px-1 text-[10px] font-semibold uppercase tracking-wider text-gray-500">
+            Video ads
+          </p>
+          <div className="flex flex-col gap-1">
+            <LocaleLink
+              href="/studio/campaigns"
+              className="flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium text-gray-400 transition-colors hover:bg-white/5 hover:text-white"
+            >
+              <Megaphone className="h-4 w-4 shrink-0 text-amber-400/90" />
+              Campaigns
+            </LocaleLink>
+            <LocaleLink
+              href="/studio/ads"
+              className="flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium text-gray-400 transition-colors hover:bg-white/5 hover:text-white"
+            >
+              <Megaphone className="h-4 w-4 shrink-0 text-emerald-400/90" />
+              Ads
+            </LocaleLink>
+          </div>
+        </div>
+
         <div className="border-t border-white/[0.07] p-4">
           <LocaleLink
             href="/upload"
@@ -317,13 +340,27 @@ export default function StudioPage() {
       </div>
 
       <main className="flex-1 overflow-y-auto p-4 pb-[calc(8.5rem+env(safe-area-inset-bottom,0px))] md:p-6 xl:p-8 xl:pb-8">
-        <div className="mb-3 xl:hidden">
+        <div className="mb-3 flex flex-wrap items-center gap-2 xl:hidden">
           <LocaleLink
             href="/studio/profile"
             className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/[0.08]"
           >
             <User className="h-4 w-4 text-blue-400" />
             {t("studio", "myProfile")}
+          </LocaleLink>
+          <LocaleLink
+            href="/studio/campaigns"
+            className="inline-flex items-center gap-2 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-sm font-semibold text-amber-100 transition hover:bg-amber-500/15"
+          >
+            <Megaphone className="h-4 w-4" />
+            Campaigns
+          </LocaleLink>
+          <LocaleLink
+            href="/studio/ads"
+            className="inline-flex items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/15"
+          >
+            <Megaphone className="h-4 w-4" />
+            Ads
           </LocaleLink>
         </div>
 

@@ -189,7 +189,6 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
       : null;
   const chIdForTrack = video.channelId || channel.id;
 
-  const videoAds = Array.isArray(video.videoAds) ? video.videoAds : [];
   const isNativeFile =
     Boolean(video.videoUrl) && !getYouTubeEmbedUrl(video.videoUrl) && !video.isTemplate;
 
@@ -202,7 +201,6 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
         
         {/* The Video Player Area + platform ads */}
         <WatchVideoAdsShell
-          ads={videoAds}
           watchVideoId={videoId}
           videoRef={isNativeFile ? nativeVideoRef : undefined}
           outerClassName={[

@@ -296,16 +296,24 @@ export default function AdminDashboardClient() {
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <CRMPanel records={crmRecords} onSave={onCrmSave} />
         <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-5 shadow-sm">
-          <h2 className="text-white font-semibold">Smart ads</h2>
+          <h2 className="text-white font-semibold">Ads platform</h2>
           <p className="mt-1 text-sm text-white/60">
-            Targeted inventory, scoring, CTR, and watch-page delivery (pre-roll, mid-roll, overlay).
+            Advertisers manage campaigns in Studio; admins can edit targeting, budgets, and delivery here.
           </p>
-          <Link
-            href="/admin/ads"
-            className="mt-4 inline-flex rounded-xl bg-indigo-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-indigo-500"
-          >
-            Open ads management
-          </Link>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Link
+              href="/admin/ads"
+              className="inline-flex rounded-xl bg-indigo-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-indigo-500"
+            >
+              Admin ads dashboard
+            </Link>
+            <Link
+              href="/studio/campaigns"
+              className="inline-flex rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-medium text-white/90 transition hover:bg-white/10"
+            >
+              Open Studio
+            </Link>
+          </div>
         </div>
       </div>
     </div>

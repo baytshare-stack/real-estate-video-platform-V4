@@ -1,8 +1,5 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
 import prisma from "@/lib/prisma";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-import { recordSmartAdImpression } from "@/lib/smart-ads/record";
 
 export const runtime = "nodejs";
 
@@ -10,27 +7,22 @@ export async function POST(req: Request) {
   try {
     const body = (await req.json()) as { adId?: string; videoId?: string };
     const adId = (body.adId || "").trim();
-    const videoId = (body.videoId || "").trim();
-    if (!adId || !videoId) {
-      return NextResponse.json({ error: "adId and videoId are required." }, { status: 400 });
+    if (!adId) {
+      return NextResponse.json({ error: "adId is required." }, { status: 400 });
     }
 
-    const [ad, video] = await Promise.all([
-      prisma.ad.findUnique({ where: { id: adId }, select: { id: true, isActive: true } }),
-      prisma.video.findUnique({ where: { id: videoId }, select: { id: true } }),
-    ]);
-
-    if (!ad || !ad.isActive) {
+    const ad = await prisma.ad.findUnique({
+      where: { id: adId },
+      select: { id: true, status: true },
+    });
+    if (!ad || ad.status !== "ACTIVE") {
       return NextResponse.json({ error: "Ad not found or inactive." }, { status: 404 });
     }
-    if (!video) {
-      return NextResponse.json({ error: "Video not found." }, { status: 404 });
-    }
-
-    const session = await getServerSession(authOptions);
-    const userId = session?.user?.id as string | undefined;
-
-    await recordSmartAdImpression(prisma, { adId, videoId, userId: userId ?? null });
+    await prisma.adPerformance.upsert({
+      where: { adId: ad.id },
+      update: { impressions: { increment: 1 }, views: { increment: 1 }, watchTime: { increment: 5 } },
+      create: { adId: ad.id, impressions: 1, views: 1, watchTime: 5 },
+    });
 
     return NextResponse.json({ ok: true });
   } catch (e) {

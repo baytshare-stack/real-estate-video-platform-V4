@@ -1,5 +1,8 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
+# Prisma (custom output; regenerated per OS via `npx prisma generate` / build)
+/src/generated/prisma
+
 # dependencies
 /node_modules
 /.pnp

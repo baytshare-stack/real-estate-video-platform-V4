@@ -15,6 +15,20 @@ type CrmUserRow = {
   crmNotes: string | null;
 };
 
+type AdminAdLeadRow = {
+  id: string;
+  adId: string;
+  videoId: string;
+  videoTitle: string;
+  agentId: string;
+  agentName: string;
+  agentEmail: string;
+  name: string;
+  phone: string;
+  source: "AD" | "VIDEO";
+  createdAt: string;
+};
+
 function roleLabel(role: UserRole) {
   if (role === "USER") return "User";
   if (role === "AGENT") return "Agent";
@@ -74,6 +88,7 @@ export default function AdminCrmPage() {
   const [tab, setTab] = React.useState<"users" | "agents" | "agencies">("users");
 
   const [rows, setRows] = React.useState<CrmUserRow[]>([]);
+  const [adLeads, setAdLeads] = React.useState<AdminAdLeadRow[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string>("");
 
@@ -91,9 +106,10 @@ export default function AdminCrmPage() {
       const params = new URLSearchParams();
       params.set("role", role);
       const res = await fetch(`/api/admin/crm?${params.toString()}`, { cache: "no-store" });
-      const data = (await res.json()) as { users?: CrmUserRow[]; error?: string };
+      const data = (await res.json()) as { users?: CrmUserRow[]; adLeads?: AdminAdLeadRow[]; error?: string };
       if (!res.ok) throw new Error(data.error || "Failed to load CRM.");
       setRows(data.users || []);
+      setAdLeads(data.adLeads || []);
     } catch (e: any) {
       setError(e?.message || "Failed to load CRM.");
     } finally {
@@ -264,6 +280,53 @@ export default function AdminCrmPage() {
                         Edit CRM
                       </button>
                     </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+        <div className="border-b border-white/10 px-4 py-3">
+          <h2 className="text-sm font-semibold text-white">Ad Leads</h2>
+          <p className="mt-1 text-xs text-white/60">Linked with adId, videoId, and agentId.</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-[1100px] w-full text-sm">
+            <thead className="bg-white/5">
+              <tr className="text-left text-white/70">
+                <th className="px-4 py-3 font-medium">Lead</th>
+                <th className="px-4 py-3 font-medium">Phone</th>
+                <th className="px-4 py-3 font-medium">Ad</th>
+                <th className="px-4 py-3 font-medium">Video</th>
+                <th className="px-4 py-3 font-medium">Agent</th>
+                <th className="px-4 py-3 font-medium">Created</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/10">
+              {adLeads.length === 0 ? (
+                <tr>
+                  <td className="px-4 py-6 text-white/60" colSpan={6}>
+                    No ad leads yet.
+                  </td>
+                </tr>
+              ) : (
+                adLeads.map((l) => (
+                  <tr key={l.id} className="text-white/80">
+                    <td className="px-4 py-3">{l.name}</td>
+                    <td className="px-4 py-3">{l.phone}</td>
+                    <td className="px-4 py-3 font-mono text-xs">{l.adId}</td>
+                    <td className="px-4 py-3">
+                      <div className="text-white">{l.videoTitle}</div>
+                      <div className="font-mono text-xs text-white/50">{l.videoId}</div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="text-white">{l.agentName}</div>
+                      <div className="font-mono text-xs text-white/50">{l.agentId}</div>
+                    </td>
+                    <td className="px-4 py-3 text-white/60">{formatDate(l.createdAt)}</td>
                   </tr>
                 ))
               )}

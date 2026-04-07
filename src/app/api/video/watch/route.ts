@@ -4,10 +4,6 @@ import prisma from "@/lib/prisma";
 import { safeFindFirst, safeFindUnique } from "@/lib/safePrisma";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { buildWatchPageContact } from "@/lib/videoContact";
-import { ensureDemoVideoAd } from "@/lib/ensure-demo-video-ad";
-import { ensureDemoSmartAd } from "@/lib/ensure-demo-smart-ad";
-import { getBestAdsForVideo } from "@/lib/smart-ads/engine";
-import { selectionToWatchPayloads } from "@/lib/smart-ads/watch-payload";
 
 export async function GET(req: Request) {
   try {
@@ -18,19 +14,12 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Missing video id" }, { status: 400 });
     }
 
-    await ensureDemoVideoAd(prisma);
-    await ensureDemoSmartAd(prisma);
-
     const video = await safeFindUnique(() =>
       prisma.video.findUnique({
         where: { id: videoId },
         include: {
           property: true,
           template: true,
-          videoAds: {
-            where: { isActive: true },
-            select: { id: true, title: true, description: true, position: true },
-          },
           channel: {
             select: {
               id: true,
@@ -88,20 +77,6 @@ export async function GET(req: Request) {
 
     const contactInfo = buildWatchPageContact(video.channel?.owner ?? undefined, video.channel ?? undefined);
 
-    const { selection: smartSelection } = await getBestAdsForVideo(prisma, videoId, userId ?? null);
-    const smartWatchAds = selectionToWatchPayloads(smartSelection);
-    const legacyWatchAds = (video.videoAds ?? []).map((a) => ({
-      id: a.id,
-      title: a.title,
-      description: a.description,
-      position: a.position as string,
-      preRollGate: false,
-      mediaUrl: null as string | null,
-      clickUrl: null as string | null,
-      track: null as "smart" | null,
-    }));
-    const mergedWatchAds = [...smartWatchAds, ...legacyWatchAds];
-
     const tpl = video.template;
     const templateDto = tpl
       ? {
@@ -117,8 +92,8 @@ export async function GET(req: Request) {
 
     const watchData = {
       id: video.id,
-      videoAds: mergedWatchAds,
-      smartAds: smartWatchAds,
+      videoAds: [],
+      smartAds: [],
       videoUrl: video.videoUrl,
       thumbnailUrl: video.thumbnail,
       isShort: video.isShort,

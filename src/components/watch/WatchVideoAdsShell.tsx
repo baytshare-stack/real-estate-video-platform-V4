@@ -1,302 +1,276 @@
 "use client";
 
 import * as React from "react";
-import { isVideoMediaUrl } from "@/lib/smart-ads/is-video-media-url";
 
-export type WatchVideoAd = {
+type ServedAd = {
   id: string;
-  title: string;
-  description: string | null;
-  position: "BEFORE" | "MID" | "AFTER" | "OVERLAY" | string;
-  mediaUrl?: string | null;
-  clickUrl?: string | null;
-  preRollGate?: boolean;
-  track?: "smart" | null;
+  type: "VIDEO" | "IMAGE";
+  videoUrl?: string | null;
+  imageUrl?: string | null;
+  thumbnail?: string | null;
+  duration: number;
+  skipAfter: number;
+  ctaType: "CALL" | "WHATSAPP" | "BOOK_VISIT";
+  ctaLabel?: string | null;
+  ctaUrl?: string | null;
 };
 
-function useSmartImpressionOnce(ad: WatchVideoAd, watchVideoId: string | undefined) {
-  const sent = React.useRef(false);
-  React.useEffect(() => {
-    if (ad.track !== "smart" || !watchVideoId || sent.current) return;
-    sent.current = true;
-    void fetch("/api/ads/impression", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ adId: ad.id, videoId: watchVideoId }),
-    }).catch(() => {});
-  }, [ad.id, ad.track, watchVideoId]);
+type LeadFormState = {
+  open: boolean;
+  adId: string | null;
+  name: string;
+  phone: string;
+  submitting: boolean;
+  error: string;
+};
+
+async function fetchAd(videoId: string, slot: "PRE_ROLL" | "MID_ROLL") {
+  const res = await fetch(`/api/ads/for-video?videoId=${encodeURIComponent(videoId)}&slot=${slot}`, { cache: "no-store" });
+  const data = await res.json().catch(() => ({}));
+  return (data?.ad || null) as ServedAd | null;
 }
 
-function trackSmartClick(ad: WatchVideoAd, watchVideoId: string | undefined) {
-  if (ad.track !== "smart" || !watchVideoId) return;
-  void fetch("/api/ads/click", {
+function track(adId: string, event: "impression" | "click") {
+  void fetch(`/api/ads/${event}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
-    body: JSON.stringify({ adId: ad.id, videoId: watchVideoId }),
+    body: JSON.stringify({ adId }),
   }).catch(() => {});
 }
 
-function AdCreative({ ad, watchVideoId }: { ad: WatchVideoAd; watchVideoId?: string }) {
-  useSmartImpressionOnce(ad, watchVideoId);
-
-  const isVideo = ad.mediaUrl ? isVideoMediaUrl(ad.mediaUrl) : false;
-
-  const onOpen = () => {
-    trackSmartClick(ad, watchVideoId);
-    if (ad.clickUrl?.trim()) {
-      window.open(ad.clickUrl.trim(), "_blank", "noopener,noreferrer");
-    }
-  };
-
-  const media =
-    ad.mediaUrl && ad.mediaUrl.trim() ? (
-      isVideo ? (
-        <video
-          src={ad.mediaUrl.trim()}
-          className="w-full max-h-52 rounded-lg border border-white/10 bg-black object-cover"
-          muted
-          playsInline
-          loop
-          autoPlay
-        />
-      ) : (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={ad.mediaUrl.trim()}
-          alt=""
-          className="w-full max-h-52 rounded-lg border border-white/10 object-cover"
-        />
-      )
-    ) : null;
-
-  const body = (
-    <div className="space-y-2">
-      {media}
-      <div className="min-w-0">
-        <p className="text-sm font-semibold text-indigo-200">{ad.title}</p>
-        {ad.description ? (
-          <p className="mt-1 text-xs leading-snug text-white/70 line-clamp-4">{ad.description}</p>
-        ) : null}
-      </div>
-      {ad.clickUrl?.trim() ? (
-        <p className="text-[10px] text-indigo-200/80">Click the creative to open the sponsor link.</p>
-      ) : null}
-    </div>
-  );
-
-  if (ad.clickUrl?.trim()) {
-    return (
-      <div
-        role="button"
-        tabIndex={0}
-        className="w-full cursor-pointer rounded-lg text-left outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
-        onClick={onOpen}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            onOpen();
-          }
-        }}
-      >
-        {body}
-      </div>
-    );
-  }
-
-  return <div className="w-full">{body}</div>;
-}
-
-function AdCard({
-  ad,
-  watchVideoId,
-  onDismiss,
-}: {
-  ad: WatchVideoAd;
-  watchVideoId?: string;
-  onDismiss?: () => void;
-}) {
-  return (
-    <div className="rounded-xl border border-indigo-500/35 bg-gradient-to-r from-indigo-950/95 via-zinc-900/95 to-zinc-950/95 px-4 py-3 text-white shadow-lg backdrop-blur-sm">
-      <div className="flex justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <AdCreative ad={ad} watchVideoId={watchVideoId} />
-        </div>
-        {onDismiss ? (
-          <button
-            type="button"
-            onClick={onDismiss}
-            className="h-8 w-8 shrink-0 self-start rounded-lg border border-white/10 bg-white/5 text-lg leading-none text-white/60 transition hover:bg-white/10 hover:text-white"
-            aria-label="Dismiss"
-          >
-            ×
-          </button>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
 export default function WatchVideoAdsShell({
-  ads,
   watchVideoId,
   outerClassName,
   videoRef,
   children,
 }: {
-  ads: WatchVideoAd[];
   watchVideoId?: string;
   outerClassName: string;
   videoRef?: React.RefObject<HTMLVideoElement | null>;
   children: React.ReactNode;
 }) {
-  const list = Array.isArray(ads) ? ads : [];
-
-  const preRollGated = list.filter((a) => a.preRollGate === true);
-  const beforeInline = list.filter((a) => a.position === "BEFORE" && !a.preRollGate);
-  const mid = list.filter((a) => a.position === "MID");
-  const after = list.filter((a) => a.position === "AFTER");
-  const overlay = list.filter((a) => a.position === "OVERLAY");
-
-  const [dismissed, setDismissed] = React.useState<Record<string, boolean>>({});
-  const dismiss = (id: string) => setDismissed((d) => ({ ...d, [id]: true }));
-
-  const [midOpen, setMidOpen] = React.useState(false);
-  const midShownRef = React.useRef(false);
-
-  const activePreRoll = preRollGated.filter((a) => !dismissed[a.id]);
-  const preRollBlocking = activePreRoll.length > 0;
-  const primaryPreRoll = activePreRoll[0];
+  const [preRollAd, setPreRollAd] = React.useState<ServedAd | null>(null);
+  const [midRollAd, setMidRollAd] = React.useState<ServedAd | null>(null);
+  const [activeAd, setActiveAd] = React.useState<ServedAd | null>(null);
+  const [elapsed, setElapsed] = React.useState(0);
+  const [muted, setMuted] = React.useState(false);
+  const [shownMid, setShownMid] = React.useState<{ at30: boolean; at60: boolean }>({ at30: false, at60: false });
+  const [leadForm, setLeadForm] = React.useState<LeadFormState>({
+    open: false,
+    adId: null,
+    name: "",
+    phone: "",
+    submitting: false,
+    error: "",
+  });
 
   React.useEffect(() => {
-    midShownRef.current = false;
-    setMidOpen(false);
-  }, [list]);
-
-  React.useEffect(() => {
-    if (!mid.length || midShownRef.current) return;
-
-    if (!videoRef) {
-      const t = window.setTimeout(() => {
-        if (!midShownRef.current) {
-          midShownRef.current = true;
-          setMidOpen(true);
-        }
-      }, 12000);
-      return () => window.clearTimeout(t);
-    }
-
-    let detach: (() => void) | null = null;
-    let attempts = 0;
-    const poll = window.setInterval(() => {
-      attempts += 1;
-      const el = videoRef.current;
-      if (el && !midShownRef.current) {
-        const onTime = () => {
-          if (midShownRef.current) return;
-          const dur = el.duration;
-          if (dur > 0 && !Number.isNaN(dur) && el.currentTime >= dur * 0.5) {
-            midShownRef.current = true;
-            setMidOpen(true);
-          }
-        };
-        el.addEventListener("timeupdate", onTime);
-        detach = () => el.removeEventListener("timeupdate", onTime);
-        window.clearInterval(poll);
-        return;
+    if (!watchVideoId) return;
+    void fetchAd(watchVideoId, "PRE_ROLL").then((ad) => {
+      setPreRollAd(ad);
+      if (ad) {
+        track(ad.id, "impression");
+        setActiveAd(ad);
       }
-      if (attempts >= 60 && !midShownRef.current) {
-        window.clearInterval(poll);
-        midShownRef.current = true;
-        setMidOpen(true);
-      }
-    }, 100);
-
-    return () => {
-      window.clearInterval(poll);
-      detach?.();
-    };
-  }, [mid.length, videoRef]);
+    });
+    void fetchAd(watchVideoId, "MID_ROLL").then((ad) => setMidRollAd(ad));
+  }, [watchVideoId]);
 
   React.useEffect(() => {
     const el = videoRef?.current;
-    if (!el) return;
-    if (preRollBlocking) {
-      try {
-        el.pause();
-      } catch {
-        /* ignore */
-      }
+    if (!el || !activeAd) return;
+    try {
+      el.pause();
+    } catch {
+      // ignore
     }
-  }, [preRollBlocking, videoRef]);
+  }, [activeAd, videoRef]);
 
-  const visibleOverlay = overlay.filter((a) => !dismissed[a.id]);
-  const visibleMid = midOpen ? mid.filter((a) => !dismissed[a.id]) : [];
+  React.useEffect(() => {
+    if (!activeAd) return;
+    const t = window.setInterval(() => setElapsed((v) => v + 1), 1000);
+    return () => window.clearInterval(t);
+  }, [activeAd?.id]);
+
+  React.useEffect(() => {
+    const el = videoRef?.current;
+    if (!el || !midRollAd || activeAd) return;
+    const onTime = () => {
+      const t = Math.floor(el.currentTime || 0);
+      if (!shownMid.at30 && t >= 30) {
+        setShownMid((s) => ({ ...s, at30: true }));
+        setActiveAd(midRollAd);
+        setElapsed(0);
+        el.pause();
+        track(midRollAd.id, "impression");
+      } else if (!shownMid.at60 && t >= 60) {
+        setShownMid((s) => ({ ...s, at60: true }));
+        setActiveAd(midRollAd);
+        setElapsed(0);
+        el.pause();
+        track(midRollAd.id, "impression");
+      }
+    };
+    el.addEventListener("timeupdate", onTime);
+    return () => el.removeEventListener("timeupdate", onTime);
+  }, [videoRef, midRollAd, activeAd, shownMid]);
+
+  const onSkip = React.useCallback(() => {
+    setActiveAd(null);
+    setElapsed(0);
+    const el = videoRef?.current;
+    if (el) void el.play().catch(() => {});
+  }, [videoRef]);
+
+  const canSkip = activeAd ? elapsed >= 5 : false;
+  const progress = activeAd ? Math.min(100, (elapsed / Math.max(1, activeAd.duration)) * 100) : 0;
+
+  const openLeadForm = React.useCallback((adId: string) => {
+    setLeadForm((s) => ({ ...s, open: true, adId, error: "" }));
+  }, []);
+
+  const submitLead = React.useCallback(async () => {
+    if (!leadForm.adId || !watchVideoId) return;
+    const name = leadForm.name.trim();
+    const phone = leadForm.phone.trim();
+    if (!name || !phone) {
+      setLeadForm((s) => ({ ...s, error: "Name and phone are required." }));
+      return;
+    }
+    setLeadForm((s) => ({ ...s, submitting: true, error: "" }));
+    try {
+      const res = await fetch("/api/ads/lead", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          adId: leadForm.adId,
+          videoId: watchVideoId,
+          name,
+          phone,
+          source: "AD",
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; whatsappLink?: string };
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || "Failed to submit lead.");
+      }
+      if (data.whatsappLink) {
+        window.open(data.whatsappLink, "_blank", "noopener,noreferrer");
+      }
+      setLeadForm({ open: false, adId: null, name: "", phone: "", submitting: false, error: "" });
+    } catch (e) {
+      setLeadForm((s) => ({
+        ...s,
+        submitting: false,
+        error: e instanceof Error ? e.message : "Failed to submit lead.",
+      }));
+    }
+  }, [leadForm.adId, leadForm.name, leadForm.phone, watchVideoId]);
 
   return (
     <>
-      {beforeInline.length ? (
-        <div className="mb-2 space-y-2">
-          {beforeInline.map((a) =>
-            dismissed[a.id] ? null : (
-              <AdCard key={a.id} ad={a} watchVideoId={watchVideoId} onDismiss={() => dismiss(a.id)} />
-            )
-          )}
-        </div>
-      ) : null}
-
-      <div className={[outerClassName, "relative"].filter(Boolean).join(" ")}>
-        <div
-          className={[
-            "h-full w-full min-h-0",
-            preRollBlocking ? "pointer-events-none select-none opacity-0" : "",
-          ].join(" ")}
-        >
+      <div className={[outerClassName, "relative overflow-hidden"].filter(Boolean).join(" ")}>
+        <div className={["h-full w-full min-h-0", activeAd ? "pointer-events-none opacity-0" : ""].join(" ")}>
           {children}
         </div>
-
-        {preRollBlocking && primaryPreRoll ? (
-          <div className="absolute inset-0 z-40 flex flex-col justify-end bg-black/80 p-3 backdrop-blur-sm md:p-5">
-            <div className="mx-auto w-full max-w-lg">
-              <AdCard
-                ad={primaryPreRoll}
-                watchVideoId={watchVideoId}
-                onDismiss={() => dismiss(primaryPreRoll.id)}
-              />
-              <p className="mt-2 text-center text-[10px] text-white/40">Sponsored</p>
-            </div>
-          </div>
-        ) : null}
-
-        {visibleOverlay.length ? (
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex flex-col justify-end gap-2 p-3 md:p-4">
-            {visibleOverlay.map((a) => (
-              <div key={a.id} className="pointer-events-auto max-w-full md:max-w-lg">
-                <AdCard ad={a} watchVideoId={watchVideoId} onDismiss={() => dismiss(a.id)} />
+        {activeAd ? (
+          <div className="absolute inset-0 z-40 bg-black p-3 md:p-6 text-white">
+            <div className="mx-auto flex h-full w-full max-w-5xl flex-col">
+              <div className="mb-3 h-1.5 w-full rounded bg-white/10 overflow-hidden">
+                <div className="h-full bg-indigo-500" style={{ width: `${progress}%` }} />
               </div>
-            ))}
-          </div>
-        ) : null}
-
-        {visibleMid.length ? (
-          <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/55 p-4 backdrop-blur-[2px]">
-            <div className="w-full max-w-md space-y-3">
-              {visibleMid.map((a) => (
-                <AdCard key={a.id} ad={a} watchVideoId={watchVideoId} onDismiss={() => dismiss(a.id)} />
-              ))}
+              <div className="relative flex-1 rounded-xl border border-white/10 bg-black overflow-hidden">
+                {activeAd.type === "VIDEO" && activeAd.videoUrl ? (
+                  <video
+                    src={activeAd.videoUrl}
+                    poster={activeAd.thumbnail || undefined}
+                    className="h-full w-full object-contain"
+                    autoPlay
+                    muted={muted}
+                    playsInline
+                    onEnded={onSkip}
+                  />
+                ) : activeAd.imageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={activeAd.imageUrl} alt="Ad" className="h-full w-full object-cover" />
+                ) : null}
+              </div>
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => setMuted((v) => !v)}
+                  className="rounded-lg border border-white/20 px-3 py-2 text-xs"
+                >
+                  {muted ? "Unmute" : "Mute"}
+                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      track(activeAd.id, "click");
+                      if (activeAd.ctaUrl) {
+                        window.open(activeAd.ctaUrl, "_blank", "noopener,noreferrer");
+                      } else {
+                        openLeadForm(activeAd.id);
+                      }
+                    }}
+                    className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold"
+                  >
+                    {activeAd.ctaLabel || "احصل على السعر النهائي"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!canSkip}
+                    onClick={onSkip}
+                    className="rounded-lg border border-white/20 px-3 py-2 text-xs disabled:opacity-40"
+                  >
+                    {canSkip ? "Skip Ad" : `Skip in ${Math.max(0, 5 - elapsed)}s`}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         ) : null}
       </div>
-
-      {after.length ? (
-        <div className="mt-2 space-y-2">
-          {after.map((a) =>
-            dismissed[a.id] ? null : (
-              <AdCard key={a.id} ad={a} watchVideoId={watchVideoId} onDismiss={() => dismiss(a.id)} />
-            )
-          )}
+      {leadForm.open ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-4">
+          <div className="w-full max-w-sm rounded-xl border border-white/15 bg-[#0f0f0f] p-4 text-white shadow-2xl">
+            <h3 className="text-sm font-semibold">احصل على السعر النهائي</h3>
+            <div className="mt-3 space-y-2">
+              <input
+                value={leadForm.name}
+                onChange={(e) => setLeadForm((s) => ({ ...s, name: e.target.value }))}
+                placeholder="الاسم"
+                className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm outline-none"
+              />
+              <input
+                value={leadForm.phone}
+                onChange={(e) => setLeadForm((s) => ({ ...s, phone: e.target.value }))}
+                placeholder="رقم الهاتف"
+                className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm outline-none"
+              />
+              {leadForm.error ? <p className="text-xs text-rose-300">{leadForm.error}</p> : null}
+            </div>
+            <div className="mt-3 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setLeadForm({ open: false, adId: null, name: "", phone: "", submitting: false, error: "" })}
+                className="rounded-lg border border-white/15 px-3 py-2 text-xs"
+              >
+                إغلاق
+              </button>
+              <button
+                type="button"
+                onClick={() => void submitLead()}
+                disabled={leadForm.submitting}
+                className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold disabled:opacity-60"
+              >
+                {leadForm.submitting ? "جارٍ الإرسال..." : "إرسال"}
+              </button>
+            </div>
+          </div>
         </div>
       ) : null}
     </>
