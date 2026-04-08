@@ -177,14 +177,22 @@ export default function AdminPaymentsPage() {
                     <p className="mt-1 text-xs text-white/45">
                       Status:{" "}
                       <span className={active ? "text-emerald-400" : "text-white/50"}>
-                        {active ? "Active" : "Inactive"}
+                        {r.id === "mock" ? "Ready (Test Mode)" : active ? "Active" : "Inactive"}
                       </span>
                       {r.id !== "mock" ? (
                         <>
                           {" "}
-                          · Keys:{" "}
-                          <span className={r.hasSecret || d.secretKey ? "text-amber-200/90" : "text-white/45"}>
-                            {r.hasSecret || d.secretKey.trim() ? "Secret set" : "No secret"}
+                          · Config:{" "}
+                          <span
+                            className={
+                              d.publicKey.trim() && (r.hasSecret || d.secretKey.trim())
+                                ? "text-emerald-300"
+                                : "text-white/45"
+                            }
+                          >
+                            {d.publicKey.trim() && (r.hasSecret || d.secretKey.trim())
+                              ? "Configured"
+                              : "Not Configured"}
                           </span>
                         </>
                       ) : null}

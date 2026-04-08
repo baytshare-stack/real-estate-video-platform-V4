@@ -93,6 +93,10 @@ function txStatus(type: string): string {
   return type === "RECHARGE" ? "Completed" : "Posted";
 }
 
+function isMockProvider(id: PaymentProviderId): boolean {
+  return id === "mock";
+}
+
 export default function StudioBillingPage() {
   const params = useParams();
   const locale = String(params.locale ?? "en");
@@ -207,12 +211,10 @@ export default function StudioBillingPage() {
       setToast({ type: "err", text: "Select a payment method." });
       return;
     }
-    if (!providerReady) {
+    if (!providerReady && !isMockProvider(provider)) {
       setToast({
         type: "err",
-        text: providerMeta?.enabled === false
-          ? "This payment method is disabled."
-          : "This payment method is not configured yet. Choose another or contact support.",
+        text: "Payment provider not configured",
       });
       return;
     }
@@ -221,7 +223,7 @@ export default function StudioBillingPage() {
   };
 
   const executePayment = async () => {
-    if (proceedDisabled || !providerReady || !agreeTerms) return;
+    if (proceedDisabled || (!providerReady && !isMockProvider(provider)) || !agreeTerms) return;
     setPayLoading(true);
     try {
       const res = await fetch("/api/payments/create-intent", {
@@ -275,6 +277,7 @@ export default function StudioBillingPage() {
   }, [data.pendingPaymentIntents, data.transactions]);
 
   const selectedProviderTitle = PROVIDERS.find((p) => p.id === provider)?.title ?? provider;
+  const allowSelectedProvider = providerReady || isMockProvider(provider);
 
   return (
     <div className="space-y-8 pb-10">
@@ -416,7 +419,7 @@ export default function StudioBillingPage() {
                       {PROVIDERS.map(({ id, title, description, Icon }) => {
                         const active = provider === id;
                         const meta = data.paymentConfig?.providers?.find((p) => p.id === id);
-                        const ready = meta?.ready === true;
+                        const ready = meta?.ready === true || id === "mock";
                         return (
                           <button
                             key={id}
@@ -455,11 +458,11 @@ export default function StudioBillingPage() {
 
                   <button
                     type="button"
-                    disabled={proceedDisabled || payLoading || !providerReady}
+                    disabled={proceedDisabled || payLoading || !allowSelectedProvider}
                     onClick={() => goToConfirm()}
                     className="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 py-3.5 text-base font-semibold text-white shadow-lg shadow-indigo-900/35 transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-45"
                   >
-                    {providerReady ? "Proceed to payment" : "Setup required"}
+                    {allowSelectedProvider ? "Proceed to payment" : "Setup required"}
                   </button>
                 </>
               ) : (
@@ -499,7 +502,7 @@ export default function StudioBillingPage() {
                     </button>
                     <button
                       type="button"
-                      disabled={!agreeTerms || payLoading || proceedDisabled || !providerReady}
+                      disabled={!agreeTerms || payLoading || proceedDisabled || !allowSelectedProvider}
                       onClick={() => void executePayment()}
                       className="flex flex-[2] items-center justify-center gap-2 rounded-xl bg-indigo-600 py-3 text-base font-semibold text-white shadow-lg shadow-indigo-900/35 transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-45"
                     >

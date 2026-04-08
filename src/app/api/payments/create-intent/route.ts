@@ -43,7 +43,7 @@ export async function POST(req: Request) {
   } catch (e) {
     const msg = e instanceof Error ? e.message : "";
     if (msg === "PROVIDER_DISABLED" || msg === "PROVIDER_NOT_CONFIGURED") {
-      return NextResponse.json({ error: "Provider not configured" }, { status: 400 });
+      return NextResponse.json({ error: "Payment provider not configured" }, { status: 400 });
     }
     if (msg === "INVALID_AMOUNT") {
       return NextResponse.json({ error: "Invalid amount" }, { status: 400 });

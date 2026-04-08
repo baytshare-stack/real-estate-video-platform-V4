@@ -47,11 +47,12 @@ function hasSecret(id: PaymentProviderId, row: { secretKey: string | null } | nu
   return !!fromDb;
 }
 
-/** Strict: enabled + apiKey + secret for every provider. */
+/** Strict for real providers; mock is always allowed for test mode. */
 export function isProviderReadyForCheckout(
   id: PaymentProviderId,
   row: { enabled: boolean; publicKey: string | null; secretKey: string | null; callbackUrl: string | null } | null
 ): boolean {
+  if (id === "mock") return true;
   if (!row?.enabled) return false;
   return hasApiKey(id, row) && hasSecret(id, row);
 }
@@ -104,7 +105,7 @@ export async function getStudioPaymentConfig(): Promise<StudioPaymentConfig> {
       const r = byProvider(id);
       return {
         id,
-        enabled: !!r?.enabled,
+        enabled: id === "mock" ? true : !!r?.enabled,
         ready: isProviderReadyForCheckout(id, r),
       };
     }),
@@ -130,6 +131,9 @@ export async function getProviderRuntimeSecrets(id: PaymentProviderId): Promise<
 }
 
 export async function assertProviderCanStartCheckout(id: PaymentProviderId): Promise<ProviderRuntimeSecrets> {
+  if (id === "mock") {
+    return { publicKey: null, secretKey: null, callbackUrl: null };
+  }
   await ensurePaymentProviderRows();
   const row = await prisma.paymentProviderConfig.findUnique({ where: { provider: id } });
   if (!row?.enabled || !isProviderReadyForCheckout(id, row)) {
