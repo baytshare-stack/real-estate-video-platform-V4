@@ -6,6 +6,21 @@ import { uploadBufferToCloudinaryStream } from "@/lib/cloudinary";
 
 export const runtime = "nodejs";
 
+function isReadOnlyHosting(): boolean {
+  return process.env.VERCEL === "1" || process.env.NODE_ENV === "production";
+}
+
+function cloudinarySetupError(kind: "video" | "thumbnail"): NextResponse {
+  return NextResponse.json(
+    {
+      error: `${kind === "video" ? "Video" : "Thumbnail"} upload failed`,
+      detail:
+        "Cloudinary is required in production. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET.",
+    },
+    { status: 500 }
+  );
+}
+
 /**
  * Multipart upload to Cloudinary (Vercel-safe).
  * POST multipart/form-data:
@@ -70,6 +85,10 @@ export async function POST(req: Request) {
           const { secure_url } = await uploadBufferToCloudinaryStream(buffer, "video");
           payload.url = secure_url;
         } catch (cloudErr) {
+          if (isReadOnlyHosting()) {
+            console.error("CLOUDINARY UPLOAD (video) on production host:", cloudErr);
+            return cloudinarySetupError("video");
+          }
           // Local fallback for dev/staging when Cloudinary env vars are missing.
           const local = await saveVideoFile(videoPart);
           payload.url = local.publicPath;
@@ -90,6 +109,10 @@ export async function POST(req: Request) {
           const { secure_url } = await uploadBufferToCloudinaryStream(buffer, "image");
           payload.thumbnailUrl = secure_url;
         } catch (cloudErr) {
+          if (isReadOnlyHosting()) {
+            console.error("CLOUDINARY UPLOAD (thumbnail) on production host:", cloudErr);
+            return cloudinarySetupError("thumbnail");
+          }
           // Local fallback for dev/staging when Cloudinary env vars are missing.
           const local = await saveImageFile(thumbPart);
           payload.thumbnailUrl = local.publicPath;
