@@ -341,7 +341,7 @@ export default function StudioAdsPage() {
       } else {
         fd.append("thumbnail", file);
       }
-      const res = await fetch("/api/upload", { method: "POST", body: fd });
+      const res = await fetch("/api/studio/ads/upload", { method: "POST", body: fd });
       const data = (await res.json()) as { url?: string; thumbnailUrl?: string; error?: string };
       const detail = (data as { detail?: string }).detail;
       if (!res.ok) throw new Error([data.error || "Upload failed", detail].filter(Boolean).join(": "));
