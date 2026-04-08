@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   BarChart3,
   BriefcaseBusiness,
+  CreditCard,
   Gauge,
   Landmark,
   ListTree,
@@ -31,6 +32,7 @@ const NAV: NavItem[] = [
   { href: "/admin/crm", label: "CRM & ad leads", icon: <BriefcaseBusiness className="h-4 w-4" /> },
   { href: "/admin/ads", label: "Ads", icon: <Megaphone className="h-4 w-4" /> },
   { href: "/admin/ad-billing", label: "Ad billing", icon: <Landmark className="h-4 w-4" /> },
+  { href: "/admin/payments", label: "Payments", icon: <CreditCard className="h-4 w-4" /> },
   { href: "/admin/analytics", label: "Analytics", icon: <BarChart3 className="h-4 w-4" /> },
   { href: "/admin/settings/appearance", label: "Site look", icon: <Palette className="h-4 w-4" /> },
   { href: "/admin/settings/listing-catalog", label: "Listing catalog", icon: <ListTree className="h-4 w-4" /> },

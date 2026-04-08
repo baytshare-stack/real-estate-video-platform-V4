@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireAdvertiserProfile } from "@/lib/ads-platform/auth";
 import { getOrCreateWallet, rechargeWallet } from "@/lib/ads-platform/billing";
+import { getStudioPaymentConfig } from "@/lib/payments/payment-settings";
 
 export const runtime = "nodejs";
 
@@ -21,7 +22,15 @@ export async function GET() {
       where: { userId: auth.user.id },
       orderBy: { createdAt: "desc" },
       take: 50,
-      select: { id: true, type: true, amount: true, adId: true, createdAt: true },
+      select: {
+        id: true,
+        type: true,
+        amount: true,
+        adId: true,
+        createdAt: true,
+        paymentProvider: true,
+        paymentIntentId: true,
+      },
     }),
   ]);
 
@@ -30,6 +39,28 @@ export async function GET() {
   for (const c of campaigns) {
     totalCampaignSpend += Number(c.spent);
   }
+
+  const lastRecharge = transactions.find((t) => t.type === "RECHARGE");
+
+  const [studioPayment, pendingIntents] = await Promise.all([
+    getStudioPaymentConfig(),
+    prisma.walletPaymentIntent.findMany({
+      where: {
+        userId: auth.user.id,
+        status: { notIn: ["SUCCEEDED", "FAILED"] },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 15,
+      select: {
+        id: true,
+        amount: true,
+        currency: true,
+        provider: true,
+        status: true,
+        createdAt: true,
+      },
+    }),
+  ]);
 
   return NextResponse.json({
     profile,
@@ -41,6 +72,12 @@ export async function GET() {
     totalCampaignSpend,
     campaigns,
     transactions,
+    paymentConfig: {
+      defaultProvider: studioPayment.defaultProvider,
+      providers: studioPayment.providers,
+    },
+    pendingPaymentIntents: pendingIntents,
+    lastRechargeAt: lastRecharge?.createdAt ?? null,
   });
 }
 
@@ -56,7 +93,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    await rechargeWallet(auth.user.id, amount);
+    await rechargeWallet(auth.user.id, amount, { paymentProvider: "studio_direct" });
     const wallet = await prisma.wallet.findUniqueOrThrow({
       where: { userId: auth.user.id },
       select: { balance: true, totalSpent: true },

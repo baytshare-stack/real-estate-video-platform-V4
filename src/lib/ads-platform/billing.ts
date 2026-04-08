@@ -44,24 +44,41 @@ async function pauseCampaignIfDepleted(tx: Db, campaignId: string) {
   }
 }
 
-export async function rechargeWallet(userId: string, amount: number) {
+export type WalletRechargeMeta = { paymentProvider?: string; paymentIntentId?: string };
+
+/** Apply RECHARGE inside an existing transaction (payment gateway completion). */
+export async function applyWalletRechargeInTransaction(
+  tx: Db,
+  userId: string,
+  amount: number,
+  meta?: WalletRechargeMeta
+) {
   if (!Number.isFinite(amount) || amount <= 0) {
     throw new Error("Invalid recharge amount");
   }
   const inc = new Prisma.Decimal(String(amount));
-  return prisma.$transaction(async (tx) => {
-    await ensureWallet(tx, userId);
-    const w = await tx.wallet.update({
-      where: { userId },
-      data: { balance: { increment: inc } },
-      select: { balance: true },
-    });
-    await syncAdvertiserProfileBalance(tx, userId, w.balance);
-    await tx.walletTransaction.create({
-      data: { userId, type: "RECHARGE", amount: inc },
-    });
-    return w;
+  await ensureWallet(tx, userId);
+  const w = await tx.wallet.update({
+    where: { userId },
+    data: { balance: { increment: inc } },
+    select: { balance: true },
   });
+  await syncAdvertiserProfileBalance(tx, userId, w.balance);
+  await tx.walletTransaction.create({
+    data: {
+      userId,
+      type: "RECHARGE",
+      amount: inc,
+      paymentProvider: meta?.paymentProvider ?? null,
+      paymentIntentId: meta?.paymentIntentId ?? null,
+    },
+  });
+  return w;
+}
+
+/** Direct studio recharge (legacy / admin). Gateway flows use applyWalletRechargeInTransaction. */
+export async function rechargeWallet(userId: string, amount: number, meta?: WalletRechargeMeta) {
+  return prisma.$transaction(async (tx) => applyWalletRechargeInTransaction(tx, userId, amount, meta));
 }
 
 /**

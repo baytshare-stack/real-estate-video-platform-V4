@@ -71,8 +71,9 @@ model User {
   advertiserProfile    AdvertiserProfile?
   submittedAdLeads     Lead[] @relation("AdLeadSubmitter")
   assignedAdLeads      Lead[] @relation("AdLeadAgent")
-  adsWallet            Wallet?
-  adsWalletTransactions WalletTransaction[]
+  adsWallet               Wallet?
+  adsWalletTransactions   WalletTransaction[]
+  walletPaymentIntents    WalletPaymentIntent[]
 }
 
 model Account {
@@ -285,15 +286,53 @@ model Wallet {
 }
 
 model WalletTransaction {
-  id        String                @id @default(cuid())
-  userId    String
-  user      User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type      WalletTransactionType
-  amount    Decimal
-  adId      String?
-  createdAt DateTime              @default(now())
+  id                String                @id @default(cuid())
+  userId            String
+  user              User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type              WalletTransactionType
+  amount            Decimal
+  adId              String?
+  /// Gateway used for RECHARGE (cashier, paymob, stripe, mock); null for ad spend rows.
+  paymentProvider   String?
+  paymentIntentId   String?
+  createdAt         DateTime              @default(now())
 
   @@index([userId, createdAt(sort: Desc)])
+}
+
+/// Top-up flow before wallet credit; prevents duplicate credits (idempotency + status).
+model WalletPaymentIntent {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount         Decimal
+  currency       String   @default("EGP")
+  provider       String
+  status         String   @default("PENDING")
+  idempotencyKey String   @unique
+  returnToken    String
+  providerRef    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([userId, createdAt(sort: Desc)])
+}
+
+/// Singleton: default wallet top-up provider (cashier | paymob | stripe | mock).
+model PaymentGatewaySettings {
+  id              String   @id @default("default")
+  defaultProvider String   @default("mock")
+  updatedAt       DateTime @updatedAt
+}
+
+/// Admin-configured payment providers (keys stored server-side; admin UI only).
+model PaymentProviderConfig {
+  provider    String   @id
+  enabled     Boolean  @default(false)
+  publicKey   String?  @db.Text
+  secretKey   String?  @db.Text
+  callbackUrl String?  @db.Text
+  updatedAt   DateTime @updatedAt
 }
 
 model Campaign {
