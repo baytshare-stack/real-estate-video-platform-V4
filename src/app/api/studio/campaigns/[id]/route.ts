@@ -3,6 +3,9 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireAdvertiserProfile } from "@/lib/ads-platform/auth";
 import { adjustCampaignBudgetAllocation } from "@/lib/ads-platform/billing";
+import { validateCampaignActivation } from "@/lib/ads-platform/ad-lifecycle";
+
+type CampaignStatus = "DRAFT" | "ACTIVE" | "PAUSED" | "ENDED" | "DELETED";
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireAdvertiserProfile();
@@ -12,16 +15,27 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const { id } = await params;
   const body = (await req.json()) as {
     name?: string;
-    status?: "ACTIVE" | "PAUSED" | "ENDED";
+    status?: CampaignStatus;
     budget?: number;
     dailyBudget?: number;
+    startDate?: string;
+    endDate?: string;
   };
 
   const existing = await prisma.campaign.findFirst({
     where: { id, advertiserId: auth.profile.id },
-    select: { id: true },
+    select: { id: true, budget: true, spent: true, status: true },
   });
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  if (body.status === "ACTIVE") {
+    const v = validateCampaignActivation({
+      budget: existing.budget,
+      spent: existing.spent,
+      status: existing.status,
+    });
+    if (!v.ok) return NextResponse.json({ error: v.error }, { status: 400 });
+  }
 
   let campaign = null as Awaited<ReturnType<typeof prisma.campaign.findUnique>>;
 
@@ -55,8 +69,24 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (typeof body.dailyBudget === "number" && Number.isFinite(body.dailyBudget) && body.dailyBudget >= 0) {
     extra.dailyBudget = body.dailyBudget;
   }
+  if (body.startDate) extra.startDate = new Date(body.startDate);
+  if (body.endDate) extra.endDate = new Date(body.endDate);
 
-  if (Object.keys(extra).length > 0) {
+  if (body.status === "DELETED" || body.status === "ENDED") {
+    const { status, ...rest } = extra;
+    campaign = await prisma.$transaction(async (tx) => {
+      const c = await tx.campaign.update({
+        where: { id },
+        data: { ...rest, status: status ?? body.status },
+      });
+      if (body.status === "DELETED") {
+        await tx.ad.updateMany({ where: { campaignId: id }, data: { status: "DELETED" } });
+      } else if (body.status === "ENDED") {
+        await tx.ad.updateMany({ where: { campaignId: id }, data: { status: "ENDED" } });
+      }
+      return c;
+    });
+  } else if (Object.keys(extra).length > 0) {
     campaign = await prisma.campaign.update({ where: { id }, data: extra });
   }
 
@@ -67,4 +97,3 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   return NextResponse.json({ campaign });
 }
-

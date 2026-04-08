@@ -300,6 +300,7 @@ export async function pickBestAdForSlot(
       status: "ACTIVE",
       campaign: {
         status: "ACTIVE",
+        budget: { gt: 0 },
         startDate: { lte: now },
         endDate: { gte: now },
       },

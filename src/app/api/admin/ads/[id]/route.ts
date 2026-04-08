@@ -13,7 +13,7 @@ type PatchBody = {
   ctaType?: "CALL" | "WHATSAPP" | "BOOK_VISIT";
   ctaLabel?: string | null;
   ctaUrl?: string | null;
-  status?: "DRAFT" | "ACTIVE" | "PAUSED" | "ENDED";
+  status?: "DRAFT" | "ACTIVE" | "PAUSED" | "ENDED" | "DELETED";
   targeting?: {
     country?: string;
     city?: string;

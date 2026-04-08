@@ -304,7 +304,7 @@ model Campaign {
   budget        Decimal
   dailyBudget   Decimal
   spent         Decimal         @default(0)
-  status        CampaignStatus  @default(PAUSED)
+  status        CampaignStatus  @default(DRAFT)
   startDate     DateTime
   endDate       DateTime
   bidWeight     Float           @default(1.0)
@@ -565,9 +565,11 @@ enum VideoPropertyType {
 }
 
 enum CampaignStatus {
+  DRAFT
   ACTIVE
   PAUSED
   ENDED
+  DELETED
 }
 
 enum AdType {
@@ -580,6 +582,7 @@ enum AdStatus {
   ACTIVE
   PAUSED
   ENDED
+  DELETED
 }
 
 enum AdPlacement {

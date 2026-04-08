@@ -1,9 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { Loader2, Megaphone, Pause, Play, Square } from "lucide-react";
+import { Loader2, Megaphone, Pause, Pencil, Play, Square, Trash2 } from "lucide-react";
 import LocaleLink from "@/components/LocaleLink";
 import { StudioAdsPageHeader } from "@/components/studio/ads/StudioAdsBreadcrumb";
+import { AdsLifecycleBadge } from "@/components/studio/ads/AdsLifecycleBadge";
+import { StudioConfirmDialog } from "@/components/studio/ads/StudioConfirmDialog";
 
 type AdRow = {
   campaignId: string;
@@ -24,6 +26,91 @@ function formatInt(x: number) {
   return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(x);
 }
 
+type CampaignRow = {
+  id: string;
+  name: string;
+  status: string;
+  budget?: unknown;
+  dailyBudget?: unknown;
+  spent?: unknown;
+  startDate?: string;
+  endDate?: string;
+  _count?: { ads?: number };
+};
+
+function CampaignToolbar({
+  c,
+  patchCampaign,
+  openEdit,
+  setConfirm,
+  compact,
+}: {
+  c: CampaignRow;
+  patchCampaign: (id: string, body: Record<string, unknown>) => Promise<void>;
+  openEdit: (c: CampaignRow) => void;
+  setConfirm: (v: null | { kind: "end" | "delete"; id: string }) => void;
+  compact?: boolean;
+}) {
+  const deleted = c.status === "DELETED";
+  const ended = c.status === "ENDED";
+  const terminal = deleted || ended;
+  const btn = compact
+    ? "rounded-lg border border-white/15 px-2.5 py-1.5 text-xs text-white hover:bg-white/5"
+    : "inline-flex items-center gap-1 rounded-lg border border-white/15 bg-white/5 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-white/10 disabled:opacity-35";
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      <button type="button" className={btn} disabled={deleted} onClick={() => openEdit(c)} title="Edit">
+        <span className="inline-flex items-center gap-1">
+          <Pencil className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          {!compact ? "Edit" : null}
+        </span>
+      </button>
+      {(c.status === "DRAFT" || c.status === "PAUSED") && !terminal ? (
+        <button
+          type="button"
+          className={btn}
+          onClick={() => void patchCampaign(c.id, { status: "ACTIVE" })}
+        >
+          <span className="inline-flex items-center gap-1">
+            <Play className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            {!compact ? (c.status === "DRAFT" ? "Activate" : "Resume") : null}
+          </span>
+        </button>
+      ) : null}
+      {c.status === "ACTIVE" && !terminal ? (
+        <button type="button" className={btn} onClick={() => void patchCampaign(c.id, { status: "PAUSED" })}>
+          <span className="inline-flex items-center gap-1">
+            <Pause className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            {!compact ? "Pause" : null}
+          </span>
+        </button>
+      ) : null}
+      {!terminal ? (
+        <button type="button" className={btn} onClick={() => setConfirm({ kind: "end", id: c.id })}>
+          <span className="inline-flex items-center gap-1">
+            <Square className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            {!compact ? "End" : null}
+          </span>
+        </button>
+      ) : null}
+      {!deleted ? (
+        <button
+          type="button"
+          className={btn}
+          onClick={() => setConfirm({ kind: "delete", id: c.id })}
+          title="Delete campaign"
+        >
+          <span className="inline-flex items-center gap-1 text-rose-200">
+            <Trash2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            {!compact ? "Delete" : null}
+          </span>
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 export default function StudioCampaignsPage() {
   const [onboarding, setOnboarding] = React.useState<{ businessName?: string; balance?: unknown } | null>(null);
   const [campaigns, setCampaigns] = React.useState<any[]>([]);
@@ -34,6 +121,15 @@ export default function StudioCampaignsPage() {
   const [budget, setBudget] = React.useState("1000");
   const [dailyBudget, setDailyBudget] = React.useState("50");
   const [campaignError, setCampaignError] = React.useState("");
+  const [confirm, setConfirm] = React.useState<null | { kind: "end" | "delete"; id: string }>(null);
+  const [edit, setEdit] = React.useState<null | {
+    id: string;
+    name: string;
+    budget: string;
+    dailyBudget: string;
+    startDate: string;
+    endDate: string;
+  }>(null);
 
   const metricsByCampaign = React.useMemo(() => {
     const m = new Map<string, { impr: number; clk: number }>();
@@ -96,13 +192,38 @@ export default function StudioCampaignsPage() {
     }
   };
 
-  const setStatus = async (id: string, status: "ACTIVE" | "PAUSED" | "ENDED") => {
+  const patchCampaign = async (id: string, body: Record<string, unknown>) => {
     const res = await fetch(`/api/studio/campaigns/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
+      body: JSON.stringify(body),
     });
     if (res.ok) await load();
+  };
+
+  const openEdit = (c: { id: string; name: string; budget?: unknown; dailyBudget?: unknown; startDate?: string; endDate?: string }) => {
+    const sd = typeof c.startDate === "string" ? c.startDate.slice(0, 10) : "";
+    const ed = typeof c.endDate === "string" ? c.endDate.slice(0, 10) : "";
+    setEdit({
+      id: c.id,
+      name: c.name,
+      budget: String(n(c.budget)),
+      dailyBudget: String(n(c.dailyBudget)),
+      startDate: sd,
+      endDate: ed,
+    });
+  };
+
+  const saveEdit = async () => {
+    if (!edit) return;
+    await patchCampaign(edit.id, {
+      name: edit.name.trim(),
+      budget: Number(edit.budget),
+      dailyBudget: Number(edit.dailyBudget),
+      startDate: edit.startDate,
+      endDate: edit.endDate,
+    });
+    setEdit(null);
   };
 
   return (
@@ -234,34 +355,19 @@ export default function StudioCampaignsPage() {
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
                         <h3 className="text-base font-semibold text-white">{c.name}</h3>
-                        <p className="mt-1 text-xs text-white/45">
-                          {adCount} ad{adCount === 1 ? "" : "s"} ·{" "}
-                          <span className="rounded-full bg-white/10 px-2 py-0.5 text-white/80">{c.status}</span>
+                        <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-white/45">
+                          <span>
+                            {adCount} ad{adCount === 1 ? "" : "s"} ·{" "}
+                          </span>
+                          <AdsLifecycleBadge status={String(c.status || "DRAFT")} />
                         </p>
                       </div>
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          className="inline-flex items-center gap-1 rounded-lg border border-white/15 bg-white/5 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-white/10"
-                          onClick={() => void setStatus(c.id, "ACTIVE")}
-                        >
-                          <Play className="h-3.5 w-3.5" aria-hidden /> Run
-                        </button>
-                        <button
-                          type="button"
-                          className="inline-flex items-center gap-1 rounded-lg border border-white/15 bg-white/5 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-white/10"
-                          onClick={() => void setStatus(c.id, "PAUSED")}
-                        >
-                          <Pause className="h-3.5 w-3.5" aria-hidden /> Pause
-                        </button>
-                        <button
-                          type="button"
-                          className="inline-flex items-center gap-1 rounded-lg border border-white/15 bg-white/5 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-white/10"
-                          onClick={() => void setStatus(c.id, "ENDED")}
-                        >
-                          <Square className="h-3.5 w-3.5" aria-hidden /> End
-                        </button>
-                      </div>
+                      <CampaignToolbar
+                        c={c as CampaignRow}
+                        patchCampaign={patchCampaign}
+                        openEdit={openEdit}
+                        setConfirm={setConfirm}
+                      />
                     </div>
 
                     <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -309,7 +415,9 @@ export default function StudioCampaignsPage() {
                         CTR {ctr.toFixed(2)}%
                       </span>
                     </div>
-                    <p className="mt-1 text-xs text-white/45">{c.status}</p>
+                    <p className="mt-1">
+                      <AdsLifecycleBadge status={String(c.status || "DRAFT")} />
+                    </p>
                     <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
                       <div>
                         <p className="text-[10px] uppercase text-white/45">Impressions</p>
@@ -332,28 +440,14 @@ export default function StudioCampaignsPage() {
                       </div>
                       <p className="mt-1 text-xs text-indigo-200/90">Remaining: {formatInt(rem)}</p>
                     </div>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        className="rounded-lg border border-white/15 px-3 py-1.5 text-xs text-white"
-                        onClick={() => void setStatus(c.id, "ACTIVE")}
-                      >
-                        Run
-                      </button>
-                      <button
-                        type="button"
-                        className="rounded-lg border border-white/15 px-3 py-1.5 text-xs text-white"
-                        onClick={() => void setStatus(c.id, "PAUSED")}
-                      >
-                        Pause
-                      </button>
-                      <button
-                        type="button"
-                        className="rounded-lg border border-white/15 px-3 py-1.5 text-xs text-white"
-                        onClick={() => void setStatus(c.id, "ENDED")}
-                      >
-                        End
-                      </button>
+                    <div className="mt-3">
+                      <CampaignToolbar
+                        c={c as CampaignRow}
+                        patchCampaign={patchCampaign}
+                        openEdit={openEdit}
+                        setConfirm={setConfirm}
+                        compact
+                      />
                     </div>
                   </article>
                 );
@@ -362,6 +456,106 @@ export default function StudioCampaignsPage() {
           </>
         )}
       </section>
+
+      <StudioConfirmDialog
+        open={confirm !== null}
+        title={confirm?.kind === "delete" ? "Delete this campaign?" : "End this campaign?"}
+        message={
+          confirm?.kind === "delete"
+            ? "The campaign will be marked deleted and all its ads will be soft-deleted. This cannot be undone from the UI."
+            : "The campaign will end and all ads in it will be marked ended. You can still view history in Studio."
+        }
+        confirmLabel={confirm?.kind === "delete" ? "Delete" : "End campaign"}
+        danger={confirm?.kind === "delete"}
+        onCancel={() => setConfirm(null)}
+        onConfirm={() => {
+          if (!confirm) return;
+          void (async () => {
+            await patchCampaign(confirm.id, { status: confirm.kind === "delete" ? "DELETED" : "ENDED" });
+            setConfirm(null);
+          })();
+        }}
+      />
+
+      {edit ? (
+        <div
+          className="fixed inset-0 z-[95] flex items-center justify-center bg-black/75 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="campaign-edit-title"
+        >
+          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-white/10 bg-zinc-950 p-5 shadow-2xl">
+            <h3 id="campaign-edit-title" className="text-lg font-semibold text-white">
+              Edit campaign
+            </h3>
+            <p className="mt-1 text-sm text-white/55">Name, budget, schedule. Budget changes use your wallet (same as create).</p>
+            <div className="mt-4 space-y-3">
+              <label className="block text-xs text-white/65">
+                Name
+                <input
+                  className="mt-1 w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm text-white"
+                  value={edit.name}
+                  onChange={(e) => setEdit((s) => (s ? { ...s, name: e.target.value } : s))}
+                />
+              </label>
+              <label className="block text-xs text-white/65">
+                Total budget
+                <input
+                  className="mt-1 w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm text-white"
+                  inputMode="decimal"
+                  value={edit.budget}
+                  onChange={(e) => setEdit((s) => (s ? { ...s, budget: e.target.value } : s))}
+                />
+              </label>
+              <label className="block text-xs text-white/65">
+                Daily budget
+                <input
+                  className="mt-1 w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm text-white"
+                  inputMode="decimal"
+                  value={edit.dailyBudget}
+                  onChange={(e) => setEdit((s) => (s ? { ...s, dailyBudget: e.target.value } : s))}
+                />
+              </label>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block text-xs text-white/65">
+                  Start date
+                  <input
+                    type="date"
+                    className="mt-1 w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm text-white"
+                    value={edit.startDate}
+                    onChange={(e) => setEdit((s) => (s ? { ...s, startDate: e.target.value } : s))}
+                  />
+                </label>
+                <label className="block text-xs text-white/65">
+                  End date
+                  <input
+                    type="date"
+                    className="mt-1 w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm text-white"
+                    value={edit.endDate}
+                    onChange={(e) => setEdit((s) => (s ? { ...s, endDate: e.target.value } : s))}
+                  />
+                </label>
+              </div>
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                className="rounded-xl border border-white/15 px-4 py-2 text-sm text-white hover:bg-white/5"
+                onClick={() => setEdit(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500"
+                onClick={() => void saveEdit()}
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

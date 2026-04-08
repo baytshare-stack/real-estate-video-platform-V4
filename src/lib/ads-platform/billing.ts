@@ -115,7 +115,7 @@ export async function createCampaignWithWalletAllocation(params: {
           spent: ZERO,
           startDate,
           endDate,
-          status: "PAUSED",
+          status: "DRAFT",
         },
       });
 

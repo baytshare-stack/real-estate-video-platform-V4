@@ -83,7 +83,7 @@ type FormFields = {
   ctaType: "CALL" | "WHATSAPP" | "BOOK_VISIT";
   ctaLabel: string;
   ctaUrl: string;
-  status: "DRAFT" | "ACTIVE" | "PAUSED" | "ENDED";
+  status: "DRAFT" | "ACTIVE" | "PAUSED" | "ENDED" | "DELETED";
   country: string;
   city: string;
   area: string;

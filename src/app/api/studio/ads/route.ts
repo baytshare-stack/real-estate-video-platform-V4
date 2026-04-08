@@ -1,24 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireAdvertiserProfile } from "@/lib/ads-platform/auth";
-
-/** Accepts absolute http(s) URLs and same-origin paths from local upload (e.g. /uploads/videos/…). */
-function normalizeUrl(v: unknown): string | null {
-  const s = String(v || "").trim();
-  if (!s) return null;
-  if (s.includes("..")) return null;
-  try {
-    const u = new URL(s);
-    if (u.protocol !== "http:" && u.protocol !== "https:") return null;
-    return u.toString();
-  } catch {
-    // Relative paths from POST /api/upload fallback (public/uploads → /uploads/…)
-    if (s.startsWith("/uploads/videos/") || s.startsWith("/uploads/images/")) {
-      return s;
-    }
-    return null;
-  }
-}
+import { normalizeAdMediaUrl } from "@/lib/ads-platform/media-url";
 
 export async function GET() {
   const auth = await requireAdvertiserProfile();
@@ -70,14 +53,14 @@ export async function POST(req: Request) {
     select: { id: true, status: true },
   });
   if (!campaign) return NextResponse.json({ error: "Invalid campaignId" }, { status: 400 });
-  if (campaign.status !== "ACTIVE") {
-    return NextResponse.json({ error: "Campaign must be ACTIVE to serve ads." }, { status: 400 });
+  if (campaign.status === "DELETED" || campaign.status === "ENDED") {
+    return NextResponse.json({ error: "Cannot add ads to an ended or deleted campaign." }, { status: 400 });
   }
 
   const type = body.type || "VIDEO";
-  const videoUrl = normalizeUrl(body.videoUrl);
-  const imageUrl = normalizeUrl(body.imageUrl);
-  const thumbnail = normalizeUrl(body.thumbnail);
+  const videoUrl = normalizeAdMediaUrl(body.videoUrl);
+  const imageUrl = normalizeAdMediaUrl(body.imageUrl);
+  const thumbnail = normalizeAdMediaUrl(body.thumbnail);
   if (type === "VIDEO" && !videoUrl) {
     return NextResponse.json({ error: "VIDEO ads require a valid videoUrl." }, { status: 400 });
   }
@@ -103,7 +86,7 @@ export async function POST(req: Request) {
       ctaLabel: body.ctaLabel || null,
       ctaUrl: body.ctaUrl || null,
       placement: body.placement || "PRE_ROLL",
-      status: "ACTIVE",
+      status: "DRAFT",
       targeting: {
         create: {
           country,
