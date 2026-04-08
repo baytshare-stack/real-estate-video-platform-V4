@@ -42,17 +42,8 @@ export async function POST(req: Request) {
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "";
-    if (msg === "PROVIDER_DISABLED") {
-      return NextResponse.json(
-        { error: "This payment method is disabled. Choose another or contact support." },
-        { status: 400 }
-      );
-    }
-    if (msg === "PROVIDER_NOT_CONFIGURED") {
-      return NextResponse.json(
-        { error: "This payment method is not configured yet. Try another method or contact support." },
-        { status: 400 }
-      );
+    if (msg === "PROVIDER_DISABLED" || msg === "PROVIDER_NOT_CONFIGURED") {
+      return NextResponse.json({ error: "Provider not configured" }, { status: 400 });
     }
     if (msg === "INVALID_AMOUNT") {
       return NextResponse.json({ error: "Invalid amount" }, { status: 400 });

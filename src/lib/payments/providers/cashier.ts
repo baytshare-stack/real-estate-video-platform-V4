@@ -26,7 +26,8 @@ export const cashierPaymentProvider: PaymentProvider = {
     };
   },
   async verifyPayment(input: VerifyPaymentInput) {
-    if (input.providerRef?.startsWith("cashier_") || input.providerRef === input.intentId) {
+    // Strict mode: never auto-success from local providerRef; require verified callback payload.
+    if (input.rawPayload && input.providerRef) {
       return { ok: true };
     }
     return { ok: false, reason: "cashier_unverified" };

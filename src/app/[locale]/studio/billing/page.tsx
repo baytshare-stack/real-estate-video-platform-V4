@@ -443,7 +443,7 @@ export default function StudioBillingPage() {
                               <span className="mt-0.5 block text-xs leading-snug text-white/50">{description}</span>
                               {!ready ? (
                                 <span className="mt-1 block text-xs text-amber-200/80">
-                                  {meta?.enabled === false ? "Disabled" : "Unavailable"}
+                                  Setup required
                                 </span>
                               ) : null}
                             </span>
@@ -455,11 +455,11 @@ export default function StudioBillingPage() {
 
                   <button
                     type="button"
-                    disabled={proceedDisabled || payLoading}
+                    disabled={proceedDisabled || payLoading || !providerReady}
                     onClick={() => goToConfirm()}
                     className="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 py-3.5 text-base font-semibold text-white shadow-lg shadow-indigo-900/35 transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-45"
                   >
-                    Proceed to payment
+                    {providerReady ? "Proceed to payment" : "Setup required"}
                   </button>
                 </>
               ) : (

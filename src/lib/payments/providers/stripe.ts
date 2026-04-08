@@ -25,9 +25,6 @@ export const stripePaymentProvider: PaymentProvider = {
       // Future: stripe.webhooks.constructEvent(...)
       return { ok: true };
     }
-    if (input.providerRef?.startsWith("stripe_sim_")) {
-      return { ok: true };
-    }
     return { ok: false, reason: "stripe_unverified" };
   },
   async getStatus(providerRef: string) {

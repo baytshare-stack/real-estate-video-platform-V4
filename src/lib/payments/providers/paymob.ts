@@ -21,9 +21,6 @@ export const paymobPaymentProvider: PaymentProvider = {
     if (input.rawPayload && hmac) {
       return { ok: true };
     }
-    if (input.providerRef?.startsWith("paymob_")) {
-      return { ok: true };
-    }
     return { ok: false, reason: "paymob_unverified" };
   },
   async getStatus() {

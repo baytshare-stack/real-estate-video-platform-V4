@@ -25,20 +25,35 @@ function envPaymobSecret() {
   return process.env.PAYMOB_HMAC_SECRET?.trim() || "";
 }
 
-/** Stripe/Paymob need a secret (DB or env). Cashier/mock need only enabled (internal checkout works without keys). */
+function envStripePublic() {
+  return process.env.STRIPE_PUBLIC_KEY?.trim() || "";
+}
+
+function envPaymobPublic() {
+  return process.env.PAYMOB_PUBLIC_KEY?.trim() || "";
+}
+
+function hasApiKey(id: PaymentProviderId, row: { publicKey: string | null } | null): boolean {
+  const fromDb = row?.publicKey?.trim() || "";
+  if (id === "stripe") return !!(fromDb || envStripePublic());
+  if (id === "paymob") return !!(fromDb || envPaymobPublic());
+  return !!fromDb;
+}
+
+function hasSecret(id: PaymentProviderId, row: { secretKey: string | null } | null): boolean {
+  const fromDb = row?.secretKey?.trim() || "";
+  if (id === "stripe") return !!(fromDb || envStripeSecret());
+  if (id === "paymob") return !!(fromDb || envPaymobSecret());
+  return !!fromDb;
+}
+
+/** Strict: enabled + apiKey + secret for every provider. */
 export function isProviderReadyForCheckout(
   id: PaymentProviderId,
-  row: { enabled: boolean; secretKey: string | null; callbackUrl: string | null } | null
+  row: { enabled: boolean; publicKey: string | null; secretKey: string | null; callbackUrl: string | null } | null
 ): boolean {
   if (!row?.enabled) return false;
-  if (id === "mock" || id === "cashier") return true;
-  if (id === "stripe") {
-    return !!(row.secretKey?.trim() || envStripeSecret());
-  }
-  if (id === "paymob") {
-    return !!(row.secretKey?.trim() || envPaymobSecret());
-  }
-  return false;
+  return hasApiKey(id, row) && hasSecret(id, row);
 }
 
 export async function ensurePaymentProviderRows() {
@@ -106,8 +121,10 @@ export async function getProviderRuntimeSecrets(id: PaymentProviderId): Promise<
   await ensurePaymentProviderRows();
   const r = await prisma.paymentProviderConfig.findUnique({ where: { provider: id } });
   return {
-    publicKey: r?.publicKey?.trim() ? r.publicKey : null,
-    secretKey: r?.secretKey?.trim() ? r.secretKey : null,
+    publicKey:
+      r?.publicKey?.trim() ? r.publicKey : id === "stripe" ? envStripePublic() || null : id === "paymob" ? envPaymobPublic() || null : null,
+    secretKey:
+      r?.secretKey?.trim() ? r.secretKey : id === "stripe" ? envStripeSecret() || null : id === "paymob" ? envPaymobSecret() || null : null,
     callbackUrl: r?.callbackUrl?.trim() ? r.callbackUrl : null,
   };
 }
@@ -115,15 +132,14 @@ export async function getProviderRuntimeSecrets(id: PaymentProviderId): Promise<
 export async function assertProviderCanStartCheckout(id: PaymentProviderId): Promise<ProviderRuntimeSecrets> {
   await ensurePaymentProviderRows();
   const row = await prisma.paymentProviderConfig.findUnique({ where: { provider: id } });
-  if (!row?.enabled) {
-    throw new Error("PROVIDER_DISABLED");
-  }
-  if (!isProviderReadyForCheckout(id, row)) {
+  if (!row?.enabled || !isProviderReadyForCheckout(id, row)) {
     throw new Error("PROVIDER_NOT_CONFIGURED");
   }
   return {
-    publicKey: row?.publicKey?.trim() ? row.publicKey : null,
-    secretKey: row?.secretKey?.trim() ? row.secretKey : null,
+    publicKey:
+      row?.publicKey?.trim() ? row.publicKey : id === "stripe" ? envStripePublic() || null : id === "paymob" ? envPaymobPublic() || null : null,
+    secretKey:
+      row?.secretKey?.trim() ? row.secretKey : id === "stripe" ? envStripeSecret() || null : id === "paymob" ? envPaymobSecret() || null : null,
     callbackUrl: row?.callbackUrl?.trim() ? row.callbackUrl : null,
   };
 }
