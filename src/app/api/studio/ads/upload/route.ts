@@ -1,9 +1,16 @@
 import { NextResponse } from "next/server";
 import { requireAdvertiserProfile } from "@/lib/ads-platform/auth";
 import { assertImageFile, assertVideoFile } from "@/lib/localMediaUpload";
-import { applyCloudinaryConfigFromEnv, uploadBufferToCloudinaryStream } from "@/lib/cloudinary";
+import {
+  applyCloudinaryConfigFromEnv,
+  formatCloudinaryError,
+  uploadBufferToCloudinaryStream,
+} from "@/lib/cloudinary";
 
 export const runtime = "nodejs";
+
+/** Vercel serverless request body limit is ~4.5 MB; larger uploads must bypass the API (e.g. direct to Cloudinary). */
+const VERCEL_BODY_LIMIT_BYTES = 4_500_000;
 
 export async function POST(req: Request) {
   const auth = await requireAdvertiserProfile();
@@ -35,12 +42,47 @@ export async function POST(req: Request) {
     );
   }
 
-  const form = await req.formData();
+  let form: FormData;
+  try {
+    form = await req.formData();
+  } catch {
+    return NextResponse.json(
+      {
+        error: "Upload failed",
+        detail:
+          "Could not read upload body. If the file is large, try a smaller MP4 (Vercel limits request size to about 4.5 MB).",
+      },
+      { status: 400 }
+    );
+  }
+
   const videoPart = form.get("video");
   const thumbPart = form.get("thumbnail");
 
   const hasVideo = videoPart instanceof File && videoPart.size > 0;
   const hasThumb = thumbPart instanceof File && thumbPart.size > 0;
+
+  if (process.env.VERCEL === "1") {
+    if (hasVideo && videoPart.size > VERCEL_BODY_LIMIT_BYTES) {
+      return NextResponse.json(
+        {
+          error: "Video upload failed",
+          detail:
+            "File exceeds Vercel upload limit (~4.5 MB). Compress or shorten the MP4, or use a URL instead of uploading.",
+        },
+        { status: 413 }
+      );
+    }
+    if (hasThumb && thumbPart.size > VERCEL_BODY_LIMIT_BYTES) {
+      return NextResponse.json(
+        {
+          error: "Thumbnail upload failed",
+          detail: "Image exceeds Vercel upload limit (~4.5 MB). Use a smaller JPEG/PNG.",
+        },
+        { status: 413 }
+      );
+    }
+  }
   if (!hasVideo && !hasThumb) {
     return NextResponse.json(
       {
@@ -60,7 +102,7 @@ export async function POST(req: Request) {
       const { secure_url } = await uploadBufferToCloudinaryStream(buffer, "video");
       payload.url = secure_url;
     } catch (err) {
-      const detail = err instanceof Error ? err.message : "Could not upload video";
+      const detail = formatCloudinaryError(err);
       return NextResponse.json({ error: "Video upload failed", detail }, { status: 400 });
     }
   }
@@ -72,7 +114,7 @@ export async function POST(req: Request) {
       const { secure_url } = await uploadBufferToCloudinaryStream(buffer, "image");
       payload.thumbnailUrl = secure_url;
     } catch (err) {
-      const detail = err instanceof Error ? err.message : "Could not upload thumbnail";
+      const detail = formatCloudinaryError(err);
       return NextResponse.json({ error: "Thumbnail upload failed", detail }, { status: 400 });
     }
   }

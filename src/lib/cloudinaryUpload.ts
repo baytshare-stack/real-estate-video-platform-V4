@@ -1,17 +1,6 @@
 import cloudinary, { uploadBufferToCloudinaryStream } from "@/lib/cloudinary";
 
-export function formatCloudinaryError(err: unknown): string {
-  if (err instanceof Error && err.message) return err.message;
-  if (typeof err === "object" && err !== null) {
-    const o = err as Record<string, unknown>;
-    if (typeof o.message === "string") return o.message;
-    if (o.error && typeof o.error === "object" && o.error !== null) {
-      const e = o.error as Record<string, unknown>;
-      if (typeof e.message === "string") return e.message;
-    }
-  }
-  return "Storage upload failed";
-}
+export { formatCloudinaryError } from "@/lib/cloudinary";
 
 export async function uploadBufferToCloudinary(
   buffer: Buffer,

@@ -71,6 +71,28 @@ export function assertCloudinaryConfigured(): void {
 }
 
 /**
+ * Cloudinary sometimes passes a plain object (not `Error`) to upload_stream callbacks; normalize for logging/UI.
+ */
+export function formatCloudinaryError(err: unknown): string {
+  if (err instanceof Error && err.message.trim()) return err.message.trim();
+  if (typeof err === "string" && err.trim()) return err.trim();
+  if (typeof err === "object" && err !== null) {
+    const o = err as Record<string, unknown>;
+    if (typeof o.message === "string" && o.message.trim()) return o.message.trim();
+    const nested = o.error;
+    if (typeof nested === "object" && nested !== null) {
+      const e = nested as Record<string, unknown>;
+      if (typeof e.message === "string" && e.message.trim()) return e.message.trim();
+    }
+    const http = o.http_code;
+    if (typeof http === "number") {
+      return `Cloudinary request failed (HTTP ${http}).`;
+    }
+  }
+  return "Cloudinary upload failed (unknown error).";
+}
+
+/**
  * Upload a buffer via Cloudinary's upload_stream (works on serverless — no local disk).
  * Returns the HTTPS URL to store in the database.
  */
@@ -91,7 +113,7 @@ export async function uploadBufferToCloudinaryStream(
       },
       (error: Error | undefined, result?: UploadApiResponse) => {
         if (error) {
-          reject(error);
+          reject(new Error(formatCloudinaryError(error)));
           return;
         }
         if (!result?.secure_url || !result.public_id) {
