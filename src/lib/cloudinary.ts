@@ -1,17 +1,71 @@
 import { v2 as cloudinary } from "cloudinary";
 import type { UploadApiResponse } from "cloudinary";
 
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
+function cleanEnv(name: string): string {
+  return (process.env[name] || "").trim().replace(/^['"]|['"]$/g, "");
+}
+
+/**
+ * Parse `CLOUDINARY_URL` (format: cloudinary://API_KEY:API_SECRET@CLOUD_NAME).
+ * Many hosts (Heroku, etc.) expose a single URL instead of three separate vars.
+ */
+function tryParseCloudinaryUrl(raw: string): { cloudName: string; apiKey: string; apiSecret: string } | null {
+  const s = raw.trim();
+  if (!s || !s.startsWith("cloudinary://")) return null;
+  try {
+    const u = new URL(s);
+    const apiKey = decodeURIComponent(u.username || "");
+    const apiSecret = decodeURIComponent(u.password || "");
+    const cloudName = (u.hostname || "").trim();
+    if (!apiKey || !apiSecret || !cloudName) return null;
+    return { cloudName, apiKey, apiSecret };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Resolves credentials from the environment.
+ * - Cloud name: `CLOUDINARY_CLOUD_NAME` or `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME` (dashboard often sets only the public name).
+ * - Merges with `CLOUDINARY_URL` when individual keys are missing.
+ * - `CLOUDINARY_SECRET` is accepted as an alias for `CLOUDINARY_API_SECRET`.
+ */
+export function resolveCloudinaryCredentials():
+  | { cloudName: string; apiKey: string; apiSecret: string }
+  | null {
+  const fromUrl = tryParseCloudinaryUrl(cleanEnv("CLOUDINARY_URL"));
+  const cloudName =
+    cleanEnv("CLOUDINARY_CLOUD_NAME") ||
+    cleanEnv("NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME") ||
+    (fromUrl?.cloudName ?? "");
+  const apiKey = cleanEnv("CLOUDINARY_API_KEY") || (fromUrl?.apiKey ?? "");
+  const apiSecret =
+    cleanEnv("CLOUDINARY_API_SECRET") ||
+    cleanEnv("CLOUDINARY_SECRET") ||
+    (fromUrl?.apiSecret ?? "");
+  if (!cloudName || !apiKey || !apiSecret) return null;
+  return { cloudName, apiKey, apiSecret };
+}
+
+/**
+ * Applies resolved env to the Cloudinary SDK. Call before upload or `cloudinary.url()`.
+ * Returns false if configuration cannot be completed.
+ */
+export function applyCloudinaryConfigFromEnv(): boolean {
+  const cfg = resolveCloudinaryCredentials();
+  if (!cfg) return false;
+  cloudinary.config({
+    cloud_name: cfg.cloudName,
+    api_key: cfg.apiKey,
+    api_secret: cfg.apiSecret,
+  });
+  return true;
+}
 
 export function assertCloudinaryConfigured(): void {
-  const { CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET } = process.env;
-  if (!CLOUDINARY_CLOUD_NAME?.trim() || !CLOUDINARY_API_KEY?.trim() || !CLOUDINARY_API_SECRET?.trim()) {
+  if (!applyCloudinaryConfigFromEnv()) {
     throw new Error(
-      "Cloudinary is not configured. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET."
+      "Cloudinary is not configured. Set CLOUDINARY_CLOUD_NAME (or NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME), CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET — or set CLOUDINARY_URL."
     );
   }
 }

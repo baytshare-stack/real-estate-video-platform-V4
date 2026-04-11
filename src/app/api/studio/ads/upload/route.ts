@@ -1,24 +1,9 @@
 import { NextResponse } from "next/server";
-import { v2 as cloudinary } from "cloudinary";
 import { requireAdvertiserProfile } from "@/lib/ads-platform/auth";
 import { assertImageFile, assertVideoFile } from "@/lib/localMediaUpload";
-import { uploadBufferToCloudinaryStream } from "@/lib/cloudinary";
+import { applyCloudinaryConfigFromEnv, uploadBufferToCloudinaryStream } from "@/lib/cloudinary";
 
 export const runtime = "nodejs";
-
-function cleanEnv(name: string): string {
-  return (process.env[name] || "").trim().replace(/^['"]|['"]$/g, "");
-}
-
-function ensureAdsCloudinaryConfigured(): { cloudName: string; apiKey: string; apiSecret: string } {
-  const cloudName = cleanEnv("CLOUDINARY_CLOUD_NAME") || cleanEnv("NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME");
-  const apiKey = cleanEnv("CLOUDINARY_API_KEY");
-  const apiSecret = cleanEnv("CLOUDINARY_API_SECRET");
-  if (!cloudName || !apiKey || !apiSecret) {
-    throw new Error("ADS_CLOUDINARY_NOT_CONFIGURED");
-  }
-  return { cloudName, apiKey, apiSecret };
-}
 
 export async function POST(req: Request) {
   const auth = await requireAdvertiserProfile();
@@ -38,25 +23,17 @@ export async function POST(req: Request) {
     );
   }
 
-  let cfg: { cloudName: string; apiKey: string; apiSecret: string };
-  try {
-    cfg = ensureAdsCloudinaryConfigured();
-  } catch {
+  // Same resolver as `uploadBufferToCloudinaryStream` — supports NEXT_PUBLIC_* cloud name and CLOUDINARY_URL.
+  if (!applyCloudinaryConfigFromEnv()) {
     return NextResponse.json(
       {
         error: "Upload provider not configured",
-        detail: "Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET.",
+        detail:
+          "Set CLOUDINARY_CLOUD_NAME (or NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME), CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET — or set CLOUDINARY_URL.",
       },
       { status: 500 }
     );
   }
-
-  // Ensure Cloudinary is configured at request-time before any upload call.
-  cloudinary.config({
-    cloud_name: cfg.cloudName,
-    api_key: cfg.apiKey,
-    api_secret: cfg.apiSecret,
-  });
 
   const form = await req.formData();
   const videoPart = form.get("video");
