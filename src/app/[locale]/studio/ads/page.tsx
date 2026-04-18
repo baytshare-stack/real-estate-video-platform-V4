@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Loader2 } from "lucide-react";
 import { StudioAdsPageHeader } from "@/components/studio/ads/StudioAdsBreadcrumb";
+import { cloudinaryUnsignedUpload } from "@/lib/ads-client/cloudinary-unsigned-upload";
 import { parseResponseJson } from "@/lib/ads-client/safe-json";
 
 type CampaignOpt = { id: string; name: string; status?: string };
@@ -46,6 +47,8 @@ export default function StudioAdsPage() {
   const [mediaSource, setMediaSource] = React.useState<"url" | "upload">("url");
   const [videoUrl, setVideoUrl] = React.useState("");
   const [imageUrl, setImageUrl] = React.useState("");
+  /** Last successful unsigned upload URL (mirrors videoUrl or imageUrl for display). */
+  const [mediaUrl, setMediaUrl] = React.useState("");
   const [uploadBusy, setUploadBusy] = React.useState(false);
   const [slot, setSlot] = React.useState<"PRE_ROLL" | "MID_ROLL">("PRE_ROLL");
   const [targetVideoId, setTargetVideoId] = React.useState("");
@@ -105,34 +108,22 @@ export default function StudioAdsPage() {
     setUploadBusy(true);
     setError("");
     try {
-      const fd = new FormData();
-      if (mediaType === "VIDEO") {
-        fd.append("video", file);
+      const { resourceType, secure_url } = await cloudinaryUnsignedUpload(file);
+      setMediaUrl(secure_url);
+      if (resourceType === "video") {
+        setMediaType("VIDEO");
+        setVideoUrl(secure_url);
+        setImageUrl("");
       } else {
-        fd.append("image", file);
-      }
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        body: fd,
-        credentials: "include",
-      });
-      const j = await parseResponseJson(
-        res,
-        {} as { success?: boolean; url?: string; imageUrl?: string; error?: string; detail?: string }
-      );
-      if (!res.ok || j.success === false) {
-        const parts = [j.error, j.detail].filter((x): x is string => typeof x === "string" && x.length > 0);
-        throw new Error(parts.length ? parts.join(" — ") : "Upload failed.");
-      }
-      if (mediaType === "VIDEO" && j.url) {
-        setVideoUrl(j.url);
-      } else if (mediaType === "IMAGE" && j.imageUrl) {
-        setImageUrl(j.imageUrl);
-      } else {
-        throw new Error("Upload succeeded but no media URL was returned.");
+        setMediaType("IMAGE");
+        setImageUrl(secure_url);
+        setVideoUrl("");
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Upload failed.");
+      const msg = e instanceof Error ? e.message : "Upload failed.";
+      console.error("[studio/ads] Cloudinary unsigned upload failed:", e);
+      setError(msg);
+      window.alert(msg);
     } finally {
       setUploadBusy(false);
     }
@@ -173,6 +164,7 @@ export default function StudioAdsPage() {
       if (!res.ok) throw new Error(j.error || "Create failed.");
       setVideoUrl("");
       setImageUrl("");
+      setMediaUrl("");
       setTargetVideoId("");
       setCountries("");
       setCities("");
@@ -277,6 +269,7 @@ export default function StudioAdsPage() {
                   setMediaType(v);
                   setVideoUrl("");
                   setImageUrl("");
+                  setMediaUrl("");
                 }}
                 className="mt-1 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-sm text-white"
               >
@@ -289,7 +282,9 @@ export default function StudioAdsPage() {
               <div className="mt-2 flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() => setMediaSource("upload")}
+                  onClick={() => {
+                    setMediaSource("upload");
+                  }}
                   className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
                     mediaSource === "upload"
                       ? "border-indigo-400 bg-indigo-600/30 text-white"
@@ -300,7 +295,10 @@ export default function StudioAdsPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setMediaSource("url")}
+                  onClick={() => {
+                    setMediaSource("url");
+                    setMediaUrl("");
+                  }}
                   className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
                     mediaSource === "url"
                       ? "border-indigo-400 bg-indigo-600/30 text-white"
@@ -313,15 +311,11 @@ export default function StudioAdsPage() {
             </div>
             {mediaSource === "upload" ? (
               <label className="block text-xs text-white/60 sm:col-span-2">
-                {mediaType === "VIDEO" ? "Video file (.mp4)" : "Image file (.jpg / .png)"}
+                Video or image file
                 <input
-                  key={`${mediaType}-${mediaSource}`}
+                  key={`${mediaSource}`}
                   type="file"
-                  accept={
-                    mediaType === "VIDEO"
-                      ? "video/mp4,.mp4"
-                      : "image/jpeg,image/png,.jpg,.jpeg,.png"
-                  }
+                  accept="video/*,image/*"
                   disabled={uploadBusy}
                   onChange={(e) => {
                     const f = e.target.files?.[0];
@@ -331,7 +325,9 @@ export default function StudioAdsPage() {
                   className="mt-1 block w-full text-sm text-white/90 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-600 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-white hover:file:bg-indigo-500 disabled:opacity-40"
                 />
                 <p className="mt-1 text-[11px] text-white/40">
-                  Files go to POST /api/upload (server). Set Cloudinary env vars on the server. On Vercel, body limit ~4.5 MB — use URL for larger files.
+                  Unsigned upload to Cloudinary (default preset <span className="font-mono">real_estate_unsigned</span>; override
+                  with <span className="font-mono">NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET</span>). Set{" "}
+                  <span className="font-mono">NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME</span>. Creative type follows the file you pick.
                 </p>
                 {uploadBusy ? (
                   <p className="mt-1 flex items-center gap-2 text-xs text-white/55">
@@ -339,10 +335,10 @@ export default function StudioAdsPage() {
                     Uploading…
                   </p>
                 ) : null}
-                {(mediaType === "VIDEO" ? videoUrl : imageUrl) ? (
-                  <p className="mt-2 truncate text-[11px] text-emerald-200/90" title={mediaType === "VIDEO" ? videoUrl : imageUrl}>
-                    Ready: {(mediaType === "VIDEO" ? videoUrl : imageUrl).slice(0, 80)}
-                    {(mediaType === "VIDEO" ? videoUrl : imageUrl).length > 80 ? "…" : ""}
+                {mediaUrl ? (
+                  <p className="mt-2 truncate text-[11px] text-emerald-200/90" title={mediaUrl}>
+                    Ready ({mediaType}): {mediaUrl.slice(0, 80)}
+                    {mediaUrl.length > 80 ? "…" : ""}
                   </p>
                 ) : null}
               </label>
@@ -351,7 +347,10 @@ export default function StudioAdsPage() {
                 Video URL
                 <input
                   value={videoUrl}
-                  onChange={(e) => setVideoUrl(e.target.value)}
+                  onChange={(e) => {
+                    setMediaUrl("");
+                    setVideoUrl(e.target.value);
+                  }}
                   className="mt-1 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-sm text-white"
                   placeholder="https://…/promo.mp4"
                 />
@@ -361,7 +360,10 @@ export default function StudioAdsPage() {
                 Image URL
                 <input
                   value={imageUrl}
-                  onChange={(e) => setImageUrl(e.target.value)}
+                  onChange={(e) => {
+                    setMediaUrl("");
+                    setImageUrl(e.target.value);
+                  }}
                   className="mt-1 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-sm text-white"
                   placeholder="https://…/banner.jpg"
                 />
