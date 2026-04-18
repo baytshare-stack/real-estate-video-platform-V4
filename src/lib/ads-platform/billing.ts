@@ -1,5 +1,15 @@
-import { Prisma } from "@prisma/client";
+import { Prisma, type CampaignBidMode, type CampaignBillingType, type WalletTransactionType } from "@prisma/client";
 import prisma from "@/lib/prisma";
+import {
+  clickUnitCost,
+  dailyBudgetAllowsCharge,
+  impressionUnitCost,
+  leadUnitCost,
+  shouldChargeClick,
+  shouldChargeImpression,
+  shouldChargeLead,
+  utcSpendDayString,
+} from "@/lib/ads-platform/monetization-engine";
 
 const ZERO = new Prisma.Decimal(0);
 
@@ -38,6 +48,113 @@ async function pauseCampaignIfDepleted(tx: Db, campaignId: string) {
   if (c.budget.sub(c.spent).lte(ZERO)) {
     await tx.campaign.update({ where: { id: campaignId }, data: { status: "PAUSED" } });
   }
+}
+
+const campaignSpendSelect = {
+  status: true,
+  spent: true,
+  budget: true,
+  dailyBudget: true,
+  spentToday: true,
+  spendDayUtc: true,
+  billingType: true,
+  bidAmount: true,
+  bidMode: true,
+  cpmBid: true,
+  cpcBid: true,
+  cplBid: true,
+  advertiser: { select: { userId: true } },
+} as const;
+
+type CampaignSpendRow = Prisma.CampaignGetPayload<{ select: typeof campaignSpendSelect }>;
+
+function bidFieldSync(billingType: CampaignBillingType, bidAmount: Prisma.Decimal) {
+  if (bidAmount.lte(ZERO)) {
+    return {
+      billingType,
+      bidAmount: ZERO,
+      bidMode: "WEIGHTED" as CampaignBidMode,
+      cpmBid: null as Prisma.Decimal | null,
+      cpcBid: null as Prisma.Decimal | null,
+      cplBid: null as Prisma.Decimal | null,
+    };
+  }
+  const mode = billingType as unknown as CampaignBidMode;
+  return {
+    billingType,
+    bidAmount,
+    bidMode: mode,
+    cpmBid: billingType === "CPM" ? bidAmount : null,
+    cpcBid: billingType === "CPC" ? bidAmount : null,
+    cplBid: billingType === "CPL" ? bidAmount : null,
+  };
+}
+
+async function applyUserCampaignSpend(
+  tx: Db,
+  params: {
+    campaignId: string;
+    adId: string;
+    amount: Prisma.Decimal;
+    ledgerType: WalletTransactionType;
+    now: Date;
+  }
+) {
+  const { campaignId, adId, amount, ledgerType, now } = params;
+  if (amount.lte(ZERO)) return;
+
+  let camp = (await tx.campaign.findUnique({
+    where: { id: campaignId },
+    select: campaignSpendSelect,
+  })) as CampaignSpendRow | null;
+  if (!camp || camp.status !== "ACTIVE") return;
+
+  const today = utcSpendDayString(now);
+  if (camp.spendDayUtc !== today) {
+    await tx.campaign.update({
+      where: { id: campaignId },
+      data: { spentToday: ZERO, spendDayUtc: today },
+    });
+    camp = { ...camp, spentToday: ZERO, spendDayUtc: today };
+  }
+
+  if (
+    !dailyBudgetAllowsCharge({
+      dailyBudget: camp.dailyBudget,
+      spendDayUtc: camp.spendDayUtc,
+      spentToday: camp.spentToday,
+      amount,
+      now,
+    })
+  ) {
+    return;
+  }
+
+  const rem = camp.budget.sub(camp.spent);
+  if (rem.lt(amount)) return;
+
+  await tx.campaign.update({
+    where: { id: campaignId },
+    data: {
+      spent: { increment: amount },
+      spentToday: { increment: amount },
+      spendDayUtc: today,
+    },
+  });
+  await tx.walletTransaction.create({
+    data: {
+      userId: camp.advertiser.userId,
+      type: ledgerType,
+      amount,
+      adId,
+    },
+  });
+  await tx.adPerformance.upsert({
+    where: { adId },
+    create: { adId, spend: amount },
+    update: { spend: { increment: amount } },
+  });
+  await pauseCampaignIfDepleted(tx, campaignId);
 }
 
 export type WalletRechargeMeta = { paymentProvider?: string; paymentIntentId?: string };
@@ -89,14 +206,28 @@ export async function createCampaignWithWalletAllocation(params: {
   dailyBudget: Prisma.Decimal;
   startDate: Date;
   endDate: Date;
+  billingType?: CampaignBillingType;
+  bidAmount?: Prisma.Decimal;
 }) {
-  const { userId, advertiserProfileId, name, budget, dailyBudget, startDate, endDate } = params;
+  const {
+    userId,
+    advertiserProfileId,
+    name,
+    budget,
+    dailyBudget,
+    startDate,
+    endDate,
+    billingType = "CPM",
+    bidAmount = ZERO,
+  } = params;
   if (budget.lte(ZERO)) {
     throw new Error("budget must be > 0");
   }
   if (dailyBudget.lt(ZERO)) {
     throw new Error("invalid dailyBudget");
   }
+
+  const bidSync = bidFieldSync(billingType, bidAmount);
 
   return prisma.$transaction(
     async (tx) => {
@@ -129,6 +260,9 @@ export async function createCampaignWithWalletAllocation(params: {
           startDate,
           endDate,
           status: "DRAFT",
+          spentToday: ZERO,
+          spendDayUtc: "",
+          ...bidSync,
         },
       });
 
@@ -195,15 +329,11 @@ export async function adjustCampaignBudgetAllocation(params: {
 }
 
 /**
- * Deducts a small amount from the campaign budget for a served USER ad impression.
- * Wallet balance is unchanged (funds were moved into `campaign.budget` at allocation).
- * Cost per impression defaults to `AD_IMPRESSION_COST` env (decimal string), fallback 0.01.
+ * USER campaign: impression billing for CPM (and legacy flat CPM when bidAmount = 0).
+ * CPC/CPL with explicit bidAmount skip impression charges (pay on click/lead).
  */
 export async function chargeForAdImpression(adId: string) {
-  const raw = process.env.AD_IMPRESSION_COST ?? "0.01";
-  const amount = new Prisma.Decimal(String(raw));
-  if (amount.lte(ZERO)) return;
-
+  const now = new Date();
   await prisma.$transaction(
     async (tx) => {
       const ad = await tx.ad.findUnique({
@@ -212,82 +342,102 @@ export async function chargeForAdImpression(adId: string) {
       });
       if (!ad?.active || ad.publisher !== "USER" || !ad.campaignId) return;
 
-      const campaign = await tx.campaign.findUnique({
+      const camp = await tx.campaign.findUnique({
         where: { id: ad.campaignId },
-        select: {
-          status: true,
-          spent: true,
-          budget: true,
-          advertiser: { select: { userId: true } },
-        },
+        select: campaignSpendSelect,
       });
-      if (!campaign || campaign.status !== "ACTIVE") return;
+      if (!camp || camp.status !== "ACTIVE") return;
 
-      const rem = campaign.budget.sub(campaign.spent);
-      if (rem.lt(amount)) return;
+      if (!shouldChargeImpression({ billingType: camp.billingType, bidAmount: camp.bidAmount })) return;
 
-      await tx.campaign.update({
-        where: { id: ad.campaignId },
-        data: { spent: { increment: amount } },
+      const amount = impressionUnitCost({
+        billingType: camp.billingType,
+        bidAmount: camp.bidAmount,
+        cpmBid: camp.cpmBid,
       });
-      await tx.walletTransaction.create({
-        data: {
-          userId: campaign.advertiser.userId,
-          type: "IMPRESSION",
-          amount,
-          adId,
-        },
+      await applyUserCampaignSpend(tx, {
+        campaignId: ad.campaignId,
+        adId,
+        amount,
+        ledgerType: "IMPRESSION",
+        now,
       });
-      await tx.adPerformance.upsert({
-        where: { adId },
-        create: { adId, spend: amount },
-        update: { spend: { increment: amount } },
-      });
-      await pauseCampaignIfDepleted(tx, ad.campaignId);
     },
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
   );
 }
 
-/** Lead cost comes from the campaign budget pool; records wallet ledger row + ad spend rollup. */
-export async function chargeForLead(params: { campaignId: string; adId: string; cost?: number }) {
-  const raw = params.cost ?? Number(process.env.AD_LEAD_COST ?? "3");
-  const amount = new Prisma.Decimal(String(raw));
-  if (amount.lte(ZERO)) return;
-
+/** USER campaign: CPC billing on tracked clicks (optional legacy when cpcBid set). */
+export async function chargeForAdClick(adId: string) {
+  const now = new Date();
   await prisma.$transaction(
     async (tx) => {
-      const campaign = await tx.campaign.findUnique({
-        where: { id: params.campaignId },
-        select: {
-          spent: true,
-          budget: true,
-          status: true,
-          advertiser: { select: { userId: true } },
-        },
+      const ad = await tx.ad.findUnique({
+        where: { id: adId },
+        select: { id: true, publisher: true, campaignId: true, active: true },
       });
-      if (!campaign || campaign.status !== "ACTIVE") return;
-      const rem = campaign.budget.sub(campaign.spent);
-      if (rem.lt(amount)) return;
-      await tx.campaign.update({
-        where: { id: params.campaignId },
-        data: { spent: { increment: amount } },
+      if (!ad?.active || ad.publisher !== "USER" || !ad.campaignId) return;
+
+      const camp = await tx.campaign.findUnique({
+        where: { id: ad.campaignId },
+        select: campaignSpendSelect,
       });
-      await tx.walletTransaction.create({
-        data: {
-          userId: campaign.advertiser.userId,
-          type: "LEAD",
-          amount,
-          adId: params.adId,
-        },
+      if (!camp || camp.status !== "ACTIVE") return;
+
+      if (!shouldChargeClick({ billingType: camp.billingType, bidAmount: camp.bidAmount, cpcBid: camp.cpcBid })) {
+        return;
+      }
+
+      const amount = clickUnitCost({
+        billingType: camp.billingType,
+        bidAmount: camp.bidAmount,
+        cpcBid: camp.cpcBid,
       });
-      await tx.adPerformance.upsert({
-        where: { adId: params.adId },
-        create: { adId: params.adId, spend: amount },
-        update: { spend: { increment: amount } },
+      await applyUserCampaignSpend(tx, {
+        campaignId: ad.campaignId,
+        adId,
+        amount,
+        ledgerType: "CLICK",
+        now,
       });
-      await pauseCampaignIfDepleted(tx, params.campaignId);
     },
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
   );
 }
+
+/** Lead cost from campaign pool; CPL when bidAmount + billing; legacy always charges configured lead fee. */
+export async function chargeForLead(params: { campaignId: string; adId: string; cost?: number }) {
+  const now = new Date();
+  await prisma.$transaction(
+    async (tx) => {
+      const camp = await tx.campaign.findUnique({
+        where: { id: params.campaignId },
+        select: campaignSpendSelect,
+      });
+      if (!camp || camp.status !== "ACTIVE") return;
+
+      if (!shouldChargeLead({ billingType: camp.billingType, bidAmount: camp.bidAmount })) return;
+
+      const amount =
+        params.cost != null && Number.isFinite(params.cost)
+          ? new Prisma.Decimal(String(params.cost))
+          : leadUnitCost({
+              billingType: camp.billingType,
+              bidAmount: camp.bidAmount,
+              cplBid: camp.cplBid,
+            });
+      if (amount.lte(ZERO)) return;
+
+      await applyUserCampaignSpend(tx, {
+        campaignId: params.campaignId,
+        adId: params.adId,
+        amount,
+        ledgerType: "LEAD",
+        now,
+      });
+    },
+    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+  );
+}
+
+export { bidFieldSync };

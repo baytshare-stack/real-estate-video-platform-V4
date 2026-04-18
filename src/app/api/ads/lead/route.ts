@@ -54,6 +54,7 @@ export async function POST(req: Request) {
     const lead = await prisma.lead.create({
       data: {
         adId,
+        campaignId: ad.campaignId,
         userId: userId || null,
         videoId: videoId || null,
         agentId,

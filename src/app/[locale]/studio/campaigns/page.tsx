@@ -27,6 +27,17 @@ function formatInt(x: number) {
   return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(x);
 }
 
+type MonetizationSummary = {
+  impressions: number;
+  clicks: number;
+  leads: number;
+  spend: number;
+  cpcActual: number | null;
+  cplActual: number | null;
+  cpmActual: number | null;
+  roiLeadEstimate: number | null;
+};
+
 type CampaignRow = {
   id: string;
   name: string;
@@ -34,8 +45,11 @@ type CampaignRow = {
   budget?: unknown;
   dailyBudget?: unknown;
   spent?: unknown;
+  billingType?: string;
+  bidAmount?: unknown;
   startDate?: string;
   endDate?: string;
+  monetization?: MonetizationSummary;
   _count?: { ads?: number }; // legacy shape; video inventory is no longer per-campaign
 };
 
@@ -121,6 +135,8 @@ export default function StudioCampaignsPage() {
   const [name, setName] = React.useState("");
   const [budget, setBudget] = React.useState("1000");
   const [dailyBudget, setDailyBudget] = React.useState("50");
+  const [billingType, setBillingType] = React.useState<"CPM" | "CPC" | "CPL">("CPM");
+  const [bidAmount, setBidAmount] = React.useState("");
   const [campaignError, setCampaignError] = React.useState("");
   const [confirm, setConfirm] = React.useState<null | { kind: "end" | "delete"; id: string }>(null);
   const [edit, setEdit] = React.useState<null | {
@@ -128,6 +144,8 @@ export default function StudioCampaignsPage() {
     name: string;
     budget: string;
     dailyBudget: string;
+    billingType: "CPM" | "CPC" | "CPL";
+    bidAmount: string;
     startDate: string;
     endDate: string;
   }>(null);
@@ -181,6 +199,7 @@ export default function StudioCampaignsPage() {
     setCampaignError("");
     const budgetNum = Number(String(budget).replace(/,/g, "").trim());
     const dailyNum = Number(String(dailyBudget).replace(/,/g, "").trim());
+    const bidNum = Number(String(bidAmount).replace(/,/g, "").trim());
     const res = await fetch("/api/studio/campaigns", {
       method: "POST",
       credentials: "include",
@@ -189,6 +208,8 @@ export default function StudioCampaignsPage() {
         name: name.trim(),
         budget: budgetNum,
         dailyBudget: Number.isFinite(dailyNum) ? dailyNum : 0,
+        billingType,
+        ...(Number.isFinite(bidNum) && bidNum > 0 ? { bidAmount: bidNum } : {}),
       }),
     });
     const j = await parseResponseJson(
@@ -197,6 +218,8 @@ export default function StudioCampaignsPage() {
     );
     if (res.ok && j.success !== false) {
       setName("");
+      setBidAmount("");
+      setBillingType("CPM");
       await load();
     } else {
       const parts = [j.error, j.detail].filter((x): x is string => typeof x === "string" && x.length > 0);
@@ -213,14 +236,28 @@ export default function StudioCampaignsPage() {
     if (res.ok) await load();
   };
 
-  const openEdit = (c: { id: string; name: string; budget?: unknown; dailyBudget?: unknown; startDate?: string; endDate?: string }) => {
+  const openEdit = (c: {
+    id: string;
+    name: string;
+    budget?: unknown;
+    dailyBudget?: unknown;
+    billingType?: string;
+    bidAmount?: unknown;
+    startDate?: string;
+    endDate?: string;
+  }) => {
     const sd = typeof c.startDate === "string" ? c.startDate.slice(0, 10) : "";
     const ed = typeof c.endDate === "string" ? c.endDate.slice(0, 10) : "";
+    const bt = (c.billingType || "CPM").toUpperCase();
+    const billing: "CPM" | "CPC" | "CPL" =
+      bt === "CPC" ? "CPC" : bt === "CPL" ? "CPL" : "CPM";
     setEdit({
       id: c.id,
       name: c.name,
       budget: String(n(c.budget)),
       dailyBudget: String(n(c.dailyBudget)),
+      billingType: billing,
+      bidAmount: c.bidAmount != null && String(c.bidAmount).trim() !== "" ? String(n(c.bidAmount)) : "",
       startDate: sd,
       endDate: ed,
     });
@@ -228,10 +265,13 @@ export default function StudioCampaignsPage() {
 
   const saveEdit = async () => {
     if (!edit) return;
+    const bidNum = Number(String(edit.bidAmount).replace(/,/g, "").trim());
     await patchCampaign(edit.id, {
       name: edit.name.trim(),
       budget: Number(edit.budget),
       dailyBudget: Number(edit.dailyBudget),
+      billingType: edit.billingType,
+      ...(Number.isFinite(bidNum) && bidNum >= 0 ? { bidAmount: bidNum } : {}),
       startDate: edit.startDate,
       endDate: edit.endDate,
     });
@@ -291,7 +331,7 @@ export default function StudioCampaignsPage() {
         <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 sm:p-6">
           <h2 className="text-lg font-semibold text-white">New campaign</h2>
           <p className="mt-1 text-sm text-white/55">Total and daily caps — same rules as before, clearer labels.</p>
-          <div className="mt-4 grid gap-4 md:grid-cols-3">
+          <div className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             <label className="text-xs text-white/65">
               Campaign name
               <input
@@ -319,6 +359,31 @@ export default function StudioCampaignsPage() {
                 inputMode="decimal"
                 value={dailyBudget}
                 onChange={(e) => setDailyBudget(e.target.value)}
+              />
+            </label>
+            <label className="text-xs text-white/65 md:col-span-1">
+              Billing model
+              <select
+                className="mt-1.5 w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white"
+                value={billingType}
+                onChange={(e) => setBillingType(e.target.value as typeof billingType)}
+              >
+                <option value="CPM">CPM (per 1k impressions)</option>
+                <option value="CPC">CPC (per click)</option>
+                <option value="CPL">CPL (per lead)</option>
+              </select>
+            </label>
+            <label className="text-xs text-white/65 md:col-span-2">
+              Bid amount
+              <span className="mb-1 block text-[10px] font-normal text-white/40">
+                CPM = price per 1,000 impressions; CPC/CPL = price per event. Leave empty for legacy flat CPM.
+              </span>
+              <input
+                className="mt-1.5 w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white"
+                inputMode="decimal"
+                placeholder={billingType === "CPM" ? "e.g. 12 (means $12 / 1k impr.)" : "e.g. 0.45"}
+                value={bidAmount}
+                onChange={(e) => setBidAmount(e.target.value)}
               />
             </label>
           </div>
@@ -358,6 +423,11 @@ export default function StudioCampaignsPage() {
                 const pct = bud > 0 ? Math.min(100, (spent / bud) * 100) : 0;
                 const m = metricsByCampaign.get(c.id) || { impr: 0, clk: 0 };
                 const ctr = ctrPct(m.impr, m.clk);
+                const mon = (c as CampaignRow).monetization;
+                const roiPct =
+                  mon?.roiLeadEstimate != null && Number.isFinite(mon.roiLeadEstimate)
+                    ? mon.roiLeadEstimate * 100
+                    : null;
                 return (
                   <article
                     key={c.id}
@@ -367,6 +437,13 @@ export default function StudioCampaignsPage() {
                       <div>
                         <h3 className="text-base font-semibold text-white">{c.name}</h3>
                         <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-white/45">
+                          <span>
+                            {(c as CampaignRow).billingType || "CPM"}
+                            {(c as CampaignRow).bidAmount != null && n((c as CampaignRow).bidAmount) > 0
+                              ? ` · bid ${n((c as CampaignRow).bidAmount)}`
+                              : ""}{" "}
+                            ·{" "}
+                          </span>
                           <span>Studio Ads use campaign budgets · </span>
                           <AdsLifecycleBadge status={String(c.status || "DRAFT")} />
                         </p>
@@ -384,6 +461,22 @@ export default function StudioCampaignsPage() {
                       <Metric label="Clicks" value={formatInt(m.clk)} />
                       <Metric label="CTR" value={`${ctr.toFixed(2)}%`} accent />
                       <Metric label="Daily cap" value={formatInt(n(c.dailyBudget))} />
+                      <Metric
+                        label="Act. CPC"
+                        value={mon?.cpcActual != null ? `$${mon.cpcActual.toFixed(3)}` : "—"}
+                      />
+                      <Metric
+                        label="Act. CPL"
+                        value={mon?.cplActual != null ? `$${mon.cplActual.toFixed(2)}` : "—"}
+                      />
+                      <Metric
+                        label="ROI est."
+                        value={roiPct != null ? `${roiPct.toFixed(1)}%` : "—"}
+                      />
+                      <Metric
+                        label="Spend tracked"
+                        value={mon?.spend != null ? `$${mon.spend.toFixed(2)}` : "—"}
+                      />
                     </div>
 
                     <div className="mt-4">
@@ -416,6 +509,7 @@ export default function StudioCampaignsPage() {
                 const pct = bud > 0 ? Math.min(100, (spent / bud) * 100) : 0;
                 const m = metricsByCampaign.get(c.id) || { impr: 0, clk: 0 };
                 const ctr = ctrPct(m.impr, m.clk);
+                const monM = (c as CampaignRow).monetization;
                 return (
                   <article key={c.id} className="rounded-2xl border border-white/10 bg-black/25 p-4">
                     <div className="flex items-start justify-between gap-2">
@@ -424,6 +518,11 @@ export default function StudioCampaignsPage() {
                         CTR {ctr.toFixed(2)}%
                       </span>
                     </div>
+                    <p className="mt-1 text-[11px] text-white/50">
+                      {(c as CampaignRow).billingType || "CPM"}
+                      {monM?.cpcActual != null ? ` · CPC $${monM.cpcActual.toFixed(3)}` : ""}
+                      {monM?.cplActual != null ? ` · CPL $${monM.cplActual.toFixed(2)}` : ""}
+                    </p>
                     <p className="mt-1">
                       <AdsLifecycleBadge status={String(c.status || "DRAFT")} />
                     </p>
@@ -523,6 +622,32 @@ export default function StudioCampaignsPage() {
                   inputMode="decimal"
                   value={edit.dailyBudget}
                   onChange={(e) => setEdit((s) => (s ? { ...s, dailyBudget: e.target.value } : s))}
+                />
+              </label>
+              <label className="block text-xs text-white/65">
+                Billing model
+                <select
+                  className="mt-1 w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm text-white"
+                  value={edit.billingType}
+                  onChange={(e) =>
+                    setEdit((s) =>
+                      s ? { ...s, billingType: e.target.value as "CPM" | "CPC" | "CPL" } : s
+                    )
+                  }
+                >
+                  <option value="CPM">CPM</option>
+                  <option value="CPC">CPC</option>
+                  <option value="CPL">CPL</option>
+                </select>
+              </label>
+              <label className="block text-xs text-white/65">
+                Bid amount
+                <input
+                  className="mt-1 w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm text-white"
+                  inputMode="decimal"
+                  placeholder="0 = legacy pricing"
+                  value={edit.bidAmount}
+                  onChange={(e) => setEdit((s) => (s ? { ...s, bidAmount: e.target.value } : s))}
                 />
               </label>
               <div className="grid gap-3 sm:grid-cols-2">

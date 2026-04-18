@@ -12,6 +12,7 @@ import type { ServedVideoAdPayload } from "@/lib/video-ads/served-ad-payload";
 import { intentProfileBoost, loadUserIntentProfileSlice, type UserIntentProfileSlice } from "@/lib/ads-platform/intent-profile-service";
 import { getViewerAdExclusions } from "@/lib/ads-platform/viewer-frequency";
 import type { TargetingSlice } from "@/lib/video-ads/targeting-match";
+import { utcSpendDayString } from "@/lib/ads-platform/monetization-engine";
 import { targetingMatches, targetingRelevanceScore } from "@/lib/video-ads/targeting-match";
 import { loadWatchVideoContext, type WatchVideoContext } from "@/lib/video-ads/watch-context";
 
@@ -23,6 +24,10 @@ export type PickVideoAdOptions = {
 type CampaignSlice = {
   budget: Prisma.Decimal;
   spent: Prisma.Decimal;
+  dailyBudget: Prisma.Decimal;
+  spentToday: Prisma.Decimal;
+  spendDayUtc: string;
+  bidAmount: Prisma.Decimal;
   status: string;
   startDate: Date;
   endDate: Date;
@@ -90,6 +95,15 @@ function hasRemainingBudget(c: CampaignSlice | null): boolean {
   return c.budget.sub(c.spent).gt(ZERO);
 }
 
+/** Daily cap: compare effective same-day spend to `dailyBudget` (UTC day). */
+function hasDailyBudgetRemaining(c: CampaignSlice, now: Date): boolean {
+  const cap = Number(c.dailyBudget.toString());
+  if (!Number.isFinite(cap) || cap <= 0) return true;
+  const spentToday =
+    c.spendDayUtc === utcSpendDayString(now) ? Number(c.spentToday.toString()) : 0;
+  return spentToday < cap;
+}
+
 function creativeIsComplete(row: PickAdRow): boolean {
   if (row.mediaType === "IMAGE") return Boolean(row.imageUrl?.trim());
   return Boolean(row.videoUrl?.trim());
@@ -109,7 +123,8 @@ function userCampaignServable(row: PickAdRow, now: Date): boolean {
   if (row.publisher !== "USER") return true;
   if (!row.campaign) return false;
   if (!campaignWindowOk(row.campaign, now)) return false;
-  return hasRemainingBudget(row.campaign);
+  if (!hasRemainingBudget(row.campaign)) return false;
+  return hasDailyBudgetRemaining(row.campaign, now);
 }
 
 /** Listing owner (channel owner) matches ad owner, or ad is owned by an agency that employs that owner. */
@@ -129,9 +144,13 @@ const campaignActiveWhere = (now: Date) =>
     endDate: { gte: now },
   }) as const;
 
-function bidScoreTerm(row: PickAdRow): number {
+function monetizationBidScoreTerm(row: PickAdRow): number {
   const c = row.campaign;
   if (!c) return 12;
+  const bidAmt = Number(c.bidAmount.toString());
+  if (Number.isFinite(bidAmt) && bidAmt > 0) {
+    return Math.log(1 + bidAmt) * 9 + 8;
+  }
   const w = c.bidWeight * 25;
   if (c.bidMode === "WEIGHTED") return w;
   const log = (d: Prisma.Decimal | null | undefined) => {
@@ -180,10 +199,10 @@ function adScore(
   ctx: NonNullable<Awaited<ReturnType<typeof loadWatchVideoContext>>>,
   intentProfile: UserIntentProfileSlice | null
 ): number {
-  const relevance = targetingRelevanceScore(ctx, row.targeting) + intentProfileBoost(ctx, intentProfile);
-  const bid = bidScoreTerm(row);
-  const ctr = ctrWeight(row.performance);
-  const raw = bid + relevance + ctr;
+  const relevanceScore = targetingRelevanceScore(ctx, row.targeting) + intentProfileBoost(ctx, intentProfile);
+  const bidAmountScore = monetizationBidScoreTerm(row);
+  const performanceScore = ctrWeight(row.performance);
+  const raw = bidAmountScore + relevanceScore + performanceScore;
   return raw * aiDeliveryMultiplier(row.performance);
 }
 
@@ -288,6 +307,10 @@ const adPickSelect = {
     select: {
       budget: true,
       spent: true,
+      dailyBudget: true,
+      spentToday: true,
+      spendDayUtc: true,
+      bidAmount: true,
       status: true,
       startDate: true,
       endDate: true,

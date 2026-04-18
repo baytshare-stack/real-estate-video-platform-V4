@@ -4,6 +4,15 @@ import prisma from "@/lib/prisma";
 import { requireAdvertiserProfile } from "@/lib/ads-platform/auth";
 import { readRequestJson } from "@/lib/ads-client/safe-json";
 import { createCampaignWithWalletAllocation } from "@/lib/ads-platform/billing";
+import { buildCampaignMonetizationAnalytics } from "@/lib/ads-platform/monetization-engine";
+
+const ZERO = new Prisma.Decimal(0);
+
+function parseBillingType(v: unknown): CampaignBillingType {
+  const s = String(v ?? "CPM").toUpperCase();
+  if (s === "CPC" || s === "CPL" || s === "CPM") return s;
+  return "CPM";
+}
 
 function parseMoneyField(v: unknown): number | null {
   if (v === undefined || v === null || v === "") return null;
@@ -32,7 +41,35 @@ export async function GET() {
     where: { advertiserId: auth.profile.id },
     orderBy: { createdAt: "desc" },
   });
-  return NextResponse.json({ success: true, campaigns });
+  const ids = campaigns.map((c) => c.id);
+  const sums = new Map<string, { impressions: number; clicks: number; leads: number; spend: Prisma.Decimal }>();
+  for (const id of ids) {
+    sums.set(id, { impressions: 0, clicks: 0, leads: 0, spend: ZERO });
+  }
+  if (ids.length) {
+    const rows = await prisma.ad.findMany({
+      where: { campaignId: { in: ids } },
+      select: {
+        campaignId: true,
+        performance: { select: { impressions: true, clicks: true, leads: true, spend: true } },
+      },
+    });
+    for (const r of rows) {
+      if (!r.campaignId) continue;
+      const acc = sums.get(r.campaignId)!;
+      const p = r.performance;
+      acc.impressions += p?.impressions ?? 0;
+      acc.clicks += p?.clicks ?? 0;
+      acc.leads += p?.leads ?? 0;
+      acc.spend = acc.spend.add(p?.spend ?? ZERO);
+    }
+  }
+  const campaignsOut = campaigns.map((c) => ({
+    ...c,
+    monetization: buildCampaignMonetizationAnalytics(sums.get(c.id) ?? { impressions: 0, clicks: 0, leads: 0, spend: ZERO }),
+  }));
+
+  return NextResponse.json({ success: true, campaigns: campaignsOut });
 }
 
 export async function POST(req: Request) {
@@ -53,6 +90,8 @@ export async function POST(req: Request) {
     dailyBudget?: number | string;
     startDate?: string;
     endDate?: string;
+    billingType?: string;
+    bidAmount?: number | string;
   }>(req);
   if (!body) {
     return NextResponse.json({ success: false, error: "Valid JSON body is required." }, { status: 400 });
@@ -108,6 +147,20 @@ export async function POST(req: Request) {
     );
   }
 
+  const billingType = parseBillingTypeInput(body.billingType);
+  const bidAmtParsed = parseMoneyField(body.bidAmount);
+  const bidAmount =
+    bidAmtParsed != null && bidAmtParsed > 0 ? new Prisma.Decimal(String(bidAmtParsed)) : ZERO;
+  if (bidAmtParsed != null && bidAmtParsed < 0) {
+    return NextResponse.json({ success: false, error: "bidAmount must be >= 0" }, { status: 400 });
+  }
+  if ((billingType === "CPC" || billingType === "CPL") && bidAmount.lte(ZERO)) {
+    return NextResponse.json(
+      { success: false, error: "CPC and CPL campaigns require a positive bidAmount." },
+      { status: 400 }
+    );
+  }
+
   try {
     const { campaign } = await createCampaignWithWalletAllocation({
       userId: auth.user.id,
@@ -117,6 +170,8 @@ export async function POST(req: Request) {
       dailyBudget,
       startDate,
       endDate,
+      billingType,
+      bidAmount,
     });
     return NextResponse.json({ success: true, campaign });
   } catch (e) {

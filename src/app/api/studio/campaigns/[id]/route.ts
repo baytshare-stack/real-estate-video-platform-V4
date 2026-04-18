@@ -3,21 +3,45 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireAdvertiserProfile } from "@/lib/ads-platform/auth";
 import { readRequestJson } from "@/lib/ads-client/safe-json";
-import { adjustCampaignBudgetAllocation } from "@/lib/ads-platform/billing";
+import { adjustCampaignBudgetAllocation, bidFieldSync } from "@/lib/ads-platform/billing";
+import { parseBillingTypeInput, utcSpendDayString } from "@/lib/ads-platform/monetization-engine";
 
 type CampaignStatus = "DRAFT" | "ACTIVE" | "PAUSED" | "ENDED" | "DELETED";
 
 const ZERO = new Prisma.Decimal(0);
 
+function parseMoneyField(v: unknown): number | null {
+  if (v === undefined || v === null || v === "") return null;
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string") {
+    const n = Number(v.replace(/,/g, "").trim());
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
 function validateCampaignActivation(c: {
   budget: Prisma.Decimal;
   spent: Prisma.Decimal;
   status: string;
+  dailyBudget: Prisma.Decimal;
+  spentToday: Prisma.Decimal;
+  spendDayUtc: string;
 }): { ok: true } | { ok: false; error: string } {
   if (c.status === "DELETED") return { ok: false, error: "Cannot activate a deleted campaign." };
   if (c.budget.lte(ZERO)) return { ok: false, error: "Campaign budget must be greater than zero." };
   if (c.budget.sub(c.spent).lte(ZERO)) {
     return { ok: false, error: "No remaining campaign budget. Add budget or recharge wallet." };
+  }
+  if (c.dailyBudget.gt(ZERO)) {
+    const spent =
+      c.spendDayUtc === utcSpendDayString(new Date()) ? c.spentToday : ZERO;
+    if (spent.gte(c.dailyBudget)) {
+      return {
+        ok: false,
+        error: "Daily budget cap already reached for today. Raise the daily cap or wait until tomorrow (UTC).",
+      };
+    }
   }
   return { ok: true };
 }
@@ -35,12 +59,22 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     dailyBudget?: number;
     startDate?: string;
     endDate?: string;
+    billingType?: string;
+    bidAmount?: number | string;
   }>(req);
   if (!body) return NextResponse.json({ error: "Valid JSON body is required." }, { status: 400 });
 
   const existing = await prisma.campaign.findFirst({
     where: { id, advertiserId: auth.profile.id },
-    select: { id: true, budget: true, spent: true, status: true },
+    select: {
+      id: true,
+      budget: true,
+      spent: true,
+      status: true,
+      dailyBudget: true,
+      spentToday: true,
+      spendDayUtc: true,
+    },
   });
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
@@ -49,6 +83,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       budget: existing.budget,
       spent: existing.spent,
       status: existing.status,
+      dailyBudget: existing.dailyBudget,
+      spentToday: existing.spentToday,
+      spendDayUtc: existing.spendDayUtc,
     });
     if (!v.ok) return NextResponse.json({ error: v.error }, { status: 400 });
   }
@@ -96,6 +133,38 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     });
   } else if (Object.keys(extra).length > 0) {
     campaign = await prisma.campaign.update({ where: { id }, data: extra });
+  }
+
+  const wantsMonetizationFields =
+    typeof body.billingType === "string" ||
+    typeof body.bidAmount === "number" ||
+    (typeof body.bidAmount === "string" && body.bidAmount.trim() !== "");
+
+  if (wantsMonetizationFields) {
+    const cur = await prisma.campaign.findFirst({
+      where: { id, advertiserId: auth.profile.id },
+      select: { billingType: true, bidAmount: true },
+    });
+    if (!cur) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    const bt =
+      typeof body.billingType === "string" ? parseBillingTypeInput(body.billingType) : cur.billingType;
+    let bidDec = cur.bidAmount;
+    if (typeof body.bidAmount === "number" && Number.isFinite(body.bidAmount)) {
+      bidDec = new Prisma.Decimal(String(Math.max(0, body.bidAmount)));
+    } else if (typeof body.bidAmount === "string") {
+      const n = parseMoneyField(body.bidAmount);
+      if (n != null) bidDec = new Prisma.Decimal(String(Math.max(0, n)));
+    }
+    if ((bt === "CPC" || bt === "CPL") && bidDec.lte(ZERO)) {
+      return NextResponse.json(
+        { error: "CPC and CPL campaigns require a positive bidAmount." },
+        { status: 400 }
+      );
+    }
+    campaign = await prisma.campaign.update({
+      where: { id },
+      data: bidFieldSync(bt, bidDec),
+    });
   }
 
   if (!campaign) {

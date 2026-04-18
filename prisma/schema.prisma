@@ -357,9 +357,17 @@ model Campaign {
   cpmBid        Decimal?
   cpcBid        Decimal?
   cplBid        Decimal?
+  /// Monetization: CPM / CPC / CPL when `bidAmount` > 0; otherwise legacy flat/env charges apply.
+  billingType   CampaignBillingType @default(CPM)
+  /// Primary bid in account currency (CPM = price per 1k impressions, CPC/CPL = per event).
+  bidAmount     Decimal             @default(0)
+  /// Spend attributed to `spendDayUtc` (UTC calendar day) for daily budget caps.
+  spentToday    Decimal             @default(0)
+  spendDayUtc   String              @default("")
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
   ads           Ad[]
+  leads         Lead[]
 
   @@index([advertiserId, status])
   @@index([status, startDate, endDate])
@@ -395,6 +403,13 @@ model AdViewerFrequency {
 
 enum CampaignBidMode {
   WEIGHTED
+  CPM
+  CPC
+  CPL
+}
+
+/// What the advertiser pays for (single `bidAmount` when > 0). Legacy rows use `bidAmount = 0` + env fallbacks.
+enum CampaignBillingType {
   CPM
   CPC
   CPL
@@ -503,6 +518,8 @@ model Lead {
   id        String     @id @default(cuid())
   adId      String
   ad        Ad         @relation(fields: [adId], references: [id], onDelete: Cascade)
+  campaignId String?
+  campaign   Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
   userId    String?
   user      User?      @relation("AdLeadSubmitter", fields: [userId], references: [id], onDelete: SetNull)
   videoId   String?
@@ -515,6 +532,7 @@ model Lead {
   createdAt DateTime   @default(now())
 
   @@index([adId, createdAt(sort: Desc)])
+  @@index([campaignId, createdAt(sort: Desc)])
   @@index([videoId])
   @@index([agentId, createdAt(sort: Desc)])
 }
