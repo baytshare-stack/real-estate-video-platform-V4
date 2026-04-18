@@ -51,17 +51,19 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     data.skipAfterSeconds = Math.max(0, body.skipAfterSeconds);
   }
   if (typeof body.active === "boolean") data.active = body.active;
-  if (body.targetVideoId !== undefined) data.targetVideoId = nextTarget;
+  if (body.targetVideoId !== undefined) {
+    data.targetVideo = nextTarget ? { connect: { id: nextTarget } } : { disconnect: true };
+  }
   if (body.campaignId !== undefined) {
     const cid = (body.campaignId || "").trim();
     if (!cid) {
-      data.campaignId = null;
+      data.campaign = { disconnect: true };
     } else {
       const camp = await prisma.campaign.findFirst({
         where: { id: cid, advertiserId: auth.profile.id },
       });
       if (!camp) return NextResponse.json({ error: "Invalid campaign." }, { status: 400 });
-      data.campaignId = cid;
+      data.campaign = { connect: { id: cid } };
     }
   }
 
