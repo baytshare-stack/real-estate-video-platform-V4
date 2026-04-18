@@ -1,15 +1,17 @@
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import type { NextConfig } from "next";
 
-/** App root (stable when multiple lockfiles / monorepo confuse `process.cwd()` during trace). */
-const projectRoot = path.dirname(fileURLToPath(import.meta.url));
+/**
+ * Vercel/CI: cwd is always the app root (`/vercel/path0`). Do not use `import.meta.url` here —
+ * the resolved path for the compiled config can differ from the repo root and break the Prisma
+ * webpack alias + output tracing.
+ */
+const projectRoot = process.cwd();
 
 /** Must match `generator client { output = ... }` in prisma/schema.prisma */
 const prismaClientDir = path.join(projectRoot, "src", "generated", "prisma");
 
 const nextConfig: NextConfig = {
-  outputFileTracingRoot: projectRoot,
   /**
    * Prisma client is generated under `src/generated/prisma` (see prisma/schema.prisma).
    * Next.js 16 defaults to Turbopack for some pipelines; custom `webpack` triggers a warning unless

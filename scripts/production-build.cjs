@@ -11,8 +11,26 @@ const path = require("node:path");
 const { applyDirectUrlFallback } = require(path.join(__dirname, "ensure-direct-url-env.cjs"));
 applyDirectUrlFallback();
 
-function run(cmd) {
-  execSync(cmd, { stdio: "inherit", env: process.env, shell: true });
+const repoRoot = path.join(__dirname, "..");
+
+function run(cmd, opts = {}) {
+  execSync(cmd, { stdio: "inherit", env: process.env, shell: true, cwd: repoRoot, ...opts });
+}
+
+/** Avoid `npx` resolution edge cases on CI; cwd is always the package root. */
+function runNextBuild() {
+  const nextBin = path.join(repoRoot, "node_modules", "next", "dist", "bin", "next");
+  const cmd = `node ${JSON.stringify(nextBin)} build --webpack`;
+  try {
+    run(cmd);
+  } catch (e) {
+    console.error(
+      "\n[build] next build failed. Scroll up in the log for the first Next.js error " +
+        "(TypeScript, module not found, or prerender). " +
+        "Ensure DATABASE_URL is available at build time for Prisma generate.\n"
+    );
+    throw e;
+  }
 }
 
 /** Windows: Prisma cannot rename query_engine*.dll while Next/dev holds it; see scripts/prisma-generate-windows.ps1 */
@@ -38,4 +56,4 @@ if (forceMigrate || !isVercel) {
   );
 }
 runPrismaGenerate();
-run("npx next build --webpack");
+runNextBuild();
