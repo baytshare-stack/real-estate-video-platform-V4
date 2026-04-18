@@ -3,9 +3,23 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireAdvertiserProfile } from "@/lib/ads-platform/auth";
 import { adjustCampaignBudgetAllocation } from "@/lib/ads-platform/billing";
-import { validateCampaignActivation } from "@/lib/ads-platform/ad-lifecycle";
 
 type CampaignStatus = "DRAFT" | "ACTIVE" | "PAUSED" | "ENDED" | "DELETED";
+
+const ZERO = new Prisma.Decimal(0);
+
+function validateCampaignActivation(c: {
+  budget: Prisma.Decimal;
+  spent: Prisma.Decimal;
+  status: string;
+}): { ok: true } | { ok: false; error: string } {
+  if (c.status === "DELETED") return { ok: false, error: "Cannot activate a deleted campaign." };
+  if (c.budget.lte(ZERO)) return { ok: false, error: "Campaign budget must be greater than zero." };
+  if (c.budget.sub(c.spent).lte(ZERO)) {
+    return { ok: false, error: "No remaining campaign budget. Add budget or recharge wallet." };
+  }
+  return { ok: true };
+}
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireAdvertiserProfile();
@@ -74,17 +88,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   if (body.status === "DELETED" || body.status === "ENDED") {
     const { status, ...rest } = extra;
-    campaign = await prisma.$transaction(async (tx) => {
-      const c = await tx.campaign.update({
-        where: { id },
-        data: { ...rest, status: status ?? body.status },
-      });
-      if (body.status === "DELETED") {
-        await tx.ad.updateMany({ where: { campaignId: id }, data: { status: "DELETED" } });
-      } else if (body.status === "ENDED") {
-        await tx.ad.updateMany({ where: { campaignId: id }, data: { status: "ENDED" } });
-      }
-      return c;
+    campaign = await prisma.campaign.update({
+      where: { id },
+      data: { ...rest, status: status ?? body.status },
     });
   } else if (Object.keys(extra).length > 0) {
     campaign = await prisma.campaign.update({ where: { id }, data: extra });

@@ -349,80 +349,24 @@ model Campaign {
   bidWeight     Float           @default(1.0)
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
-  ads           Ad[]
 
   @@index([advertiserId, status])
   @@index([status, startDate, endDate])
 }
 
+/// Platform video ad inventory (pre-roll / mid-roll). Serves watch-page HTML5 playback only.
 model Ad {
-  id          String      @id @default(cuid())
-  campaignId  String
-  campaign    Campaign    @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  type        AdType
-  videoUrl    String?
-  imageUrl    String?
-  thumbnail   String?
-  duration    Int         @default(15)
-  skipAfter   Int         @default(5)
-  ctaType     AdCtaType   @default(WHATSAPP)
-  ctaLabel    String?
-  ctaUrl      String?
-  status      AdStatus    @default(DRAFT)
-  placement   AdPlacement @default(PRE_ROLL)
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  targeting   Targeting?
-  performance AdPerformance?
-  leads       Lead[]
-  viewerDayImpressions AdViewerDayImpression[]
+  id               String       @id @default(cuid())
+  videoUrl         String
+  type             VideoAdSlot
+  skippable        Boolean      @default(true)
+  skipAfterSeconds Int          @default(5)
+  active           Boolean      @default(true)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  leads            Lead[]
 
-  @@index([campaignId, status, placement])
-}
-
-/// Per-viewer frequency cap for ad delivery (UTC calendar day). Not campaign spend.
-model AdViewerDayImpression {
-  id        String   @id @default(cuid())
-  viewerKey String
-  adId      String
-  /// UTC date key YYYY-MM-DD for daily reset
-  dayUtc    String
-  count     Int      @default(0)
-  updatedAt DateTime @updatedAt
-  createdAt DateTime @default(now())
-  ad        Ad       @relation(fields: [adId], references: [id], onDelete: Cascade)
-
-  @@unique([viewerKey, adId, dayUtc])
-  @@index([viewerKey, dayUtc])
-}
-
-model Targeting {
-  id            String   @id @default(cuid())
-  adId          String   @unique
-  ad            Ad       @relation(fields: [adId], references: [id], onDelete: Cascade)
-  /// Required for delivery: all three must be non-empty and match the listing (strict mode).
-  country       String   @default("")
-  city          String   @default("")
-  area          String   @default("")
-  propertyTypes String[]
-  priceMin      Decimal?
-  priceMax      Decimal?
-  userIntent    String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-}
-
-model AdPerformance {
-  id          String   @id @default(cuid())
-  adId        String   @unique
-  ad          Ad       @relation(fields: [adId], references: [id], onDelete: Cascade)
-  impressions Int      @default(0)
-  views       Int      @default(0)
-  clicks      Int      @default(0)
-  leads       Int      @default(0)
-  watchTime   Int      @default(0)
-  spend       Decimal  @default(0)
-  updatedAt   DateTime @updatedAt
+  @@index([active, type])
 }
 
 model Lead {
@@ -611,28 +555,9 @@ enum CampaignStatus {
   DELETED
 }
 
-enum AdType {
-  VIDEO
-  IMAGE
-}
-
-enum AdStatus {
-  DRAFT
-  ACTIVE
-  PAUSED
-  ENDED
-  DELETED
-}
-
-enum AdPlacement {
+enum VideoAdSlot {
   PRE_ROLL
   MID_ROLL
-}
-
-enum AdCtaType {
-  CALL
-  WHATSAPP
-  BOOK_VISIT
 }
 
 enum LeadSource {

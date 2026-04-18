@@ -48,12 +48,6 @@ export async function POST(req: Request) {
       },
     });
 
-    await prisma.adPerformance.upsert({
-      where: { adId },
-      update: { leads: { increment: 1 } },
-      create: { adId, leads: 1 },
-    });
-
     await prisma.crmEvent.create({
       data: {
         type: "AD_LEAD",

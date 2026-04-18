@@ -35,7 +35,7 @@ type CampaignRow = {
   spent?: unknown;
   startDate?: string;
   endDate?: string;
-  _count?: { ads?: number };
+  _count?: { ads?: number }; // legacy shape; video inventory is no longer per-campaign
 };
 
 function CampaignToolbar({
@@ -346,7 +346,6 @@ export default function StudioCampaignsPage() {
                 const pct = bud > 0 ? Math.min(100, (spent / bud) * 100) : 0;
                 const m = metricsByCampaign.get(c.id) || { impr: 0, clk: 0 };
                 const ctr = ctrPct(m.impr, m.clk);
-                const adCount = n(c._count?.ads);
                 return (
                   <article
                     key={c.id}
@@ -356,9 +355,7 @@ export default function StudioCampaignsPage() {
                       <div>
                         <h3 className="text-base font-semibold text-white">{c.name}</h3>
                         <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-white/45">
-                          <span>
-                            {adCount} ad{adCount === 1 ? "" : "s"} ·{" "}
-                          </span>
+                          <span>Video inventory is admin-managed · </span>
                           <AdsLifecycleBadge status={String(c.status || "DRAFT")} />
                         </p>
                       </div>
@@ -462,8 +459,8 @@ export default function StudioCampaignsPage() {
         title={confirm?.kind === "delete" ? "Delete this campaign?" : "End this campaign?"}
         message={
           confirm?.kind === "delete"
-            ? "The campaign will be marked deleted and all its ads will be soft-deleted. This cannot be undone from the UI."
-            : "The campaign will end and all ads in it will be marked ended. You can still view history in Studio."
+            ? "The campaign will be marked deleted. This cannot be undone from the UI."
+            : "The campaign will end. You can still view history in Studio."
         }
         confirmLabel={confirm?.kind === "delete" ? "Delete" : "End campaign"}
         danger={confirm?.kind === "delete"}

@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { applyCampaignSpendForClick } from "@/lib/ads-platform/billing";
 
 export const runtime = "nodejs";
 
@@ -12,25 +11,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "adId is required." }, { status: 400 });
     }
 
-    const ad = await prisma.ad.findUnique({
-      where: { id: adId },
-      select: { id: true, status: true },
+    if (adId.startsWith("mock-")) {
+      return NextResponse.json({ ok: true });
+    }
+
+    const ad = await prisma.ad.findFirst({
+      where: { id: adId, active: true },
+      select: { id: true },
     });
-    if (!ad || ad.status !== "ACTIVE") {
+    if (!ad) {
       return NextResponse.json({ error: "Ad not found or inactive." }, { status: 404 });
     }
-
-    const bill = await applyCampaignSpendForClick(adId);
-    if (!bill.ok) {
-      const status = bill.reason === "not_found" ? 404 : 402;
-      return NextResponse.json({ error: "Billing failed.", reason: bill.reason }, { status });
-    }
-
-    await prisma.adPerformance.upsert({
-      where: { adId },
-      update: { clicks: { increment: 1 } },
-      create: { adId, clicks: 1 },
-    });
 
     return NextResponse.json({ ok: true });
   } catch (e) {

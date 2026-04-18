@@ -1,10 +1,6 @@
 import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 
-/** Charged against campaign budget (not wallet) per impression / click. */
-export const ADS_WALLET_IMPRESSION_COST = new Prisma.Decimal("0.02");
-export const ADS_WALLET_CLICK_COST = new Prisma.Decimal("0.25");
-
 const ZERO = new Prisma.Decimal(0);
 
 type Db = Prisma.TransactionClient | typeof prisma;
@@ -199,78 +195,6 @@ export async function adjustCampaignBudgetAllocation(params: {
   );
 }
 
-export type CampaignSpendResult =
-  | { ok: true }
-  | { ok: false; reason: "not_found" | "campaign_inactive" | "campaign_exhausted" };
-
-export async function applyCampaignSpendForImpression(adId: string): Promise<CampaignSpendResult> {
-  try {
-    return await prisma.$transaction(
-      async (tx) => {
-        const ad = await tx.ad.findUnique({
-          where: { id: adId },
-          select: {
-            id: true,
-            campaign: {
-              select: { id: true, spent: true, budget: true, status: true },
-            },
-          },
-        });
-        if (!ad?.campaign) return { ok: false as const, reason: "not_found" as const };
-        const camp = ad.campaign;
-        if (camp.status !== "ACTIVE") return { ok: false as const, reason: "campaign_inactive" as const };
-        const rem = camp.budget.sub(camp.spent);
-        if (rem.lt(ADS_WALLET_IMPRESSION_COST)) {
-          return { ok: false as const, reason: "campaign_exhausted" as const };
-        }
-        await tx.campaign.update({
-          where: { id: camp.id },
-          data: { spent: { increment: ADS_WALLET_IMPRESSION_COST } },
-        });
-        await pauseCampaignIfDepleted(tx, camp.id);
-        return { ok: true as const };
-      },
-      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
-    );
-  } catch {
-    return { ok: false, reason: "not_found" };
-  }
-}
-
-export async function applyCampaignSpendForClick(adId: string): Promise<CampaignSpendResult> {
-  try {
-    return await prisma.$transaction(
-      async (tx) => {
-        const ad = await tx.ad.findUnique({
-          where: { id: adId },
-          select: {
-            id: true,
-            campaign: {
-              select: { id: true, spent: true, budget: true, status: true },
-            },
-          },
-        });
-        if (!ad?.campaign) return { ok: false as const, reason: "not_found" as const };
-        const camp = ad.campaign;
-        if (camp.status !== "ACTIVE") return { ok: false as const, reason: "campaign_inactive" as const };
-        const rem = camp.budget.sub(camp.spent);
-        if (rem.lt(ADS_WALLET_CLICK_COST)) {
-          return { ok: false as const, reason: "campaign_exhausted" as const };
-        }
-        await tx.campaign.update({
-          where: { id: camp.id },
-          data: { spent: { increment: ADS_WALLET_CLICK_COST } },
-        });
-        await pauseCampaignIfDepleted(tx, camp.id);
-        return { ok: true as const };
-      },
-      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
-    );
-  } catch {
-    return { ok: false, reason: "not_found" };
-  }
-}
-
 /** Lead cost comes from the campaign budget pool only (wallet was already debited at allocation). */
 export async function chargeForLead(campaignId: string, cost = 3) {
   const amount = new Prisma.Decimal(String(cost));
@@ -291,69 +215,4 @@ export async function chargeForLead(campaignId: string, cost = 3) {
     },
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
   );
-}
-
-/**
- * Delivery liquidity: unallocated wallet + remaining budget across all campaigns.
- * Ads stop when this is zero (no money left anywhere for this advertiser).
- */
-export async function getAdvertiserDeliveryLiquidityMap(userIds: string[]): Promise<Map<string, Prisma.Decimal>> {
-  const map = new Map<string, Prisma.Decimal>();
-  const unique = [...new Set(userIds.filter(Boolean))];
-  if (!unique.length) return map;
-
-  const [wallets, campaigns] = await Promise.all([
-    prisma.wallet.findMany({
-      where: { userId: { in: unique } },
-      select: { userId: true, balance: true },
-    }),
-    prisma.campaign.findMany({
-      where: { advertiser: { userId: { in: unique } } },
-      select: {
-        budget: true,
-        spent: true,
-        advertiser: { select: { userId: true } },
-      },
-    }),
-  ]);
-
-  for (const uid of unique) map.set(uid, ZERO);
-  for (const w of wallets) {
-    map.set(w.userId, w.balance);
-  }
-  for (const c of campaigns) {
-    const uid = c.advertiser.userId;
-    const rem = c.budget.sub(c.spent);
-    if (rem.gt(ZERO)) {
-      map.set(uid, (map.get(uid) ?? ZERO).add(rem));
-    }
-  }
-  return map;
-}
-
-/** @deprecated Prefer getAdvertiserDeliveryLiquidityMap for ad serving. */
-export async function getEffectiveAdvertiserBalances(userIds: string[]): Promise<Map<string, Prisma.Decimal>> {
-  const map = new Map<string, Prisma.Decimal>();
-  const unique = [...new Set(userIds.filter(Boolean))];
-  if (!unique.length) return map;
-
-  const [wallets, profiles] = await Promise.all([
-    prisma.wallet.findMany({
-      where: { userId: { in: unique } },
-      select: { userId: true, balance: true },
-    }),
-    prisma.advertiserProfile.findMany({
-      where: { userId: { in: unique } },
-      select: { userId: true, balance: true },
-    }),
-  ]);
-
-  const walletByUser = new Map(wallets.map((w) => [w.userId, w.balance]));
-  const profileByUser = new Map(profiles.map((p) => [p.userId, p.balance]));
-
-  for (const uid of unique) {
-    const b = walletByUser.get(uid) ?? profileByUser.get(uid) ?? ZERO;
-    map.set(uid, b);
-  }
-  return map;
 }

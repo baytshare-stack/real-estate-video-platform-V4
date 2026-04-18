@@ -11,7 +11,6 @@ export async function GET() {
 
   const campaigns = await prisma.campaign.findMany({
     where: { advertiserId: auth.profile.id },
-    include: { _count: { select: { ads: true } } },
     orderBy: { createdAt: "desc" },
   });
   return NextResponse.json({ campaigns });

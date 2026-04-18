@@ -6,7 +6,7 @@ export default function AdminAdsPage() {
       <div>
         <h1 className="text-2xl font-semibold text-white">Ads</h1>
         <p className="mt-1 text-sm text-white/60">
-          Targeting, budgets, and lifecycle controls for video ads (admin).
+          Pre-roll / mid-roll video inventory for the watch player. Campaign rows are for advertiser billing only.
         </p>
       </div>
       <AdsManager />
