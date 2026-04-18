@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
-import type { VideoAdSlot } from "@prisma/client";
+import type { AdCreativeKind, AdTextDisplayMode, VideoAdSlot } from "@prisma/client";
 import prisma from "@/lib/prisma";
-import { normalizeAdMediaUrl } from "@/lib/ads-platform/media-url";
+import { normalizeAdMediaUrl, normalizeAdTextBody } from "@/lib/ads-platform/media-url";
 
 export async function GET() {
   try {
     const [ads, campaigns] = await Promise.all([
       prisma.ad.findMany({
+        where: { publisher: "ADMIN" },
         orderBy: { updatedAt: "desc" },
         take: 500,
       }),
@@ -32,10 +33,10 @@ export async function GET() {
       ads: ads.map((a) => ({
         id: a.id,
         publisher: a.publisher,
-        ownerId: a.ownerId,
-        targetVideoId: a.targetVideoId,
-        campaignId: a.campaignId,
+        creativeKind: a.creativeKind,
         videoUrl: a.videoUrl,
+        textBody: a.textBody,
+        textDisplayMode: a.textDisplayMode,
         type: a.type,
         skippable: a.skippable,
         skipAfterSeconds: a.skipAfterSeconds,
@@ -63,7 +64,10 @@ export async function GET() {
 }
 
 type CreateBody = {
+  creativeKind?: AdCreativeKind;
   videoUrl?: string | null;
+  textBody?: string | null;
+  textDisplayMode?: AdTextDisplayMode | null;
   type?: VideoAdSlot;
   skippable?: boolean;
   skipAfterSeconds?: number;
@@ -73,19 +77,36 @@ type CreateBody = {
 export async function POST(req: Request) {
   try {
     const body = (await req.json()) as CreateBody;
-    const videoUrl = normalizeAdMediaUrl(body.videoUrl);
-    if (!videoUrl) {
-      return NextResponse.json({ error: "videoUrl is required." }, { status: 400 });
-    }
+    const kind: AdCreativeKind = body.creativeKind === "TEXT" ? "TEXT" : "VIDEO";
     const type = body.type === "MID_ROLL" ? "MID_ROLL" : "PRE_ROLL";
     const skippable = body.skippable !== false;
     const skipAfterSeconds = Math.max(0, Number(body.skipAfterSeconds ?? 5) || 5);
     const active = body.active !== false;
 
+    let videoUrl: string | null = null;
+    let textBody: string | null = null;
+    let textDisplayMode: AdTextDisplayMode | null = null;
+
+    if (kind === "VIDEO") {
+      videoUrl = normalizeAdMediaUrl(body.videoUrl);
+      if (!videoUrl) {
+        return NextResponse.json({ error: "videoUrl is required for video ads." }, { status: 400 });
+      }
+    } else {
+      textBody = normalizeAdTextBody(body.textBody);
+      if (!textBody) {
+        return NextResponse.json({ error: "textBody is required for text ads." }, { status: 400 });
+      }
+      textDisplayMode = body.textDisplayMode === "CARD" ? "CARD" : "OVERLAY";
+    }
+
     const ad = await prisma.ad.create({
       data: {
         publisher: "ADMIN",
+        creativeKind: kind,
         videoUrl,
+        textBody,
+        textDisplayMode,
         type,
         skippable,
         skipAfterSeconds,

@@ -8,9 +8,15 @@ export function normalizeAdMediaUrl(v: unknown): string | null {
     if (u.protocol !== "http:" && u.protocol !== "https:") return null;
     return u.toString();
   } catch {
-    if (s.startsWith("/uploads/videos/") || s.startsWith("/uploads/images/")) {
+    if (s.startsWith("/uploads/videos/") || s.startsWith("/uploads/images/") || s.startsWith("/uploads/ads/")) {
       return s;
     }
     return null;
   }
+}
+
+export function normalizeAdTextBody(v: unknown, maxLen = 2000): string | null {
+  const s = String(v ?? "").trim().replace(/\s+/g, " ");
+  if (!s) return null;
+  return s.slice(0, maxLen);
 }

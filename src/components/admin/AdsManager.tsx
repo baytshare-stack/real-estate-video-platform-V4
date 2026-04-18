@@ -4,14 +4,16 @@ import * as React from "react";
 import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 
 type VideoAdSlot = "PRE_ROLL" | "MID_ROLL";
+type CreativeKind = "VIDEO" | "TEXT";
+type TextDisplayMode = "OVERLAY" | "CARD";
 
 type AdminAdRow = {
   id: string;
   publisher?: "ADMIN" | "USER";
-  ownerId?: string | null;
-  targetVideoId?: string | null;
-  campaignId?: string | null;
-  videoUrl: string;
+  creativeKind?: CreativeKind;
+  videoUrl?: string | null;
+  textBody?: string | null;
+  textDisplayMode?: TextDisplayMode | null;
   type: VideoAdSlot;
   skippable: boolean;
   skipAfterSeconds: number;
@@ -34,6 +36,10 @@ function formatDate(iso: string) {
   return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "2-digit" });
 }
 
+function kindLabel(k?: CreativeKind) {
+  return k === "TEXT" ? "Text" : "Video";
+}
+
 export default function AdsManager() {
   const [ads, setAds] = React.useState<AdminAdRow[]>([]);
   const [campaigns, setCampaigns] = React.useState<AdminCampaignRow[]>([]);
@@ -42,14 +48,20 @@ export default function AdsManager() {
   const [busyId, setBusyId] = React.useState("");
   const [createBusy, setCreateBusy] = React.useState(false);
 
+  const [creativeKind, setCreativeKind] = React.useState<CreativeKind>("VIDEO");
   const [videoUrl, setVideoUrl] = React.useState("");
+  const [textBody, setTextBody] = React.useState("");
+  const [textDisplayMode, setTextDisplayMode] = React.useState<TextDisplayMode>("OVERLAY");
   const [slot, setSlot] = React.useState<VideoAdSlot>("PRE_ROLL");
   const [skippable, setSkippable] = React.useState(true);
   const [skipAfterSeconds, setSkipAfterSeconds] = React.useState("5");
   const [active, setActive] = React.useState(true);
 
   const [editingId, setEditingId] = React.useState<string | null>(null);
+  const [editKind, setEditKind] = React.useState<CreativeKind>("VIDEO");
   const [editVideoUrl, setEditVideoUrl] = React.useState("");
+  const [editTextBody, setEditTextBody] = React.useState("");
+  const [editTextMode, setEditTextMode] = React.useState<TextDisplayMode>("OVERLAY");
   const [editSlot, setEditSlot] = React.useState<VideoAdSlot>("PRE_ROLL");
   const [editSkippable, setEditSkippable] = React.useState(true);
   const [editSkipAfter, setEditSkipAfter] = React.useState("5");
@@ -84,7 +96,10 @@ export default function AdsManager() {
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          videoUrl: videoUrl.trim(),
+          creativeKind,
+          videoUrl: creativeKind === "VIDEO" ? videoUrl.trim() : undefined,
+          textBody: creativeKind === "TEXT" ? textBody.trim() : undefined,
+          textDisplayMode: creativeKind === "TEXT" ? textDisplayMode : undefined,
           type: slot,
           skippable,
           skipAfterSeconds: Number(skipAfterSeconds) || 5,
@@ -94,6 +109,9 @@ export default function AdsManager() {
       const json = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) throw new Error(json.error || "Create failed.");
       setVideoUrl("");
+      setTextBody("");
+      setCreativeKind("VIDEO");
+      setTextDisplayMode("OVERLAY");
       setSlot("PRE_ROLL");
       setSkippable(true);
       setSkipAfterSeconds("5");
@@ -108,7 +126,10 @@ export default function AdsManager() {
 
   const startEdit = (a: AdminAdRow) => {
     setEditingId(a.id);
-    setEditVideoUrl(a.videoUrl);
+    setEditKind(a.creativeKind === "TEXT" ? "TEXT" : "VIDEO");
+    setEditVideoUrl(a.videoUrl ?? "");
+    setEditTextBody(a.textBody ?? "");
+    setEditTextMode(a.textDisplayMode === "CARD" ? "CARD" : "OVERLAY");
     setEditSlot(a.type);
     setEditSkippable(a.skippable);
     setEditSkipAfter(String(a.skipAfterSeconds));
@@ -125,7 +146,10 @@ export default function AdsManager() {
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          videoUrl: editVideoUrl.trim(),
+          creativeKind: editKind,
+          videoUrl: editKind === "VIDEO" ? editVideoUrl.trim() : null,
+          textBody: editKind === "TEXT" ? editTextBody.trim() : null,
+          textDisplayMode: editKind === "TEXT" ? editTextMode : null,
           type: editSlot,
           skippable: editSkippable,
           skipAfterSeconds: Number(editSkipAfter) || 5,
@@ -144,7 +168,7 @@ export default function AdsManager() {
   };
 
   const remove = async (id: string) => {
-    if (!window.confirm("Delete this video ad?")) return;
+    if (!window.confirm("Delete this platform ad?")) return;
     setBusyId(id);
     setError("");
     try {
@@ -162,13 +186,17 @@ export default function AdsManager() {
     }
   };
 
+  const createDisabled =
+    createBusy ||
+    (creativeKind === "VIDEO" ? !videoUrl.trim() : !textBody.trim());
+
   return (
     <div className="space-y-8 text-white">
       <div>
-        <h2 className="text-lg font-semibold">Video ad inventory</h2>
+        <h2 className="text-lg font-semibold">Platform ads (global)</h2>
         <p className="mt-1 text-sm text-white/60">
-          Pre-roll and mid-roll MP4 creatives served on the watch page (HTML5). Wallet campaigns below are unchanged for
-          billing only.
+          Pre-roll and mid-roll inventory shown on every watch page. Video creatives use MP4 URLs; text creatives render as
+          overlay or card. Agent and agency promos are managed under Studio → Ads.
         </p>
       </div>
 
@@ -177,15 +205,52 @@ export default function AdsManager() {
       <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
         <h3 className="text-sm font-semibold text-white/90">Add creative</h3>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <label className="block text-xs text-white/60">
-            Video URL
-            <input
-              value={videoUrl}
-              onChange={(e) => setVideoUrl(e.target.value)}
+          <label className="block text-xs text-white/60 sm:col-span-2">
+            Creative type
+            <select
+              value={creativeKind}
+              onChange={(e) => setCreativeKind(e.target.value as CreativeKind)}
               className="mt-1 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-sm text-white"
-              placeholder="https://…/ad.mp4"
-            />
+            >
+              <option value="VIDEO">Video (URL or upload via Studio pattern)</option>
+              <option value="TEXT">Text (overlay / card)</option>
+            </select>
           </label>
+          {creativeKind === "VIDEO" ? (
+            <label className="block text-xs text-white/60 sm:col-span-2">
+              Video URL
+              <input
+                value={videoUrl}
+                onChange={(e) => setVideoUrl(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-sm text-white"
+                placeholder="https://…/ad.mp4"
+              />
+            </label>
+          ) : (
+            <>
+              <label className="block text-xs text-white/60 sm:col-span-2">
+                Ad copy
+                <textarea
+                  value={textBody}
+                  onChange={(e) => setTextBody(e.target.value)}
+                  rows={3}
+                  className="mt-1 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-sm text-white"
+                  placeholder="Short headline or offer…"
+                />
+              </label>
+              <label className="block text-xs text-white/60">
+                Layout
+                <select
+                  value={textDisplayMode}
+                  onChange={(e) => setTextDisplayMode(e.target.value as TextDisplayMode)}
+                  className="mt-1 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-sm text-white"
+                >
+                  <option value="OVERLAY">Bottom overlay</option>
+                  <option value="CARD">Center card</option>
+                </select>
+              </label>
+            </>
+          )}
           <label className="block text-xs text-white/60">
             Slot
             <select
@@ -218,7 +283,7 @@ export default function AdsManager() {
         <button
           type="button"
           onClick={() => void submitCreate()}
-          disabled={createBusy || !videoUrl.trim()}
+          disabled={createDisabled}
           className="mt-4 inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold disabled:opacity-40"
         >
           {createBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
@@ -233,24 +298,57 @@ export default function AdsManager() {
             <Loader2 className="h-4 w-4 animate-spin" /> Loading…
           </p>
         ) : ads.length === 0 ? (
-          <p className="mt-3 text-sm text-white/55">No ads yet. Add a URL or set VIDEO_ADS_DEMO_* env vars for mock.</p>
+          <p className="mt-3 text-sm text-white/55">No platform ads yet. Add a URL or text, or set VIDEO_ADS_DEMO_* for mock video.</p>
         ) : (
           <ul className="mt-3 space-y-3">
             {ads.map((a) => (
-              <li
-                key={a.id}
-                className="rounded-xl border border-white/10 bg-black/30 p-4 text-sm"
-              >
+              <li key={a.id} className="rounded-xl border border-white/10 bg-black/30 p-4 text-sm">
                 {editingId === a.id ? (
                   <div className="grid gap-2 sm:grid-cols-2">
                     <label className="block text-xs text-white/60 sm:col-span-2">
-                      Video URL
-                      <input
-                        value={editVideoUrl}
-                        onChange={(e) => setEditVideoUrl(e.target.value)}
+                      Creative type
+                      <select
+                        value={editKind}
+                        onChange={(e) => setEditKind(e.target.value as CreativeKind)}
                         className="mt-1 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-sm"
-                      />
+                      >
+                        <option value="VIDEO">Video</option>
+                        <option value="TEXT">Text</option>
+                      </select>
                     </label>
+                    {editKind === "VIDEO" ? (
+                      <label className="block text-xs text-white/60 sm:col-span-2">
+                        Video URL
+                        <input
+                          value={editVideoUrl}
+                          onChange={(e) => setEditVideoUrl(e.target.value)}
+                          className="mt-1 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-sm"
+                        />
+                      </label>
+                    ) : (
+                      <>
+                        <label className="block text-xs text-white/60 sm:col-span-2">
+                          Ad copy
+                          <textarea
+                            value={editTextBody}
+                            onChange={(e) => setEditTextBody(e.target.value)}
+                            rows={3}
+                            className="mt-1 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-sm"
+                          />
+                        </label>
+                        <label className="block text-xs text-white/60">
+                          Layout
+                          <select
+                            value={editTextMode}
+                            onChange={(e) => setEditTextMode(e.target.value as TextDisplayMode)}
+                            className="mt-1 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-sm"
+                          >
+                            <option value="OVERLAY">Overlay</option>
+                            <option value="CARD">Card</option>
+                          </select>
+                        </label>
+                      </>
+                    )}
                     <label className="block text-xs text-white/60">
                       Slot
                       <select
@@ -272,11 +370,7 @@ export default function AdsManager() {
                       />
                     </label>
                     <label className="flex items-center gap-2 text-xs">
-                      <input
-                        type="checkbox"
-                        checked={editSkippable}
-                        onChange={(e) => setEditSkippable(e.target.checked)}
-                      />
+                      <input type="checkbox" checked={editSkippable} onChange={(e) => setEditSkippable(e.target.checked)} />
                       Skippable
                     </label>
                     <label className="flex items-center gap-2 text-xs">
@@ -305,14 +399,17 @@ export default function AdsManager() {
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0 space-y-1">
                       <p className="font-mono text-xs text-white/45">{a.id}</p>
-                      <p className="truncate text-white/90">{a.videoUrl}</p>
+                      <p className="text-white/90">
+                        {kindLabel(a.creativeKind)} · {a.type === "PRE_ROLL" ? "Pre-roll" : "Mid-roll"}
+                      </p>
+                      {a.creativeKind === "TEXT" ? (
+                        <p className="line-clamp-3 text-white/80">{a.textBody}</p>
+                      ) : (
+                        <p className="truncate text-white/80">{a.videoUrl}</p>
+                      )}
                       <p className="text-xs text-white/55">
-                        {(a.publisher ?? "ADMIN") === "USER" ? "User" : "Admin"} ·{" "}
-                        {a.type === "PRE_ROLL" ? "Pre-roll" : "Mid-roll"} ·{" "}
-                        {a.skippable ? `skip after ${a.skipAfterSeconds}s` : "non-skippable"} ·{" "}
-                        {a.active ? "active" : "inactive"}
-                        {a.targetVideoId ? ` · target ${a.targetVideoId}` : ""} · updated{" "}
-                        {formatDate(a.updatedAt)}
+                        {a.skippable ? `skip after ${a.skipAfterSeconds}s` : "non-skippable"} · {a.active ? "active" : "inactive"}{" "}
+                        · updated {formatDate(a.updatedAt)}
                       </p>
                     </div>
                     <div className="flex gap-2">
@@ -344,7 +441,7 @@ export default function AdsManager() {
 
       <section>
         <h3 className="text-sm font-semibold text-white/90">Advertiser campaigns (billing)</h3>
-        <p className="mt-1 text-xs text-white/50">Campaign rows are not linked to video creatives in this build.</p>
+        <p className="mt-1 text-xs text-white/50">Studio campaigns fund user promos; impressions debit campaign spend when ads run.</p>
         {campaigns.length === 0 ? null : (
           <ul className="mt-3 space-y-2 text-xs text-white/70">
             {campaigns.slice(0, 12).map((c) => (

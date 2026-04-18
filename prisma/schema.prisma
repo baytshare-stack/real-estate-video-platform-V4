@@ -364,7 +364,18 @@ enum AdPublisher {
   USER
 }
 
-/// Platform video ad inventory (pre-roll / mid-roll). Serves watch-page HTML5 playback only.
+enum AdCreativeKind {
+  VIDEO
+  TEXT
+}
+
+/// Text promos: bottom overlay vs centered card on the watch player.
+enum AdTextDisplayMode {
+  OVERLAY
+  CARD
+}
+
+/// Platform ad inventory (pre-roll / mid-roll). `publisher=ADMIN` = global; `USER` = agent/agency (requires campaign + budget to serve).
 model Ad {
   id               String       @id @default(cuid())
   /// ADMIN = global (companies); USER = agent/agency self-serve.
@@ -378,7 +389,12 @@ model Ad {
   /// Optional wallet campaign link for user advertisers.
   campaignId       String?
   campaign         Campaign?    @relation(fields: [campaignId], references: [id], onDelete: SetNull)
-  videoUrl         String
+  creativeKind     AdCreativeKind @default(VIDEO)
+  /// MP4 / HLS URL for VIDEO creatives; null for pure TEXT ads.
+  videoUrl         String?
+  /// Plain text body for TEXT creatives.
+  textBody         String?      @db.Text
+  textDisplayMode  AdTextDisplayMode?
   type             VideoAdSlot
   skippable        Boolean      @default(true)
   skipAfterSeconds Int          @default(5)

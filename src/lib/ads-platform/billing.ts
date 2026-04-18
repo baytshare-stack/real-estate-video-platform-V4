@@ -195,6 +195,56 @@ export async function adjustCampaignBudgetAllocation(params: {
   );
 }
 
+/**
+ * Deducts a small amount from the campaign budget for a served USER ad impression.
+ * Wallet balance is unchanged (funds were moved into `campaign.budget` at allocation).
+ * Cost per impression defaults to `AD_IMPRESSION_COST` env (decimal string), fallback 0.01.
+ */
+export async function chargeForAdImpression(adId: string) {
+  const raw = process.env.AD_IMPRESSION_COST ?? "0.01";
+  const amount = new Prisma.Decimal(String(raw));
+  if (amount.lte(ZERO)) return;
+
+  await prisma.$transaction(
+    async (tx) => {
+      const ad = await tx.ad.findUnique({
+        where: { id: adId },
+        select: { id: true, publisher: true, campaignId: true, active: true },
+      });
+      if (!ad?.active || ad.publisher !== "USER" || !ad.campaignId) return;
+
+      const campaign = await tx.campaign.findUnique({
+        where: { id: ad.campaignId },
+        select: {
+          status: true,
+          spent: true,
+          budget: true,
+          advertiser: { select: { userId: true } },
+        },
+      });
+      if (!campaign || campaign.status !== "ACTIVE") return;
+
+      const rem = campaign.budget.sub(campaign.spent);
+      if (rem.lt(amount)) return;
+
+      await tx.campaign.update({
+        where: { id: ad.campaignId },
+        data: { spent: { increment: amount } },
+      });
+      await tx.walletTransaction.create({
+        data: {
+          userId: campaign.advertiser.userId,
+          type: "IMPRESSION",
+          amount,
+          adId,
+        },
+      });
+      await pauseCampaignIfDepleted(tx, ad.campaignId);
+    },
+    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+  );
+}
+
 /** Lead cost comes from the campaign budget pool only (wallet was already debited at allocation). */
 export async function chargeForLead(campaignId: string, cost = 3) {
   const amount = new Prisma.Decimal(String(cost));

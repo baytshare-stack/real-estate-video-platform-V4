@@ -1,8 +1,8 @@
-import type { Prisma, VideoAdSlot } from "@prisma/client";
+import type { AdCreativeKind, AdTextDisplayMode, Prisma, VideoAdSlot } from "@prisma/client";
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireAdvertiserProfile } from "@/lib/ads-platform/auth";
-import { normalizeAdMediaUrl } from "@/lib/ads-platform/media-url";
+import { normalizeAdMediaUrl, normalizeAdTextBody } from "@/lib/ads-platform/media-url";
 import { userCanTargetVideoForAd } from "@/lib/video-ads/targeting";
 
 function canSelfServeVideoAds(role: string) {
@@ -24,7 +24,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const body = (await req.json()) as {
+    creativeKind?: AdCreativeKind;
     videoUrl?: string | null;
+    textBody?: string | null;
+    textDisplayMode?: AdTextDisplayMode | null;
     type?: VideoAdSlot;
     targetVideoId?: string | null;
     skippable?: boolean;
@@ -44,7 +47,32 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   }
 
   const data: Prisma.AdUpdateInput = {};
-  if (body.videoUrl !== undefined) data.videoUrl = normalizeAdMediaUrl(body.videoUrl) || existing.videoUrl;
+  const nextKind: AdCreativeKind = body.creativeKind ?? existing.creativeKind;
+  data.creativeKind = nextKind;
+
+  if (nextKind === "VIDEO") {
+    const mergedUrl =
+      body.videoUrl !== undefined ? normalizeAdMediaUrl(body.videoUrl) ?? existing.videoUrl : existing.videoUrl;
+    if (!mergedUrl?.trim()) {
+      return NextResponse.json({ error: "videoUrl is required for video ads." }, { status: 400 });
+    }
+    data.videoUrl = mergedUrl;
+    data.textBody = null;
+    data.textDisplayMode = null;
+  } else {
+    const mergedText =
+      body.textBody !== undefined ? normalizeAdTextBody(body.textBody) : normalizeAdTextBody(existing.textBody);
+    if (!mergedText?.trim()) {
+      return NextResponse.json({ error: "textBody is required for text ads." }, { status: 400 });
+    }
+    data.textBody = mergedText;
+    data.textDisplayMode =
+      body.textDisplayMode === "CARD" || body.textDisplayMode === "OVERLAY"
+        ? body.textDisplayMode
+        : (existing.textDisplayMode ?? "OVERLAY");
+    data.videoUrl = null;
+  }
+
   if (body.type === "PRE_ROLL" || body.type === "MID_ROLL") data.type = body.type;
   if (typeof body.skippable === "boolean") data.skippable = body.skippable;
   if (typeof body.skipAfterSeconds === "number" && Number.isFinite(body.skipAfterSeconds)) {

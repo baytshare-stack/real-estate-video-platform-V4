@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import type { VideoAdSlot } from "@prisma/client";
+import type { AdCreativeKind, AdTextDisplayMode, VideoAdSlot } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { requireAdvertiserProfile } from "@/lib/ads-platform/auth";
-import { normalizeAdMediaUrl } from "@/lib/ads-platform/media-url";
+import { normalizeAdMediaUrl, normalizeAdTextBody } from "@/lib/ads-platform/media-url";
 import { userCanTargetVideoForAd } from "@/lib/video-ads/targeting";
 
 function canSelfServeVideoAds(role: string) {
@@ -36,7 +36,10 @@ export async function GET() {
     ads: ads.map((a) => ({
       id: a.id,
       publisher: a.publisher,
+      creativeKind: a.creativeKind,
       videoUrl: a.videoUrl,
+      textBody: a.textBody,
+      textDisplayMode: a.textDisplayMode,
       type: a.type,
       skippable: a.skippable,
       skipAfterSeconds: a.skipAfterSeconds,
@@ -60,7 +63,10 @@ export async function POST(req: Request) {
 
   const body = (await req.json()) as {
     campaignId?: string;
+    creativeKind?: AdCreativeKind;
     videoUrl?: string;
+    textBody?: string | null;
+    textDisplayMode?: AdTextDisplayMode | null;
     type?: VideoAdSlot;
     targetVideoId?: string | null;
     skippable?: boolean;
@@ -80,8 +86,19 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Cannot attach ads to a deleted campaign." }, { status: 400 });
   }
 
-  const videoUrl = normalizeAdMediaUrl(body.videoUrl);
-  if (!videoUrl) return NextResponse.json({ error: "videoUrl is required." }, { status: 400 });
+  const kind: AdCreativeKind = body.creativeKind === "TEXT" ? "TEXT" : "VIDEO";
+  let videoUrl: string | null = null;
+  let textBody: string | null = null;
+  let textDisplayMode: AdTextDisplayMode | null = null;
+
+  if (kind === "VIDEO") {
+    videoUrl = normalizeAdMediaUrl(body.videoUrl);
+    if (!videoUrl) return NextResponse.json({ error: "videoUrl is required for video ads." }, { status: 400 });
+  } else {
+    textBody = normalizeAdTextBody(body.textBody);
+    if (!textBody) return NextResponse.json({ error: "textBody is required for text ads." }, { status: 400 });
+    textDisplayMode = body.textDisplayMode === "CARD" ? "CARD" : "OVERLAY";
+  }
 
   const slot = body.type === "MID_ROLL" ? "MID_ROLL" : "PRE_ROLL";
   const targetVideoId = (body.targetVideoId || "").trim() || null;
@@ -97,7 +114,10 @@ export async function POST(req: Request) {
       ownerId: auth.user.id,
       campaignId: campaign.id,
       targetVideoId,
+      creativeKind: kind,
       videoUrl,
+      textBody,
+      textDisplayMode,
       type: slot,
       skippable: body.skippable !== false,
       skipAfterSeconds: Math.max(0, Number(body.skipAfterSeconds ?? 5) || 5),

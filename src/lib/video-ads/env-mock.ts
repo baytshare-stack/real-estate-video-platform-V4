@@ -1,12 +1,7 @@
 import type { VideoAdSlot } from "@prisma/client";
+import type { ServedVideoAdPayload } from "@/lib/video-ads/served-ad-payload";
 
-export type ServedVideoAdPayload = {
-  id: string;
-  videoUrl: string;
-  type: VideoAdSlot;
-  skippable: boolean;
-  skipAfterSeconds: number;
-};
+export type { ServedVideoAdPayload };
 
 function trimUrl(v: string | undefined) {
   const s = (v || "").trim();
@@ -23,6 +18,7 @@ export function getMockVideoAdForSlot(slot: VideoAdSlot): ServedVideoAdPayload |
   const skippable = process.env.VIDEO_ADS_DEMO_NON_SKIPPABLE !== "1";
   return {
     id: `mock-${slot.toLowerCase()}`,
+    creativeKind: "VIDEO",
     videoUrl: url,
     type: slot,
     skippable,

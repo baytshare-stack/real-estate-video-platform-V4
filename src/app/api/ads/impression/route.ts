@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { chargeForAdImpression } from "@/lib/ads-platform/billing";
 
 export const runtime = "nodejs";
 
-/** Lightweight acknowledgement — no wallet / campaign billing on video inventory ads. */
+/** Records a served impression; USER campaign ads consume a small slice of campaign budget. */
 export async function POST(req: Request) {
   try {
     const body = (await req.json()) as { adId?: string };
@@ -18,10 +19,14 @@ export async function POST(req: Request) {
 
     const ad = await prisma.ad.findFirst({
       where: { id: adId, active: true },
-      select: { id: true },
+      select: { id: true, publisher: true },
     });
     if (!ad) {
       return NextResponse.json({ error: "Ad not found or inactive." }, { status: 404 });
+    }
+
+    if (ad.publisher === "USER") {
+      await chargeForAdImpression(adId);
     }
 
     return NextResponse.json({ ok: true });
