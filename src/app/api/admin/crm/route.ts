@@ -48,10 +48,10 @@ export async function GET(request: Request) {
     let adLeads: Array<{
       id: string;
       adId: string;
-      videoId: string;
-      video: { id: string; title: string };
-      agentId: string;
-      agent: { id: string; fullName: string; email: string };
+      videoId: string | null;
+      video: { id: string; title: string } | null;
+      agentId: string | null;
+      agent: { id: string; fullName: string; email: string } | null;
       name: string;
       phone: string;
       source: "AD" | "VIDEO";
@@ -84,10 +84,10 @@ export async function GET(request: Request) {
         id: l.id,
         adId: l.adId,
         videoId: l.videoId,
-        videoTitle: l.video.title,
+        videoTitle: l.video?.title ?? null,
         agentId: l.agentId,
-        agentName: l.agent.fullName,
-        agentEmail: l.agent.email,
+        agentName: l.agent?.fullName ?? null,
+        agentEmail: l.agent?.email ?? null,
         name: l.name,
         phone: l.phone,
         source: l.source,

@@ -133,8 +133,7 @@ export async function createCampaignWithWalletAllocation(params: {
       });
 
       return { campaign, walletBalance: w.balance };
-    },
-    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+    }
   );
 }
 
@@ -239,29 +238,55 @@ export async function chargeForAdImpression(adId: string) {
           adId,
         },
       });
+      await tx.adPerformance.upsert({
+        where: { adId },
+        create: { adId, spend: amount },
+        update: { spend: { increment: amount } },
+      });
       await pauseCampaignIfDepleted(tx, ad.campaignId);
     },
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
   );
 }
 
-/** Lead cost comes from the campaign budget pool only (wallet was already debited at allocation). */
-export async function chargeForLead(campaignId: string, cost = 3) {
-  const amount = new Prisma.Decimal(String(cost));
+/** Lead cost comes from the campaign budget pool; records wallet ledger row + ad spend rollup. */
+export async function chargeForLead(params: { campaignId: string; adId: string; cost?: number }) {
+  const raw = params.cost ?? Number(process.env.AD_LEAD_COST ?? "3");
+  const amount = new Prisma.Decimal(String(raw));
+  if (amount.lte(ZERO)) return;
+
   await prisma.$transaction(
     async (tx) => {
       const campaign = await tx.campaign.findUnique({
-        where: { id: campaignId },
-        select: { spent: true, budget: true },
+        where: { id: params.campaignId },
+        select: {
+          spent: true,
+          budget: true,
+          status: true,
+          advertiser: { select: { userId: true } },
+        },
       });
-      if (!campaign) return;
+      if (!campaign || campaign.status !== "ACTIVE") return;
       const rem = campaign.budget.sub(campaign.spent);
       if (rem.lt(amount)) return;
       await tx.campaign.update({
-        where: { id: campaignId },
+        where: { id: params.campaignId },
         data: { spent: { increment: amount } },
       });
-      await pauseCampaignIfDepleted(tx, campaignId);
+      await tx.walletTransaction.create({
+        data: {
+          userId: campaign.advertiser.userId,
+          type: "LEAD",
+          amount,
+          adId: params.adId,
+        },
+      });
+      await tx.adPerformance.upsert({
+        where: { adId: params.adId },
+        create: { adId: params.adId, spend: amount },
+        update: { spend: { increment: amount } },
+      });
+      await pauseCampaignIfDepleted(tx, params.campaignId);
     },
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
   );

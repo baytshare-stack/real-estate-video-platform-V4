@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { recordAdClickMetrics } from "@/lib/ads-platform/ad-metrics";
+import { recordAdViewMetrics } from "@/lib/ads-platform/ad-metrics";
 
 export const runtime = "nodejs";
 
+/** Counts a completed or meaningful ad view (client calls once per ad break). */
 export async function POST(req: Request) {
   try {
-    const body = (await req.json()) as { adId?: string };
+    const body = (await req.json()) as { adId?: string; watchSeconds?: number };
     const adId = (body.adId || "").trim();
     if (!adId) {
       return NextResponse.json({ error: "adId is required." }, { status: 400 });
@@ -24,10 +25,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Ad not found or inactive." }, { status: 404 });
     }
 
-    await recordAdClickMetrics(adId);
+    await recordAdViewMetrics(adId, body.watchSeconds);
     return NextResponse.json({ ok: true });
   } catch (e) {
-    console.error("ad click error", e);
-    return NextResponse.json({ error: "Failed to track click." }, { status: 500 });
+    console.error("ad view error", e);
+    return NextResponse.json({ error: "Failed to record view." }, { status: 500 });
   }
 }

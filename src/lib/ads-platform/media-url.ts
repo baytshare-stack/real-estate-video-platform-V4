@@ -14,9 +14,3 @@ export function normalizeAdMediaUrl(v: unknown): string | null {
     return null;
   }
 }
-
-export function normalizeAdTextBody(v: unknown, maxLen = 2000): string | null {
-  const s = String(v ?? "").trim().replace(/\s+/g, " ");
-  if (!s) return null;
-  return s.slice(0, maxLen);
-}

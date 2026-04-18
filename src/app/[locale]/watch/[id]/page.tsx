@@ -26,7 +26,7 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
   const unwrappedParams = use(params);
   const videoId = unwrappedParams.id;
   const { t } = useTranslation();
-  const { status: sessionStatus } = useSession();
+  const { status: sessionStatus, data: session } = useSession();
   const [videoData, setVideoData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -78,6 +78,16 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
     };
     if (videoId) fetchVideo();
   }, [videoId]);
+
+  useEffect(() => {
+    if (!videoId || sessionStatus !== "authenticated" || !session?.user?.id || !videoData) return;
+    void fetch("/api/ads/intent-signal", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ videoId }),
+    }).catch(() => {});
+  }, [videoId, sessionStatus, session?.user?.id, videoData]);
 
   const handleLike = async () => {
     if (sessionStatus !== "authenticated") return;

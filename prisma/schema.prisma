@@ -76,6 +76,7 @@ model User {
   adsWallet               Wallet?
   adsWalletTransactions   WalletTransaction[]
   walletPaymentIntents    WalletPaymentIntent[]
+  intentProfile            UserIntentProfile?
 }
 
 model Account {
@@ -240,9 +241,9 @@ model Video {
   shares      VideoShare[]
   property    Property?
   visitBookings VisitBooking[]
-  /// Denormalized listing category for smart ads (e.g. APARTMENT). Falls back to `propertyType` when null.
+  /// Denormalized listing category (e.g. APARTMENT). Falls back to `propertyType` when null.
   category      String?
-  /// Denormalized location label for smart ads (e.g. "Dubai, UAE"). Falls back to property city/country when null.
+  /// Denormalized location label (e.g. "Dubai, UAE"). Falls back to property city/country when null.
   location      String?
   channel     Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
   template Template? @relation(fields: [templateId], references: [id], onDelete: SetNull)
@@ -351,6 +352,11 @@ model Campaign {
   startDate     DateTime
   endDate       DateTime
   bidWeight     Float           @default(1.0)
+  /// Optional advanced bidding; null bids fall back to `bidWeight`-only scoring.
+  bidMode       CampaignBidMode @default(WEIGHTED)
+  cpmBid        Decimal?
+  cpcBid        Decimal?
+  cplBid        Decimal?
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
   ads           Ad[]
@@ -359,20 +365,61 @@ model Campaign {
   @@index([status, startDate, endDate])
 }
 
+/// Learned preferences from organic watch behavior (signed-in users).
+model UserIntentProfile {
+  id                    String   @id @default(cuid())
+  userId                String   @unique
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  preferredLocation     String?
+  preferredPropertyType String?
+  budgetMin             Decimal?
+  budgetMax             Decimal?
+  engagementScore       Float    @default(0)
+  videosWatchedCount    Int      @default(0)
+  updatedAt             DateTime @updatedAt
+}
+
+/// Per anonymous/signed viewer key: caps repeat delivery of the same ad.
+model AdViewerFrequency {
+  id          String   @id @default(cuid())
+  viewerKey String
+  adId        String
+  dayBucket   String   @default("")
+  showsToday  Int      @default(0)
+  lastShownAt DateTime @default(now())
+  ad          Ad       @relation(fields: [adId], references: [id], onDelete: Cascade)
+
+  @@unique([viewerKey, adId])
+  @@index([viewerKey])
+}
+
+enum CampaignBidMode {
+  WEIGHTED
+  CPM
+  CPC
+  CPL
+}
+
 enum AdPublisher {
   ADMIN
   USER
 }
 
-enum AdCreativeKind {
+enum AdMediaType {
   VIDEO
-  TEXT
+  IMAGE
 }
 
-/// Text promos: bottom overlay vs centered card on the watch player.
-enum AdTextDisplayMode {
-  OVERLAY
-  CARD
+enum AdCtaType {
+  CALL
+  WHATSAPP
+  BOOK_VISIT
+}
+
+enum TargetUserIntent {
+  BUY
+  RENT
+  INVEST
 }
 
 /// Platform ad inventory (pre-roll / mid-roll). `publisher=ADMIN` = global; `USER` = agent/agency (requires campaign + budget to serve).
@@ -389,24 +436,59 @@ model Ad {
   /// Optional wallet campaign link for user advertisers.
   campaignId       String?
   campaign         Campaign?    @relation(fields: [campaignId], references: [id], onDelete: SetNull)
-  creativeKind     AdCreativeKind @default(VIDEO)
-  /// MP4 / HLS URL for VIDEO creatives; null for pure TEXT ads.
+  mediaType        AdMediaType  @default(VIDEO)
+  /// MP4 / HLS URL for VIDEO creatives.
   videoUrl         String?
-  /// Plain text body for TEXT creatives.
-  textBody         String?      @db.Text
-  textDisplayMode  AdTextDisplayMode?
+  /// Static creative for IMAGE ads.
+  imageUrl         String?
+  thumbnail        String?
+  /// Max length hint for IMAGE creatives (seconds shown).
+  durationSeconds  Int?
+  ctaType          AdCtaType    @default(WHATSAPP)
+  ctaLabel         String?
+  ctaUrl           String?
   type             VideoAdSlot
   skippable        Boolean      @default(true)
   skipAfterSeconds Int          @default(5)
   active           Boolean      @default(true)
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
+  targeting        Targeting?
+  performance      AdPerformance?
   leads            Lead[]
+  viewerFrequencies AdViewerFrequency[]
 
   @@index([active, type, publisher])
   @@index([ownerId, active, type])
   @@index([targetVideoId, active, type])
   @@index([campaignId])
+}
+
+model Targeting {
+  id              String            @id @default(cuid())
+  adId            String            @unique
+  ad              Ad                @relation(fields: [adId], references: [id], onDelete: Cascade)
+  countries       String[]          @default([])
+  cities          String[]          @default([])
+  propertyTypes   String[]          @default([])
+  priceMin        Decimal?
+  priceMax        Decimal?
+  userIntent      TargetUserIntent?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+}
+
+model AdPerformance {
+  id          String   @id @default(cuid())
+  adId        String   @unique
+  ad          Ad       @relation(fields: [adId], references: [id], onDelete: Cascade)
+  impressions Int      @default(0)
+  views       Int      @default(0)
+  clicks      Int      @default(0)
+  leads       Int      @default(0)
+  watchTime   Int      @default(0)
+  spend       Decimal  @default(0)
+  updatedAt   DateTime @updatedAt
 }
 
 model Lead {
@@ -415,10 +497,10 @@ model Lead {
   ad        Ad         @relation(fields: [adId], references: [id], onDelete: Cascade)
   userId    String?
   user      User?      @relation("AdLeadSubmitter", fields: [userId], references: [id], onDelete: SetNull)
-  videoId   String
-  video     Video      @relation(fields: [videoId], references: [id], onDelete: Cascade)
-  agentId   String
-  agent     User       @relation("AdLeadAgent", fields: [agentId], references: [id], onDelete: Cascade)
+  videoId   String?
+  video     Video?     @relation(fields: [videoId], references: [id], onDelete: SetNull)
+  agentId   String?
+  agent     User?      @relation("AdLeadAgent", fields: [agentId], references: [id], onDelete: SetNull)
   name      String
   phone     String
   source    LeadSource

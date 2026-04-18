@@ -93,7 +93,6 @@ export async function GET(req: Request) {
     const watchData = {
       id: video.id,
       videoAds: [],
-      smartAds: [],
       videoUrl: video.videoUrl,
       thumbnailUrl: video.thumbnail,
       isShort: video.isShort,

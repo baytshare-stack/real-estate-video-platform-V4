@@ -12,6 +12,7 @@ import {
   X,
 } from "lucide-react";
 import LocaleLink from "@/components/LocaleLink";
+import { StudioAdsPageHeader } from "@/components/studio/ads/StudioAdsBreadcrumb";
 import type { PaymentProviderId } from "@/lib/payments/types";
 
 type Tx = {
@@ -164,6 +165,13 @@ export default function StudioBillingPage() {
   }, [load]);
 
   React.useEffect(() => {
+    const t = window.setInterval(() => {
+      void load();
+    }, 30_000);
+    return () => window.clearInterval(t);
+  }, [load]);
+
+  React.useEffect(() => {
     const d = data.paymentConfig?.defaultProvider;
     if (d === "cashier" || d === "paymob" || d === "stripe" || d === "mock") {
       setProvider(d);
@@ -307,10 +315,11 @@ export default function StudioBillingPage() {
         }
       `}</style>
 
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">Billing</h1>
-        <p className="mt-1 text-sm text-white/50">Wallet, top-ups, and campaign analytics</p>
-      </div>
+      <StudioAdsPageHeader
+        segment="billing"
+        title="Billing"
+        subtitle="Wallet, top-ups, and live ad performance summaries (refreshes every 30s while this page is open)."
+      />
 
       <section className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-indigo-500/15 via-white/[0.06] to-white/[0.02] p-6 shadow-[0_24px_80px_-32px_rgba(99,102,241,0.45)] sm:p-8">
         <div className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-indigo-500/20 blur-3xl" />

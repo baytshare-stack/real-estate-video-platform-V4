@@ -4,20 +4,21 @@ import * as React from "react";
 import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 
 type VideoAdSlot = "PRE_ROLL" | "MID_ROLL";
-type CreativeKind = "VIDEO" | "TEXT";
-type TextDisplayMode = "OVERLAY" | "CARD";
+type MediaKind = "VIDEO" | "IMAGE";
 
 type AdminAdRow = {
   id: string;
   publisher?: "ADMIN" | "USER";
-  creativeKind?: CreativeKind;
+  mediaType?: MediaKind;
   videoUrl?: string | null;
-  textBody?: string | null;
-  textDisplayMode?: TextDisplayMode | null;
+  imageUrl?: string | null;
+  thumbnail?: string | null;
   type: VideoAdSlot;
   skippable: boolean;
   skipAfterSeconds: number;
   active: boolean;
+  ctaType?: string;
+  ctaLabel?: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -36,10 +37,6 @@ function formatDate(iso: string) {
   return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "2-digit" });
 }
 
-function kindLabel(k?: CreativeKind) {
-  return k === "TEXT" ? "Text" : "Video";
-}
-
 export default function AdsManager() {
   const [ads, setAds] = React.useState<AdminAdRow[]>([]);
   const [campaigns, setCampaigns] = React.useState<AdminCampaignRow[]>([]);
@@ -48,20 +45,21 @@ export default function AdsManager() {
   const [busyId, setBusyId] = React.useState("");
   const [createBusy, setCreateBusy] = React.useState(false);
 
-  const [creativeKind, setCreativeKind] = React.useState<CreativeKind>("VIDEO");
+  const [mediaType, setMediaType] = React.useState<MediaKind>("VIDEO");
   const [videoUrl, setVideoUrl] = React.useState("");
-  const [textBody, setTextBody] = React.useState("");
-  const [textDisplayMode, setTextDisplayMode] = React.useState<TextDisplayMode>("OVERLAY");
+  const [imageUrl, setImageUrl] = React.useState("");
   const [slot, setSlot] = React.useState<VideoAdSlot>("PRE_ROLL");
   const [skippable, setSkippable] = React.useState(true);
   const [skipAfterSeconds, setSkipAfterSeconds] = React.useState("5");
   const [active, setActive] = React.useState(true);
+  const [countries, setCountries] = React.useState("");
+  const [cities, setCities] = React.useState("");
+  const [propertyTypes, setPropertyTypes] = React.useState("");
 
   const [editingId, setEditingId] = React.useState<string | null>(null);
-  const [editKind, setEditKind] = React.useState<CreativeKind>("VIDEO");
+  const [editKind, setEditKind] = React.useState<MediaKind>("VIDEO");
   const [editVideoUrl, setEditVideoUrl] = React.useState("");
-  const [editTextBody, setEditTextBody] = React.useState("");
-  const [editTextMode, setEditTextMode] = React.useState<TextDisplayMode>("OVERLAY");
+  const [editImageUrl, setEditImageUrl] = React.useState("");
   const [editSlot, setEditSlot] = React.useState<VideoAdSlot>("PRE_ROLL");
   const [editSkippable, setEditSkippable] = React.useState(true);
   const [editSkipAfter, setEditSkipAfter] = React.useState("5");
@@ -96,22 +94,28 @@ export default function AdsManager() {
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          creativeKind,
-          videoUrl: creativeKind === "VIDEO" ? videoUrl.trim() : undefined,
-          textBody: creativeKind === "TEXT" ? textBody.trim() : undefined,
-          textDisplayMode: creativeKind === "TEXT" ? textDisplayMode : undefined,
+          mediaType,
+          videoUrl: mediaType === "VIDEO" ? videoUrl.trim() : undefined,
+          imageUrl: mediaType === "IMAGE" ? imageUrl.trim() : undefined,
           type: slot,
           skippable,
           skipAfterSeconds: Number(skipAfterSeconds) || 5,
           active,
+          targeting: {
+            countries: countries.split(/[,;]/).map((s) => s.trim()).filter(Boolean),
+            cities: cities.split(/[,;]/).map((s) => s.trim()).filter(Boolean),
+            propertyTypes: propertyTypes.split(/[,;]/).map((s) => s.trim()).filter(Boolean),
+          },
         }),
       });
       const json = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) throw new Error(json.error || "Create failed.");
       setVideoUrl("");
-      setTextBody("");
-      setCreativeKind("VIDEO");
-      setTextDisplayMode("OVERLAY");
+      setImageUrl("");
+      setCountries("");
+      setCities("");
+      setPropertyTypes("");
+      setMediaType("VIDEO");
       setSlot("PRE_ROLL");
       setSkippable(true);
       setSkipAfterSeconds("5");
@@ -126,10 +130,9 @@ export default function AdsManager() {
 
   const startEdit = (a: AdminAdRow) => {
     setEditingId(a.id);
-    setEditKind(a.creativeKind === "TEXT" ? "TEXT" : "VIDEO");
+    setEditKind(a.mediaType === "IMAGE" ? "IMAGE" : "VIDEO");
     setEditVideoUrl(a.videoUrl ?? "");
-    setEditTextBody(a.textBody ?? "");
-    setEditTextMode(a.textDisplayMode === "CARD" ? "CARD" : "OVERLAY");
+    setEditImageUrl(a.imageUrl ?? "");
     setEditSlot(a.type);
     setEditSkippable(a.skippable);
     setEditSkipAfter(String(a.skipAfterSeconds));
@@ -146,10 +149,9 @@ export default function AdsManager() {
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          creativeKind: editKind,
+          mediaType: editKind,
           videoUrl: editKind === "VIDEO" ? editVideoUrl.trim() : null,
-          textBody: editKind === "TEXT" ? editTextBody.trim() : null,
-          textDisplayMode: editKind === "TEXT" ? editTextMode : null,
+          imageUrl: editKind === "IMAGE" ? editImageUrl.trim() : null,
           type: editSlot,
           skippable: editSkippable,
           skipAfterSeconds: Number(editSkipAfter) || 5,
@@ -187,16 +189,15 @@ export default function AdsManager() {
   };
 
   const createDisabled =
-    createBusy ||
-    (creativeKind === "VIDEO" ? !videoUrl.trim() : !textBody.trim());
+    createBusy || (mediaType === "VIDEO" ? !videoUrl.trim() : !imageUrl.trim());
 
   return (
     <div className="space-y-8 text-white">
       <div>
         <h2 className="text-lg font-semibold">Platform ads (global)</h2>
         <p className="mt-1 text-sm text-white/60">
-          Pre-roll and mid-roll inventory shown on every watch page. Video creatives use MP4 URLs; text creatives render as
-          overlay or card. Agent and agency promos are managed under Studio → Ads.
+          Pre-roll and mid-roll video or image creatives. Targeting filters which listings they may run on. Agent promos
+          are created in Studio → Ads.
         </p>
       </div>
 
@@ -206,17 +207,17 @@ export default function AdsManager() {
         <h3 className="text-sm font-semibold text-white/90">Add creative</h3>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <label className="block text-xs text-white/60 sm:col-span-2">
-            Creative type
+            Media type
             <select
-              value={creativeKind}
-              onChange={(e) => setCreativeKind(e.target.value as CreativeKind)}
+              value={mediaType}
+              onChange={(e) => setMediaType(e.target.value as MediaKind)}
               className="mt-1 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-sm text-white"
             >
-              <option value="VIDEO">Video (URL or upload via Studio pattern)</option>
-              <option value="TEXT">Text (overlay / card)</option>
+              <option value="VIDEO">Video (MP4 URL)</option>
+              <option value="IMAGE">Image (URL)</option>
             </select>
           </label>
-          {creativeKind === "VIDEO" ? (
+          {mediaType === "VIDEO" ? (
             <label className="block text-xs text-white/60 sm:col-span-2">
               Video URL
               <input
@@ -227,30 +228,41 @@ export default function AdsManager() {
               />
             </label>
           ) : (
-            <>
-              <label className="block text-xs text-white/60 sm:col-span-2">
-                Ad copy
-                <textarea
-                  value={textBody}
-                  onChange={(e) => setTextBody(e.target.value)}
-                  rows={3}
-                  className="mt-1 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-sm text-white"
-                  placeholder="Short headline or offer…"
-                />
-              </label>
-              <label className="block text-xs text-white/60">
-                Layout
-                <select
-                  value={textDisplayMode}
-                  onChange={(e) => setTextDisplayMode(e.target.value as TextDisplayMode)}
-                  className="mt-1 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-sm text-white"
-                >
-                  <option value="OVERLAY">Bottom overlay</option>
-                  <option value="CARD">Center card</option>
-                </select>
-              </label>
-            </>
+            <label className="block text-xs text-white/60 sm:col-span-2">
+              Image URL
+              <input
+                value={imageUrl}
+                onChange={(e) => setImageUrl(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-sm text-white"
+                placeholder="https://…/banner.jpg"
+              />
+            </label>
           )}
+          <label className="block text-xs text-white/60 sm:col-span-2">
+            Countries (comma-separated keys, empty = all)
+            <input
+              value={countries}
+              onChange={(e) => setCountries(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-sm text-white"
+              placeholder="EG, AE"
+            />
+          </label>
+          <label className="block text-xs text-white/60 sm:col-span-2">
+            Cities (comma-separated)
+            <input
+              value={cities}
+              onChange={(e) => setCities(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-sm text-white"
+            />
+          </label>
+          <label className="block text-xs text-white/60 sm:col-span-2">
+            Property types (comma-separated, e.g. APARTMENT, VILLA)
+            <input
+              value={propertyTypes}
+              onChange={(e) => setPropertyTypes(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-sm text-white"
+            />
+          </label>
           <label className="block text-xs text-white/60">
             Slot
             <select
@@ -298,7 +310,7 @@ export default function AdsManager() {
             <Loader2 className="h-4 w-4 animate-spin" /> Loading…
           </p>
         ) : ads.length === 0 ? (
-          <p className="mt-3 text-sm text-white/55">No platform ads yet. Add a URL or text, or set VIDEO_ADS_DEMO_* for mock video.</p>
+          <p className="mt-3 text-sm text-white/55">No platform ads yet. Set VIDEO_ADS_DEMO_* for mock video.</p>
         ) : (
           <ul className="mt-3 space-y-3">
             {ads.map((a) => (
@@ -306,14 +318,14 @@ export default function AdsManager() {
                 {editingId === a.id ? (
                   <div className="grid gap-2 sm:grid-cols-2">
                     <label className="block text-xs text-white/60 sm:col-span-2">
-                      Creative type
+                      Media type
                       <select
                         value={editKind}
-                        onChange={(e) => setEditKind(e.target.value as CreativeKind)}
+                        onChange={(e) => setEditKind(e.target.value as MediaKind)}
                         className="mt-1 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-sm"
                       >
                         <option value="VIDEO">Video</option>
-                        <option value="TEXT">Text</option>
+                        <option value="IMAGE">Image</option>
                       </select>
                     </label>
                     {editKind === "VIDEO" ? (
@@ -326,28 +338,14 @@ export default function AdsManager() {
                         />
                       </label>
                     ) : (
-                      <>
-                        <label className="block text-xs text-white/60 sm:col-span-2">
-                          Ad copy
-                          <textarea
-                            value={editTextBody}
-                            onChange={(e) => setEditTextBody(e.target.value)}
-                            rows={3}
-                            className="mt-1 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-sm"
-                          />
-                        </label>
-                        <label className="block text-xs text-white/60">
-                          Layout
-                          <select
-                            value={editTextMode}
-                            onChange={(e) => setEditTextMode(e.target.value as TextDisplayMode)}
-                            className="mt-1 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-sm"
-                          >
-                            <option value="OVERLAY">Overlay</option>
-                            <option value="CARD">Card</option>
-                          </select>
-                        </label>
-                      </>
+                      <label className="block text-xs text-white/60 sm:col-span-2">
+                        Image URL
+                        <input
+                          value={editImageUrl}
+                          onChange={(e) => setEditImageUrl(e.target.value)}
+                          className="mt-1 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-sm"
+                        />
+                      </label>
                     )}
                     <label className="block text-xs text-white/60">
                       Slot
@@ -400,13 +398,9 @@ export default function AdsManager() {
                     <div className="min-w-0 space-y-1">
                       <p className="font-mono text-xs text-white/45">{a.id}</p>
                       <p className="text-white/90">
-                        {kindLabel(a.creativeKind)} · {a.type === "PRE_ROLL" ? "Pre-roll" : "Mid-roll"}
+                        {a.mediaType === "IMAGE" ? "Image" : "Video"} · {a.type === "PRE_ROLL" ? "Pre-roll" : "Mid-roll"}
                       </p>
-                      {a.creativeKind === "TEXT" ? (
-                        <p className="line-clamp-3 text-white/80">{a.textBody}</p>
-                      ) : (
-                        <p className="truncate text-white/80">{a.videoUrl}</p>
-                      )}
+                      <p className="truncate text-white/80">{a.mediaType === "IMAGE" ? a.imageUrl : a.videoUrl}</p>
                       <p className="text-xs text-white/55">
                         {a.skippable ? `skip after ${a.skipAfterSeconds}s` : "non-skippable"} · {a.active ? "active" : "inactive"}{" "}
                         · updated {formatDate(a.updatedAt)}
@@ -441,7 +435,7 @@ export default function AdsManager() {
 
       <section>
         <h3 className="text-sm font-semibold text-white/90">Advertiser campaigns (billing)</h3>
-        <p className="mt-1 text-xs text-white/50">Studio campaigns fund user promos; impressions debit campaign spend when ads run.</p>
+        <p className="mt-1 text-xs text-white/50">Studio campaigns fund user promos; delivery debits campaign spend.</p>
         {campaigns.length === 0 ? null : (
           <ul className="mt-3 space-y-2 text-xs text-white/70">
             {campaigns.slice(0, 12).map((c) => (

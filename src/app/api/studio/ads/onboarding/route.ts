@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireStudioUser } from "@/lib/ads-platform/auth";
+import { readRequestJson } from "@/lib/ads-client/safe-json";
 import { ensureWallet, getOrCreateWallet } from "@/lib/ads-platform/billing";
 
 export async function GET() {
@@ -15,7 +16,8 @@ export async function GET() {
 export async function POST(req: Request) {
   const user = await requireStudioUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const body = (await req.json()) as { businessName?: string };
+  const body = await readRequestJson<{ businessName?: string }>(req);
+  if (!body) return NextResponse.json({ error: "Valid JSON body is required." }, { status: 400 });
   const businessName = String(body.businessName || "").trim();
   if (!businessName) return NextResponse.json({ error: "businessName is required" }, { status: 400 });
 

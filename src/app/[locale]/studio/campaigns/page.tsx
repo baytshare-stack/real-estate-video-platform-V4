@@ -6,6 +6,7 @@ import LocaleLink from "@/components/LocaleLink";
 import { StudioAdsPageHeader } from "@/components/studio/ads/StudioAdsBreadcrumb";
 import { AdsLifecycleBadge } from "@/components/studio/ads/AdsLifecycleBadge";
 import { StudioConfirmDialog } from "@/components/studio/ads/StudioConfirmDialog";
+import { parseResponseJson } from "@/lib/ads-client/safe-json";
 
 type AdRow = {
   campaignId: string;
@@ -178,17 +179,28 @@ export default function StudioCampaignsPage() {
 
   const createCampaign = async () => {
     setCampaignError("");
+    const budgetNum = Number(String(budget).replace(/,/g, "").trim());
+    const dailyNum = Number(String(dailyBudget).replace(/,/g, "").trim());
     const res = await fetch("/api/studio/campaigns", {
       method: "POST",
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, budget: Number(budget), dailyBudget: Number(dailyBudget) }),
+      body: JSON.stringify({
+        name: name.trim(),
+        budget: budgetNum,
+        dailyBudget: Number.isFinite(dailyNum) ? dailyNum : 0,
+      }),
     });
-    const j = await res.json().catch(() => ({}));
-    if (res.ok) {
+    const j = await parseResponseJson(
+      res,
+      {} as { success?: boolean; error?: string; detail?: string; code?: string }
+    );
+    if (res.ok && j.success !== false) {
       setName("");
       await load();
     } else {
-      setCampaignError(typeof j.error === "string" ? j.error : "Could not create campaign.");
+      const parts = [j.error, j.detail].filter((x): x is string => typeof x === "string" && x.length > 0);
+      setCampaignError(parts.length ? parts.join(" — ") : "Could not create campaign.");
     }
   };
 
@@ -355,7 +367,7 @@ export default function StudioCampaignsPage() {
                       <div>
                         <h3 className="text-base font-semibold text-white">{c.name}</h3>
                         <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-white/45">
-                          <span>Video inventory is admin-managed · </span>
+                          <span>Studio Ads use campaign budgets · </span>
                           <AdsLifecycleBadge status={String(c.status || "DRAFT")} />
                         </p>
                       </div>

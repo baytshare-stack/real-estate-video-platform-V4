@@ -3,7 +3,7 @@
 import { ChevronRight, ArrowLeft } from "lucide-react";
 import LocaleLink from "@/components/LocaleLink";
 
-type Segment = "campaigns" | "ads";
+type Segment = "campaigns" | "ads" | "billing";
 
 export function StudioBackToStudio({ className = "" }: { className?: string }) {
   return (
@@ -37,6 +37,12 @@ export function StudioAdsBreadcrumb({ segment }: { segment: Segment }) {
           <span className="font-semibold text-white">Ads</span>
         </>
       ) : null}
+      {segment === "billing" ? (
+        <>
+          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-white/35" aria-hidden />
+          <span className="font-semibold text-white">Billing</span>
+        </>
+      ) : null}
     </nav>
   );
 }
@@ -56,9 +62,37 @@ export function StudioAdsPageHeader({
         <StudioBackToStudio />
         <StudioAdsBreadcrumb segment={segment} />
       </div>
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">{title}</h1>
-        {subtitle ? <p className="mt-1.5 max-w-2xl text-sm text-white/60">{subtitle}</p> : null}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">{title}</h1>
+          {subtitle ? <p className="mt-1.5 max-w-2xl text-sm text-white/60">{subtitle}</p> : null}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {segment !== "campaigns" ? (
+            <LocaleLink
+              href="/studio/campaigns"
+              className="rounded-lg border border-white/15 px-3 py-1.5 text-xs text-white/80 hover:bg-white/5"
+            >
+              Campaigns
+            </LocaleLink>
+          ) : null}
+          {segment !== "ads" ? (
+            <LocaleLink
+              href="/studio/ads"
+              className="rounded-lg border border-white/15 px-3 py-1.5 text-xs text-white/80 hover:bg-white/5"
+            >
+              Ads
+            </LocaleLink>
+          ) : null}
+          {segment !== "billing" ? (
+            <LocaleLink
+              href="/studio/billing"
+              className="rounded-lg border border-white/15 px-3 py-1.5 text-xs text-white/80 hover:bg-white/5"
+            >
+              Billing
+            </LocaleLink>
+          ) : null}
+        </div>
       </div>
     </div>
   );

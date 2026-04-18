@@ -18,8 +18,14 @@ export function getMockVideoAdForSlot(slot: VideoAdSlot): ServedVideoAdPayload |
   const skippable = process.env.VIDEO_ADS_DEMO_NON_SKIPPABLE !== "1";
   return {
     id: `mock-${slot.toLowerCase()}`,
-    creativeKind: "VIDEO",
+    mediaType: "VIDEO",
     videoUrl: url,
+    imageUrl: null,
+    thumbnail: null,
+    durationSeconds: null,
+    ctaType: "WHATSAPP",
+    ctaLabel: "WhatsApp",
+    ctaUrl: null,
     type: slot,
     skippable,
     skipAfterSeconds: skipAfter,

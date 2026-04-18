@@ -1,19 +1,38 @@
 import type { Prisma } from "@prisma/client";
-import type { AdCreativeKind, AdTextDisplayMode, VideoAdSlot } from "@prisma/client";
+import type { AdCtaType, AdMediaType, VideoAdSlot } from "@prisma/client";
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { normalizeAdMediaUrl, normalizeAdTextBody } from "@/lib/ads-platform/media-url";
+import { normalizeAdMediaUrl } from "@/lib/ads-platform/media-url";
+import { parseOptionalDecimal, parseStringList, parseUserIntent } from "@/lib/ads-platform/targeting-body";
 
 type PatchBody = {
-  creativeKind?: AdCreativeKind;
+  mediaType?: AdMediaType;
   videoUrl?: string | null;
-  textBody?: string | null;
-  textDisplayMode?: AdTextDisplayMode | null;
+  imageUrl?: string | null;
+  thumbnail?: string | null;
+  durationSeconds?: number | null;
+  ctaType?: AdCtaType;
+  ctaLabel?: string | null;
+  ctaUrl?: string | null;
   type?: VideoAdSlot;
   skippable?: boolean;
   skipAfterSeconds?: number;
   active?: boolean;
+  targeting?: {
+    countries?: unknown;
+    cities?: unknown;
+    propertyTypes?: unknown;
+    priceMin?: unknown;
+    priceMax?: unknown;
+    userIntent?: unknown;
+  };
 };
+
+function normalizeCtaType(v: unknown): AdCtaType | undefined {
+  const s = String(v || "").toUpperCase();
+  if (s === "CALL" || s === "WHATSAPP" || s === "BOOK_VISIT") return s;
+  return undefined;
+}
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -40,30 +59,52 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     }
     if (typeof body.active === "boolean") adData.active = body.active;
 
-    const nextKind: AdCreativeKind = body.creativeKind ?? existing.creativeKind;
-    adData.creativeKind = nextKind;
+    const mediaType: AdMediaType = body.mediaType ?? existing.mediaType;
+    adData.mediaType = mediaType;
 
-    if (nextKind === "VIDEO") {
+    if (mediaType === "VIDEO") {
       const mergedUrl =
         body.videoUrl !== undefined ? normalizeAdMediaUrl(body.videoUrl) ?? existing.videoUrl : existing.videoUrl;
       if (!mergedUrl?.trim()) {
         return NextResponse.json({ error: "videoUrl is required for video ads." }, { status: 400 });
       }
       adData.videoUrl = mergedUrl;
-      adData.textBody = null;
-      adData.textDisplayMode = null;
+      adData.imageUrl = null;
     } else {
-      const mergedText =
-        body.textBody !== undefined ? normalizeAdTextBody(body.textBody) : normalizeAdTextBody(existing.textBody);
-      if (!mergedText?.trim()) {
-        return NextResponse.json({ error: "textBody is required for text ads." }, { status: 400 });
+      const mergedImg =
+        body.imageUrl !== undefined ? normalizeAdMediaUrl(body.imageUrl) ?? existing.imageUrl : existing.imageUrl;
+      if (!mergedImg?.trim()) {
+        return NextResponse.json({ error: "imageUrl is required for image ads." }, { status: 400 });
       }
-      adData.textBody = mergedText;
-      adData.textDisplayMode =
-        body.textDisplayMode === "CARD" || body.textDisplayMode === "OVERLAY"
-          ? body.textDisplayMode
-          : (existing.textDisplayMode ?? "OVERLAY");
+      adData.imageUrl = mergedImg;
       adData.videoUrl = null;
+    }
+
+    if (body.thumbnail !== undefined) adData.thumbnail = (body.thumbnail || "").trim() || null;
+    if (body.durationSeconds !== undefined) {
+      adData.durationSeconds =
+        typeof body.durationSeconds === "number" && Number.isFinite(body.durationSeconds)
+          ? Math.max(1, Math.round(body.durationSeconds))
+          : null;
+    }
+    const ct = normalizeCtaType(body.ctaType);
+    if (ct) adData.ctaType = ct;
+    if (body.ctaLabel !== undefined) adData.ctaLabel = (body.ctaLabel || "").trim() || null;
+    if (body.ctaUrl !== undefined) adData.ctaUrl = (body.ctaUrl || "").trim() || null;
+
+    if (body.targeting) {
+      const countries = parseStringList(body.targeting.countries);
+      const cities = parseStringList(body.targeting.cities);
+      const propertyTypes = parseStringList(body.targeting.propertyTypes);
+      const priceMin = parseOptionalDecimal(body.targeting.priceMin);
+      const priceMax = parseOptionalDecimal(body.targeting.priceMax);
+      const userIntent = parseUserIntent(body.targeting.userIntent);
+      adData.targeting = {
+        upsert: {
+          create: { countries, cities, propertyTypes, priceMin, priceMax, userIntent },
+          update: { countries, cities, propertyTypes, priceMin, priceMax, userIntent },
+        },
+      };
     }
 
     await prisma.ad.update({ where: { id }, data: adData });

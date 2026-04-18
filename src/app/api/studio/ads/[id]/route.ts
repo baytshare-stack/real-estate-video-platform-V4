@@ -1,12 +1,20 @@
-import type { AdCreativeKind, AdTextDisplayMode, Prisma, VideoAdSlot } from "@prisma/client";
+import type { AdCtaType, AdMediaType, Prisma, VideoAdSlot } from "@prisma/client";
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireAdvertiserProfile } from "@/lib/ads-platform/auth";
-import { normalizeAdMediaUrl, normalizeAdTextBody } from "@/lib/ads-platform/media-url";
+import { readRequestJson } from "@/lib/ads-client/safe-json";
+import { normalizeAdMediaUrl } from "@/lib/ads-platform/media-url";
+import { parseOptionalDecimal, parseStringList, parseUserIntent } from "@/lib/ads-platform/targeting-body";
 import { userCanTargetVideoForAd } from "@/lib/video-ads/targeting";
 
 function canSelfServeVideoAds(role: string) {
   return role === "AGENT" || role === "AGENCY";
+}
+
+function normalizeCtaType(v: unknown): AdCtaType | undefined {
+  const s = String(v || "").toUpperCase();
+  if (s === "CALL" || s === "WHATSAPP" || s === "BOOK_VISIT") return s;
+  return undefined;
 }
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -20,21 +28,35 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const { id } = await params;
   const existing = await prisma.ad.findFirst({
     where: { id, publisher: "USER", ownerId: auth.user.id },
+    include: { targeting: true },
   });
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const body = (await req.json()) as {
-    creativeKind?: AdCreativeKind;
+  const body = await readRequestJson<{
+    mediaType?: AdMediaType;
     videoUrl?: string | null;
-    textBody?: string | null;
-    textDisplayMode?: AdTextDisplayMode | null;
+    imageUrl?: string | null;
+    thumbnail?: string | null;
+    durationSeconds?: number | null;
+    ctaType?: AdCtaType;
+    ctaLabel?: string | null;
+    ctaUrl?: string | null;
     type?: VideoAdSlot;
     targetVideoId?: string | null;
     skippable?: boolean;
     skipAfterSeconds?: number;
     active?: boolean;
     campaignId?: string | null;
-  };
+    targeting?: {
+      countries?: unknown;
+      cities?: unknown;
+      propertyTypes?: unknown;
+      priceMin?: unknown;
+      priceMax?: unknown;
+      userIntent?: unknown;
+    };
+  }>(req);
+  if (!body) return NextResponse.json({ error: "Valid JSON body is required." }, { status: 400 });
 
   let nextTarget = existing.targetVideoId;
   if (body.targetVideoId !== undefined) {
@@ -46,32 +68,38 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     nextTarget = t;
   }
 
-  const data: Prisma.AdUpdateInput = {};
-  const nextKind: AdCreativeKind = body.creativeKind ?? existing.creativeKind;
-  data.creativeKind = nextKind;
+  const mediaType: AdMediaType = body.mediaType ?? existing.mediaType;
+  const data: Prisma.AdUpdateInput = { mediaType };
 
-  if (nextKind === "VIDEO") {
+  if (mediaType === "VIDEO") {
     const mergedUrl =
       body.videoUrl !== undefined ? normalizeAdMediaUrl(body.videoUrl) ?? existing.videoUrl : existing.videoUrl;
     if (!mergedUrl?.trim()) {
       return NextResponse.json({ error: "videoUrl is required for video ads." }, { status: 400 });
     }
     data.videoUrl = mergedUrl;
-    data.textBody = null;
-    data.textDisplayMode = null;
+    data.imageUrl = null;
   } else {
-    const mergedText =
-      body.textBody !== undefined ? normalizeAdTextBody(body.textBody) : normalizeAdTextBody(existing.textBody);
-    if (!mergedText?.trim()) {
-      return NextResponse.json({ error: "textBody is required for text ads." }, { status: 400 });
+    const mergedImg =
+      body.imageUrl !== undefined ? normalizeAdMediaUrl(body.imageUrl) ?? existing.imageUrl : existing.imageUrl;
+    if (!mergedImg?.trim()) {
+      return NextResponse.json({ error: "imageUrl is required for image ads." }, { status: 400 });
     }
-    data.textBody = mergedText;
-    data.textDisplayMode =
-      body.textDisplayMode === "CARD" || body.textDisplayMode === "OVERLAY"
-        ? body.textDisplayMode
-        : (existing.textDisplayMode ?? "OVERLAY");
+    data.imageUrl = mergedImg;
     data.videoUrl = null;
   }
+
+  if (body.thumbnail !== undefined) data.thumbnail = (body.thumbnail || "").trim() || null;
+  if (body.durationSeconds !== undefined) {
+    data.durationSeconds =
+      typeof body.durationSeconds === "number" && Number.isFinite(body.durationSeconds)
+        ? Math.max(1, Math.round(body.durationSeconds))
+        : null;
+  }
+  const ct = normalizeCtaType(body.ctaType);
+  if (ct) data.ctaType = ct;
+  if (body.ctaLabel !== undefined) data.ctaLabel = (body.ctaLabel || "").trim() || null;
+  if (body.ctaUrl !== undefined) data.ctaUrl = (body.ctaUrl || "").trim() || null;
 
   if (body.type === "PRE_ROLL" || body.type === "MID_ROLL") data.type = body.type;
   if (typeof body.skippable === "boolean") data.skippable = body.skippable;
@@ -93,6 +121,21 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       if (!camp) return NextResponse.json({ error: "Invalid campaign." }, { status: 400 });
       data.campaign = { connect: { id: cid } };
     }
+  }
+
+  if (body.targeting) {
+    const countries = parseStringList(body.targeting.countries);
+    const cities = parseStringList(body.targeting.cities);
+    const propertyTypes = parseStringList(body.targeting.propertyTypes);
+    const priceMin = parseOptionalDecimal(body.targeting.priceMin);
+    const priceMax = parseOptionalDecimal(body.targeting.priceMax);
+    const userIntent = parseUserIntent(body.targeting.userIntent);
+    data.targeting = {
+      upsert: {
+        create: { countries, cities, propertyTypes, priceMin, priceMax, userIntent },
+        update: { countries, cities, propertyTypes, priceMin, priceMax, userIntent },
+      },
+    };
   }
 
   const ad = await prisma.ad.update({ where: { id }, data });

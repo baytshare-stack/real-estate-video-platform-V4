@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireAdvertiserProfile } from "@/lib/ads-platform/auth";
+import { readRequestJson } from "@/lib/ads-client/safe-json";
 import { adjustCampaignBudgetAllocation } from "@/lib/ads-platform/billing";
 
 type CampaignStatus = "DRAFT" | "ACTIVE" | "PAUSED" | "ENDED" | "DELETED";
@@ -27,14 +28,15 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (!auth.profile) return NextResponse.json({ error: "Advertiser onboarding required" }, { status: 400 });
 
   const { id } = await params;
-  const body = (await req.json()) as {
+  const body = await readRequestJson<{
     name?: string;
     status?: CampaignStatus;
     budget?: number;
     dailyBudget?: number;
     startDate?: string;
     endDate?: string;
-  };
+  }>(req);
+  if (!body) return NextResponse.json({ error: "Valid JSON body is required." }, { status: 400 });
 
   const existing = await prisma.campaign.findFirst({
     where: { id, advertiserId: auth.profile.id },
