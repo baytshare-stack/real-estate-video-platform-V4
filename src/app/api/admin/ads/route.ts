@@ -151,6 +151,7 @@ export async function POST(req: Request) {
         skippable,
         skipAfterSeconds,
         active,
+        adminReviewStatus: "APPROVED",
         targeting: {
           create: {
             countries,

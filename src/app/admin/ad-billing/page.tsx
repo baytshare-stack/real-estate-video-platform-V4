@@ -22,10 +22,22 @@ type TxRow = {
   createdAt: string;
 };
 
+type BillingOverview = {
+  totalCampaignBudget: number;
+  totalCampaignSpent: number;
+  activeCampaignsWindow: number;
+  totalWalletBalance: number;
+  platformWalletSpendTotal: number;
+  adImpressionsAllTime: number;
+  adClicksAllTime: number;
+  adLeadsAllTime: number;
+  adSpendTracked: number;
+};
+
 export default function AdminAdBillingPage() {
   const [wallets, setWallets] = React.useState<WalletRow[]>([]);
   const [transactions, setTransactions] = React.useState<TxRow[]>([]);
-  const [totalRevenue, setTotalRevenue] = React.useState(0);
+  const [overview, setOverview] = React.useState<BillingOverview | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
 
@@ -35,15 +47,15 @@ export default function AdminAdBillingPage() {
     try {
       const res = await fetch("/api/admin/ad-billing", { cache: "no-store" });
       const data = (await res.json()) as {
+        overview?: BillingOverview;
         wallets?: WalletRow[];
         transactions?: TxRow[];
-        totalRevenue?: number;
         error?: string;
       };
       if (!res.ok) throw new Error(data.error || "Failed to load.");
+      setOverview(data.overview ?? null);
       setWallets(data.wallets || []);
       setTransactions(data.transactions || []);
-      setTotalRevenue(data.totalRevenue ?? 0);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to load.");
     } finally {
@@ -59,7 +71,10 @@ export default function AdminAdBillingPage() {
     <div className="space-y-6 p-6 text-white">
       <div>
         <h1 className="text-2xl font-bold">Ad billing & wallets</h1>
-        <p className="mt-1 text-sm text-white/60">Advertiser balances, platform revenue (sum of wallet totalSpent), and ledger.</p>
+        <p className="mt-1 text-sm text-white/60">
+          Advertiser balances, campaign budgets and spend, platform revenue (sum of wallet totalSpent), ad performance totals, and
+          ledger.
+        </p>
       </div>
 
       {error ? <p className="text-sm text-red-400">{error}</p> : null}
@@ -67,10 +82,44 @@ export default function AdminAdBillingPage() {
 
       {!loading && !error ? (
         <>
-          <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-            <p className="text-xs font-medium uppercase tracking-wide text-white/50">Total wallet spend (platform)</p>
-            <p className="mt-1 text-2xl font-semibold">${totalRevenue.toFixed(2)}</p>
-          </div>
+          {overview ? (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-white/50">Campaign budget (all)</p>
+                <p className="mt-1 text-xl font-semibold">${overview.totalCampaignBudget.toFixed(2)}</p>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-white/50">Campaign spend (all)</p>
+                <p className="mt-1 text-xl font-semibold">${overview.totalCampaignSpent.toFixed(2)}</p>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-white/50">Active campaigns (in window)</p>
+                <p className="mt-1 text-xl font-semibold">{overview.activeCampaignsWindow}</p>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-white/50">Advertiser wallet balance (sum)</p>
+                <p className="mt-1 text-xl font-semibold">${overview.totalWalletBalance.toFixed(2)}</p>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-white/50">Platform revenue (wallet spend)</p>
+                <p className="mt-1 text-xl font-semibold">${overview.platformWalletSpendTotal.toFixed(2)}</p>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-white/50">Ad spend (tracked)</p>
+                <p className="mt-1 text-xl font-semibold">${overview.adSpendTracked.toFixed(2)}</p>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-white/50">Impressions (all time)</p>
+                <p className="mt-1 text-xl font-semibold">{overview.adImpressionsAllTime.toLocaleString()}</p>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-white/50">Clicks · Leads</p>
+                <p className="mt-1 text-xl font-semibold">
+                  {overview.adClicksAllTime.toLocaleString()} · {overview.adLeadsAllTime.toLocaleString()}
+                </p>
+              </div>
+            </div>
+          ) : null}
 
           <div className="rounded-xl border border-white/10 bg-white/5 p-4">
             <h2 className="text-lg font-semibold">Advertiser balances</h2>

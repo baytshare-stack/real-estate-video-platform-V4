@@ -63,6 +63,7 @@ export async function GET() {
       skippable: a.skippable,
       skipAfterSeconds: a.skipAfterSeconds,
       active: a.active,
+      adminReviewStatus: a.adminReviewStatus,
       targetVideoId: a.targetVideoId,
       campaignId: a.campaignId,
       campaign: a.campaign,
@@ -175,6 +176,7 @@ export async function POST(req: Request) {
       skippable: body.skippable !== false,
       skipAfterSeconds: Math.max(0, Number(body.skipAfterSeconds ?? 5) || 5),
       active: body.active !== false,
+      adminReviewStatus: "PENDING",
       targeting: {
         create: {
           countries,

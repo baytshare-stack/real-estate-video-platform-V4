@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { requireAdminApi } from "@/lib/admin-api-auth";
 
 export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
+  const gate = await requireAdminApi();
+  if (gate instanceof NextResponse) return gate;
+
   try {
     const { id } = await context.params;
     const body = (await request.json()) as { isBlocked?: boolean };
@@ -32,6 +36,9 @@ export async function DELETE(
   _request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
+  const gate = await requireAdminApi();
+  if (gate instanceof NextResponse) return gate;
+
   try {
     const { id } = await context.params;
     const user = await prisma.user.findUnique({

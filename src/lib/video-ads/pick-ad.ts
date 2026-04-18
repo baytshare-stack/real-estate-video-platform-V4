@@ -1,4 +1,11 @@
-import { Prisma, type AdMediaType, type AdPublisher, type CampaignBidMode, type VideoAdSlot } from "@prisma/client";
+import {
+  Prisma,
+  type AdAdminReviewStatus,
+  type AdMediaType,
+  type AdPublisher,
+  type CampaignBidMode,
+  type VideoAdSlot,
+} from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { getMockVideoAdForSlot } from "@/lib/video-ads/env-mock";
 import type { ServedVideoAdPayload } from "@/lib/video-ads/served-ad-payload";
@@ -48,6 +55,8 @@ type PickAdRow = {
   skippable: boolean;
   skipAfterSeconds: number;
   publisher: AdPublisher;
+  adminReviewStatus: AdAdminReviewStatus;
+  owner: { isBlocked: boolean } | null;
   campaign: CampaignSlice | null;
   targeting: TargetingSlice | null;
   performance: PerfSlice | null;
@@ -84,6 +93,16 @@ function hasRemainingBudget(c: CampaignSlice | null): boolean {
 function creativeIsComplete(row: PickAdRow): boolean {
   if (row.mediaType === "IMAGE") return Boolean(row.imageUrl?.trim());
   return Boolean(row.videoUrl?.trim());
+}
+
+/** USER ads must be APPROVED; blocked users’ ads never serve. REJECTED never serves. */
+function reviewAndOwnerAllowServe(row: PickAdRow): boolean {
+  if (row.adminReviewStatus === "REJECTED") return false;
+  if (row.publisher === "USER") {
+    if (row.adminReviewStatus !== "APPROVED") return false;
+    if (row.owner?.isBlocked) return false;
+  }
+  return true;
 }
 
 function userCampaignServable(row: PickAdRow, now: Date): boolean {
@@ -200,7 +219,11 @@ function filterUserRows(
   now: Date
 ) {
   return rows.filter(
-    (r) => creativeIsComplete(r) && userCampaignServable(r, now) && targetingMatches(ctx, r.targeting)
+    (r) =>
+      creativeIsComplete(r) &&
+      reviewAndOwnerAllowServe(r) &&
+      userCampaignServable(r, now) &&
+      targetingMatches(ctx, r.targeting)
   );
 }
 
@@ -212,14 +235,18 @@ function filterAdminRows(
   return rows
     .map((r) => ({ ...r, campaign: null as CampaignSlice | null }))
     .filter(
-      (r) => creativeIsComplete(r) && userCampaignServable(r, now) && targetingMatches(ctx, r.targeting)
+      (r) =>
+        creativeIsComplete(r) &&
+        reviewAndOwnerAllowServe(r) &&
+        userCampaignServable(r, now) &&
+        targetingMatches(ctx, r.targeting)
     );
 }
 
 function filterAdminRowsNoCtx(rows: PickAdRow[], now: Date) {
   return rows
     .map((r) => ({ ...r, campaign: null as CampaignSlice | null }))
-    .filter((r) => creativeIsComplete(r) && userCampaignServable(r, now));
+    .filter((r) => creativeIsComplete(r) && reviewAndOwnerAllowServe(r) && userCampaignServable(r, now));
 }
 
 const targetingSelect = {
@@ -253,6 +280,8 @@ const adPickSelect = {
   skippable: true,
   skipAfterSeconds: true,
   publisher: true,
+  adminReviewStatus: true,
+  owner: { select: { isBlocked: true } },
   targeting: { select: targetingSelect },
   performance: { select: perfSelect },
   campaign: {

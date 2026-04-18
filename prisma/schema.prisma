@@ -405,6 +405,13 @@ enum AdPublisher {
   USER
 }
 
+/// Admin moderation for USER promos; ADMIN global ads stay APPROVED unless rejected.
+enum AdAdminReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum AdMediaType {
   VIDEO
   IMAGE
@@ -451,6 +458,7 @@ model Ad {
   skippable        Boolean      @default(true)
   skipAfterSeconds Int          @default(5)
   active           Boolean      @default(true)
+  adminReviewStatus AdAdminReviewStatus @default(APPROVED)
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
   targeting        Targeting?

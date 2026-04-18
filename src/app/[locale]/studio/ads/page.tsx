@@ -28,6 +28,7 @@ type UserAdRow = {
   skippable: boolean;
   skipAfterSeconds: number;
   active: boolean;
+  adminReviewStatus?: "PENDING" | "APPROVED" | "REJECTED";
   targetVideoId: string | null;
   campaignId: string | null;
   campaign?: { id: string; name: string; status: string } | null;
@@ -97,6 +98,28 @@ export default function StudioAdsPage() {
     () => campaigns.filter((c) => c.status !== "DELETED"),
     [campaigns]
   );
+
+  const reviewBadge = (status: UserAdRow["adminReviewStatus"]) => {
+    if (status === "PENDING") {
+      return (
+        <span className="rounded-md border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-200">
+          Pending review
+        </span>
+      );
+    }
+    if (status === "REJECTED") {
+      return (
+        <span className="rounded-md border border-rose-500/40 bg-rose-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rose-200">
+          Rejected
+        </span>
+      );
+    }
+    return (
+      <span className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-200/90">
+        Approved
+      </span>
+    );
+  };
 
   React.useEffect(() => {
     if (!campaignId) return;
@@ -507,7 +530,10 @@ export default function StudioAdsPage() {
             <ul className="mt-3 space-y-2 text-sm">
               {ads.map((a) => (
                 <li key={a.id} className="rounded-xl border border-white/10 bg-black/25 px-3 py-3">
-                  <p className="font-mono text-[11px] text-white/45">{a.id}</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-mono text-[11px] text-white/45">{a.id}</p>
+                    {reviewBadge(a.adminReviewStatus ?? "APPROVED")}
+                  </div>
                   <p className="text-xs text-indigo-300/90">
                     {a.mediaType === "IMAGE" ? "Image" : "Video"} · {a.type}
                   </p>
