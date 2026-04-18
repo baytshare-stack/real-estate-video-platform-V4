@@ -4,15 +4,9 @@ import prisma from "@/lib/prisma";
 import { requireAdvertiserProfile } from "@/lib/ads-platform/auth";
 import { readRequestJson } from "@/lib/ads-client/safe-json";
 import { createCampaignWithWalletAllocation } from "@/lib/ads-platform/billing";
-import { buildCampaignMonetizationAnalytics } from "@/lib/ads-platform/monetization-engine";
+import { buildCampaignMonetizationAnalytics, parseBillingTypeInput } from "@/lib/ads-platform/monetization-engine";
 
 const ZERO = new Prisma.Decimal(0);
-
-function parseBillingType(v: unknown): CampaignBillingType {
-  const s = String(v ?? "CPM").toUpperCase();
-  if (s === "CPC" || s === "CPL" || s === "CPM") return s;
-  return "CPM";
-}
 
 function parseMoneyField(v: unknown): number | null {
   if (v === undefined || v === null || v === "") return null;
