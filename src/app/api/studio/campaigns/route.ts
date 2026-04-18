@@ -7,6 +7,8 @@ import { createCampaignWithWalletAllocation } from "@/lib/ads-platform/billing";
 import { buildCampaignMonetizationAnalytics, parseBillingTypeInput } from "@/lib/ads-platform/monetization-engine";
 
 const ZERO = new Prisma.Decimal(0);
+const LOG = "[api/studio/campaigns POST]";
+const isDev = process.env.NODE_ENV === "development";
 
 function parseMoneyField(v: unknown): number | null {
   if (v === undefined || v === null || v === "") return null;
@@ -16,6 +18,12 @@ function parseMoneyField(v: unknown): number | null {
     return Number.isFinite(n) ? n : null;
   }
   return null;
+}
+
+/** Coerce parsed money to a finite Number (avoids string/boxed types from JSON). */
+function asMoneyNumber(n: number | null): number | null {
+  if (n == null || !Number.isFinite(n)) return null;
+  return Number(n);
 }
 
 function parseOptionalDateField(v: unknown): Date | null {
@@ -85,36 +93,47 @@ export async function POST(req: Request) {
     startDate?: string;
     endDate?: string;
     billingType?: string;
+    /** Per-event or CPM bid; alias of `bidAmount` for some clients */
+    paidAmount?: number | string;
     bidAmount?: number | string;
   }>(req);
   if (!body) {
+    console.warn(LOG, "validation: missing or invalid JSON body");
     return NextResponse.json({ success: false, error: "Valid JSON body is required." }, { status: 400 });
   }
 
+  console.info(LOG, "request payload", JSON.stringify(body));
+
   const name = String(body.name || "").trim();
   if (!name) {
+    console.warn(LOG, "validation: name missing or empty");
     return NextResponse.json({ success: false, error: "name is required" }, { status: 400 });
   }
 
-  const budgetNum = parseMoneyField(body.budget);
+  const budgetNum = asMoneyNumber(parseMoneyField(body.budget));
   const dailyRaw = body.dailyBudget;
-  const dailyNum =
+  const dailyParsed =
     dailyRaw === undefined || dailyRaw === null || dailyRaw === ""
       ? 0
-      : (parseMoneyField(dailyRaw) ?? 0);
+      : parseMoneyField(dailyRaw);
+  const dailyNum = Number(dailyParsed ?? 0);
+
   if (budgetNum == null || budgetNum <= 0) {
+    console.warn(LOG, "validation: budget invalid", { budget: body.budget, budgetNum });
     return NextResponse.json(
       { success: false, error: "budget must be a positive number" },
       { status: 400 }
     );
   }
   if (dailyNum < 0 || !Number.isFinite(dailyNum)) {
+    console.warn(LOG, "validation: dailyBudget invalid", { dailyBudget: body.dailyBudget, dailyNum });
     return NextResponse.json(
       { success: false, error: "dailyBudget must be a number >= 0" },
       { status: 400 }
     );
   }
   if (dailyNum > budgetNum) {
+    console.warn(LOG, "validation: daily exceeds total", { dailyNum, budgetNum });
     return NextResponse.json(
       {
         success: false,
@@ -124,17 +143,19 @@ export async function POST(req: Request) {
     );
   }
 
-  const budget = new Prisma.Decimal(String(budgetNum));
-  const dailyBudget = new Prisma.Decimal(String(dailyNum));
+  const budget = new Prisma.Decimal(String(Number(budgetNum)));
+  const dailyBudget = new Prisma.Decimal(String(Number(dailyNum)));
   const startDate = parseOptionalDateField(body.startDate) ?? new Date();
   const endDate = parseOptionalDateField(body.endDate) ?? new Date(Date.now() + 1000 * 60 * 60 * 24 * 30);
   if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+    console.warn(LOG, "validation: bad dates", { startDate: body.startDate, endDate: body.endDate });
     return NextResponse.json(
       { success: false, error: "Invalid startDate or endDate." },
       { status: 400 }
     );
   }
   if (endDate.getTime() <= startDate.getTime()) {
+    console.warn(LOG, "validation: end before start", { startDate: body.startDate, endDate: body.endDate });
     return NextResponse.json(
       { success: false, error: "endDate must be after startDate." },
       { status: 400 }
@@ -142,13 +163,34 @@ export async function POST(req: Request) {
   }
 
   const billingType = parseBillingTypeInput(body.billingType);
-  const bidAmtParsed = parseMoneyField(body.bidAmount);
-  const bidAmount =
-    bidAmtParsed != null && bidAmtParsed > 0 ? new Prisma.Decimal(String(bidAmtParsed)) : ZERO;
-  if (bidAmtParsed != null && bidAmtParsed < 0) {
-    return NextResponse.json({ success: false, error: "bidAmount must be >= 0" }, { status: 400 });
+  const paidSource =
+    body.paidAmount !== undefined && body.paidAmount !== null && body.paidAmount !== ""
+      ? body.paidAmount
+      : body.bidAmount;
+  const bidAmtParsed = asMoneyNumber(parseMoneyField(paidSource));
+  // paidAmount / bidAmount: allow 0 and positive fractions (e.g. 0.5); reject only negatives or non-numeric when provided.
+  if (paidSource !== undefined && paidSource !== null && paidSource !== "" && bidAmtParsed == null) {
+    console.warn(LOG, "validation: paidAmount/bidAmount not numeric", { paidAmount: body.paidAmount, bidAmount: body.bidAmount });
+    return NextResponse.json(
+      { success: false, error: "paidAmount (or bidAmount) must be a valid number when provided." },
+      { status: 400 }
+    );
   }
-  // Budget is already required > 0 above; CPC/CPL may use pool budget with zero explicit bid (legacy / weighted).
+  const paidNum = bidAmtParsed ?? 0;
+  if (paidNum < 0) {
+    console.warn(LOG, "validation: paidAmount negative", { paidNum });
+    return NextResponse.json({ success: false, error: "paidAmount must be >= 0" }, { status: 400 });
+  }
+  const bidAmount =
+    paidNum > 0 ? new Prisma.Decimal(String(Number(paidNum))) : ZERO;
+
+  console.info(LOG, "resolved create", {
+    name,
+    budgetNum,
+    dailyNum,
+    billingType,
+    paidNum,
+  });
 
   try {
     const { campaign } = await createCampaignWithWalletAllocation({
@@ -166,6 +208,7 @@ export async function POST(req: Request) {
   } catch (e) {
     const msg = e instanceof Error ? e.message : "";
     if (msg === "INSUFFICIENT_WALLET") {
+      console.warn(LOG, "wallet insufficient for allocation", { userId: auth.user.id });
       return NextResponse.json(
         {
           success: false,
@@ -174,21 +217,37 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
-    console.error("create campaign failed", e);
+    console.error(LOG, "create campaign failed", e);
+
     if (e instanceof Prisma.PrismaClientKnownRequestError) {
+      console.error(LOG, "Prisma known error", { code: e.code, meta: e.meta, message: e.message });
       return NextResponse.json(
         {
           success: false,
-          error: "Could not save campaign. Please try again.",
-          code: e.code,
+          error: isDev ? e.message : "Could not save campaign. Please try again.",
+          ...(isDev ? { prismaCode: e.code, prismaMeta: e.meta } : { code: e.code }),
         },
         { status: 500 }
       );
     }
+    if (e instanceof Prisma.PrismaClientValidationError) {
+      console.error(LOG, "Prisma validation error", e.message);
+      return NextResponse.json(
+        {
+          success: false,
+          error: isDev ? e.message : "Could not save campaign. Please try again.",
+        },
+        { status: 500 }
+      );
+    }
+
     const fallback =
       e instanceof Error && e.message && e.message !== "Failed to create campaign"
         ? e.message
         : "Failed to create campaign";
-    return NextResponse.json({ success: false, error: fallback }, { status: 500 });
+    return NextResponse.json(
+      { success: false, error: isDev ? fallback : "Could not save campaign. Please try again." },
+      { status: 500 }
+    );
   }
 }

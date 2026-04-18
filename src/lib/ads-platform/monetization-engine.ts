@@ -3,8 +3,10 @@ import { Prisma, type CampaignBillingType } from "@prisma/client";
 const ZERO = new Prisma.Decimal(0);
 
 export function parseBillingTypeInput(v: unknown): CampaignBillingType {
-  const s = String(v ?? "CPM").toUpperCase();
-  if (s === "CPC" || s === "CPL" || s === "CPM") return s;
+  const s = String(v ?? "CPM").toUpperCase().trim();
+  // Prisma enum is CPC (cost per click); some clients send CBC.
+  if (s === "CBC" || s === "CPC") return "CPC";
+  if (s === "CPL" || s === "CPM") return s;
   return "CPM";
 }
 
