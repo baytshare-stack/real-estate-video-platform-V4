@@ -71,6 +71,8 @@ model User {
   advertiserProfile    AdvertiserProfile?
   submittedAdLeads     Lead[] @relation("AdLeadSubmitter")
   assignedAdLeads      Lead[] @relation("AdLeadAgent")
+  /// User-promoted video ads (agent/agency inventory).
+  videoAdsOwned        Ad[]   @relation("UserVideoAds")
   adsWallet               Wallet?
   adsWalletTransactions   WalletTransaction[]
   walletPaymentIntents    WalletPaymentIntent[]
@@ -246,6 +248,8 @@ model Video {
   template Template? @relation(fields: [templateId], references: [id], onDelete: SetNull)
   finalPriceLeads FinalPriceLead[]
   adLeads Lead[]
+  /// Listing-specific user promos (optional; null target = all videos for that owner).
+  userPromoAds Ad[] @relation("AdTargetVideo")
 
   @@index([channelId, moderationStatus])
   @@index([channelId, isShort])
@@ -349,14 +353,31 @@ model Campaign {
   bidWeight     Float           @default(1.0)
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
+  ads           Ad[]
 
   @@index([advertiserId, status])
   @@index([status, startDate, endDate])
 }
 
+enum AdPublisher {
+  ADMIN
+  USER
+}
+
 /// Platform video ad inventory (pre-roll / mid-roll). Serves watch-page HTML5 playback only.
 model Ad {
   id               String       @id @default(cuid())
+  /// ADMIN = global (companies); USER = agent/agency self-serve.
+  publisher        AdPublisher  @default(ADMIN)
+  /// For USER ads: NextAuth user id of the advertiser. Null for ADMIN inventory.
+  ownerId          String?
+  owner            User?        @relation("UserVideoAds", fields: [ownerId], references: [id], onDelete: Cascade)
+  /// For USER ads: when set, the ad runs only on this listing playback; when null, runs on any watch of that owner’s videos.
+  targetVideoId    String?
+  targetVideo      Video?       @relation("AdTargetVideo", fields: [targetVideoId], references: [id], onDelete: SetNull)
+  /// Optional wallet campaign link for user advertisers.
+  campaignId       String?
+  campaign         Campaign?    @relation(fields: [campaignId], references: [id], onDelete: SetNull)
   videoUrl         String
   type             VideoAdSlot
   skippable        Boolean      @default(true)
@@ -366,7 +387,10 @@ model Ad {
   updatedAt        DateTime     @updatedAt
   leads            Lead[]
 
-  @@index([active, type])
+  @@index([active, type, publisher])
+  @@index([ownerId, active, type])
+  @@index([targetVideoId, active, type])
+  @@index([campaignId])
 }
 
 model Lead {

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { VideoAdSlot } from "@prisma/client";
-import { pickVideoAdForSlot } from "@/lib/video-ads/pick-ad";
+import { pickVideoAdForWatchContext } from "@/lib/video-ads/pick-ad";
 
 export const runtime = "nodejs";
 
@@ -15,7 +15,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "videoId is required." }, { status: 400 });
     }
 
-    const ad = await pickVideoAdForSlot(slot);
+    const ad = await pickVideoAdForWatchContext(videoId, slot);
     return NextResponse.json({ ad, videoId });
   } catch (e) {
     console.error("for-video ads error", e);

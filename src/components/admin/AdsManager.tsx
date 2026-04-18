@@ -7,6 +7,10 @@ type VideoAdSlot = "PRE_ROLL" | "MID_ROLL";
 
 type AdminAdRow = {
   id: string;
+  publisher?: "ADMIN" | "USER";
+  ownerId?: string | null;
+  targetVideoId?: string | null;
+  campaignId?: string | null;
   videoUrl: string;
   type: VideoAdSlot;
   skippable: boolean;
@@ -303,9 +307,12 @@ export default function AdsManager() {
                       <p className="font-mono text-xs text-white/45">{a.id}</p>
                       <p className="truncate text-white/90">{a.videoUrl}</p>
                       <p className="text-xs text-white/55">
+                        {(a.publisher ?? "ADMIN") === "USER" ? "User" : "Admin"} ·{" "}
                         {a.type === "PRE_ROLL" ? "Pre-roll" : "Mid-roll"} ·{" "}
                         {a.skippable ? `skip after ${a.skipAfterSeconds}s` : "non-skippable"} ·{" "}
-                        {a.active ? "active" : "inactive"} · updated {formatDate(a.updatedAt)}
+                        {a.active ? "active" : "inactive"}
+                        {a.targetVideoId ? ` · target ${a.targetVideoId}` : ""} · updated{" "}
+                        {formatDate(a.updatedAt)}
                       </p>
                     </div>
                     <div className="flex gap-2">

@@ -31,6 +31,10 @@ export async function GET() {
     return NextResponse.json({
       ads: ads.map((a) => ({
         id: a.id,
+        publisher: a.publisher,
+        ownerId: a.ownerId,
+        targetVideoId: a.targetVideoId,
+        campaignId: a.campaignId,
         videoUrl: a.videoUrl,
         type: a.type,
         skippable: a.skippable,
@@ -80,6 +84,7 @@ export async function POST(req: Request) {
 
     const ad = await prisma.ad.create({
       data: {
+        publisher: "ADMIN",
         videoUrl,
         type,
         skippable,
