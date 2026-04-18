@@ -15,6 +15,17 @@ function run(cmd) {
   execSync(cmd, { stdio: "inherit", env: process.env, shell: true });
 }
 
+/** Windows: Prisma cannot rename query_engine*.dll while Next/dev holds it; see scripts/prisma-generate-windows.ps1 */
+function runPrismaGenerate() {
+  if (process.platform === "win32") {
+    run(
+      'powershell -NoProfile -ExecutionPolicy Bypass -File "./scripts/prisma-generate-windows.ps1"'
+    );
+  } else {
+    run("npx prisma generate");
+  }
+}
+
 const forceMigrate = String(process.env.RUN_MIGRATIONS_ON_BUILD || "").toLowerCase() === "true";
 const isVercel = process.env.VERCEL === "1";
 
@@ -26,5 +37,5 @@ if (forceMigrate || !isVercel) {
       "Run migrations separately, then redeploy."
   );
 }
-run("npx prisma generate");
+runPrismaGenerate();
 run("npx next build --webpack");
