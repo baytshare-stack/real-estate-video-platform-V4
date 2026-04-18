@@ -9,6 +9,14 @@ import { parseResponseJson } from "@/lib/ads-client/safe-json";
 type CampaignOpt = { id: string; name: string; status?: string };
 type MediaKind = "VIDEO" | "IMAGE";
 
+type AdFormatType =
+  | "PRE_ROLL_SKIPPABLE"
+  | "PRE_ROLL_NON_SKIPPABLE"
+  | "MID_ROLL"
+  | "OVERLAY"
+  | "COMPANION"
+  | "CTA";
+
 type PerformanceRow = {
   impressions?: number;
   views?: number;
@@ -25,6 +33,7 @@ type UserAdRow = {
   ctaType?: string;
   ctaLabel?: string | null;
   type: string;
+  adType?: string;
   skippable: boolean;
   skipAfterSeconds: number;
   active: boolean;
@@ -51,7 +60,7 @@ export default function StudioAdsPage() {
   /** Last successful unsigned upload URL (mirrors videoUrl or imageUrl for display). */
   const [mediaUrl, setMediaUrl] = React.useState("");
   const [uploadBusy, setUploadBusy] = React.useState(false);
-  const [slot, setSlot] = React.useState<"PRE_ROLL" | "MID_ROLL">("PRE_ROLL");
+  const [adFormat, setAdFormat] = React.useState<AdFormatType>("PRE_ROLL_SKIPPABLE");
   const [targetVideoId, setTargetVideoId] = React.useState("");
   const [skippable, setSkippable] = React.useState(true);
   const [skipAfter, setSkipAfter] = React.useState("5");
@@ -127,6 +136,11 @@ export default function StudioAdsPage() {
     if (!stillValid) setCampaignId("");
   }, [campaignId, selectableCampaigns]);
 
+  React.useEffect(() => {
+    if (adFormat === "PRE_ROLL_NON_SKIPPABLE") setSkippable(false);
+    if (adFormat === "PRE_ROLL_SKIPPABLE") setSkippable(true);
+  }, [adFormat]);
+
   const uploadCreativeFile = async (file: File) => {
     setUploadBusy(true);
     setError("");
@@ -165,7 +179,7 @@ export default function StudioAdsPage() {
           mediaType,
           videoUrl: mediaType === "VIDEO" ? videoUrl.trim() : undefined,
           imageUrl: mediaType === "IMAGE" ? imageUrl.trim() : undefined,
-          type: slot,
+          adType: adFormat,
           targetVideoId: targetVideoId.trim() || null,
           skippable,
           skipAfterSeconds: Number(skipAfter) || 5,
@@ -195,6 +209,8 @@ export default function StudioAdsPage() {
       setPriceMin("");
       setPriceMax("");
       setUserIntent("");
+      setAdFormat("PRE_ROLL_SKIPPABLE");
+      setSkippable(true);
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Create failed.");
@@ -392,16 +408,24 @@ export default function StudioAdsPage() {
                 />
               </label>
             )}
-            <label className="block text-xs text-white/60">
-              Slot
+            <label className="block text-xs text-white/60 sm:col-span-2">
+              Ad type
               <select
-                value={slot}
-                onChange={(e) => setSlot(e.target.value as "PRE_ROLL" | "MID_ROLL")}
+                value={adFormat}
+                onChange={(e) => setAdFormat(e.target.value as AdFormatType)}
                 className="mt-1 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-sm text-white"
               >
-                <option value="PRE_ROLL">Pre-roll</option>
+                <option value="PRE_ROLL_SKIPPABLE">Skippable pre-roll</option>
+                <option value="PRE_ROLL_NON_SKIPPABLE">Non-skippable pre-roll</option>
                 <option value="MID_ROLL">Mid-roll</option>
+                <option value="OVERLAY">Overlay (banner)</option>
+                <option value="COMPANION">Companion</option>
+                <option value="CTA">CTA ad</option>
               </select>
+              <p className="mt-1 text-[11px] text-white/40">
+                Overlay, companion, and CTA are saved for future player layouts; linear playback still uses skippable /
+                non-skippable pre-roll and mid-roll only.
+              </p>
             </label>
             <label className="block text-xs text-white/60">
               Listing video id (optional)
@@ -494,7 +518,12 @@ export default function StudioAdsPage() {
               />
             </label>
             <label className="flex items-center gap-2 text-xs text-white/80">
-              <input type="checkbox" checked={skippable} onChange={(e) => setSkippable(e.target.checked)} />
+              <input
+                type="checkbox"
+                checked={skippable}
+                disabled={adFormat === "PRE_ROLL_NON_SKIPPABLE"}
+                onChange={(e) => setSkippable(e.target.checked)}
+              />
               Skippable
             </label>
             <label className="block text-xs text-white/60">
@@ -535,7 +564,7 @@ export default function StudioAdsPage() {
                     {reviewBadge(a.adminReviewStatus ?? "APPROVED")}
                   </div>
                   <p className="text-xs text-indigo-300/90">
-                    {a.mediaType === "IMAGE" ? "Image" : "Video"} · {a.type}
+                    {a.mediaType === "IMAGE" ? "Image" : "Video"} · {a.adType ?? a.type}
                   </p>
                   <p className="truncate text-white/90">{a.mediaType === "IMAGE" ? a.imageUrl : a.videoUrl}</p>
                   <p className="mt-1 text-xs text-white/55">

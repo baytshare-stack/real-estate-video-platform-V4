@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
-import type { AdCtaType, AdMediaType, VideoAdSlot } from "@prisma/client";
+import type { AdCtaType, AdMediaType, AdType, VideoAdSlot } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { normalizeAdMediaUrl } from "@/lib/ads-platform/media-url";
 import { parseOptionalDecimal, parseStringList, parseUserIntent } from "@/lib/ads-platform/targeting-body";
+import {
+  applyAdTypeToSlotAndSkippable,
+  parseAdTypeInput,
+  syncAdTypeFromSlotAndSkippable,
+} from "@/lib/video-ads/resolve-ad-type";
 
 function normalizeCtaType(v: unknown): AdCtaType {
   const s = String(v || "").toUpperCase();
@@ -50,6 +55,7 @@ export async function GET() {
         ctaLabel: a.ctaLabel,
         ctaUrl: a.ctaUrl,
         type: a.type,
+        adType: a.adType,
         skippable: a.skippable,
         skipAfterSeconds: a.skipAfterSeconds,
         active: a.active,
@@ -87,6 +93,7 @@ type CreateBody = {
   ctaLabel?: string | null;
   ctaUrl?: string | null;
   type?: VideoAdSlot;
+  adType?: AdType | string;
   skippable?: boolean;
   skipAfterSeconds?: number;
   active?: boolean;
@@ -103,8 +110,28 @@ type CreateBody = {
 export async function POST(req: Request) {
   try {
     const body = (await req.json()) as CreateBody;
-    const type = body.type === "MID_ROLL" ? "MID_ROLL" : "PRE_ROLL";
-    const skippable = body.skippable !== false;
+    const parsedFormat = parseAdTypeInput(body.adType);
+    let type: VideoAdSlot;
+    let skippable: boolean;
+    let adType: AdType;
+    if (parsedFormat) {
+      const base = applyAdTypeToSlotAndSkippable(parsedFormat);
+      type = base.type;
+      adType = parsedFormat;
+      if (parsedFormat === "MID_ROLL") {
+        skippable = typeof body.skippable === "boolean" ? body.skippable : base.skippable;
+      } else if (parsedFormat === "PRE_ROLL_NON_SKIPPABLE") {
+        skippable = false;
+      } else if (parsedFormat === "PRE_ROLL_SKIPPABLE") {
+        skippable = body.skippable !== false;
+      } else {
+        skippable = base.skippable;
+      }
+    } else {
+      type = body.type === "MID_ROLL" ? "MID_ROLL" : "PRE_ROLL";
+      skippable = body.skippable !== false;
+      adType = syncAdTypeFromSlotAndSkippable(type, skippable);
+    }
     const skipAfterSeconds = Math.max(0, Number(body.skipAfterSeconds ?? 5) || 5);
     const active = body.active !== false;
     const mediaType: AdMediaType = body.mediaType === "IMAGE" ? "IMAGE" : "VIDEO";
@@ -148,6 +175,7 @@ export async function POST(req: Request) {
         ctaLabel,
         ctaUrl,
         type,
+        adType,
         skippable,
         skipAfterSeconds,
         active,

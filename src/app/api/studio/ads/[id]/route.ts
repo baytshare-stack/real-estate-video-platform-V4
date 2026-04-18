@@ -1,4 +1,4 @@
-import type { AdCtaType, AdMediaType, Prisma, VideoAdSlot } from "@prisma/client";
+import type { AdCtaType, AdMediaType, AdType, Prisma, VideoAdSlot } from "@prisma/client";
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireAdvertiserProfile } from "@/lib/ads-platform/auth";
@@ -6,6 +6,12 @@ import { readRequestJson } from "@/lib/ads-client/safe-json";
 import { normalizeAdMediaUrl } from "@/lib/ads-platform/media-url";
 import { parseOptionalDecimal, parseStringList, parseUserIntent } from "@/lib/ads-platform/targeting-body";
 import { userCanTargetVideoForAd } from "@/lib/video-ads/targeting";
+import {
+  applyAdTypeToSlotAndSkippable,
+  parseAdTypeInput,
+  shouldSyncAdTypeOnLegacyPatch,
+  syncAdTypeFromSlotAndSkippable,
+} from "@/lib/video-ads/resolve-ad-type";
 
 function canSelfServeVideoAds(role: string) {
   return role === "AGENT" || role === "AGENCY";
@@ -42,6 +48,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     ctaLabel?: string | null;
     ctaUrl?: string | null;
     type?: VideoAdSlot;
+    adType?: AdType | string;
     targetVideoId?: string | null;
     skippable?: boolean;
     skipAfterSeconds?: number;
@@ -101,8 +108,30 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (body.ctaLabel !== undefined) data.ctaLabel = (body.ctaLabel || "").trim() || null;
   if (body.ctaUrl !== undefined) data.ctaUrl = (body.ctaUrl || "").trim() || null;
 
-  if (body.type === "PRE_ROLL" || body.type === "MID_ROLL") data.type = body.type;
-  if (typeof body.skippable === "boolean") data.skippable = body.skippable;
+  const parsedFormat = parseAdTypeInput(body.adType);
+  if (parsedFormat) {
+    const base = applyAdTypeToSlotAndSkippable(parsedFormat);
+    data.type = base.type;
+    data.adType = parsedFormat;
+    if (parsedFormat === "MID_ROLL") {
+      data.skippable = typeof body.skippable === "boolean" ? body.skippable : true;
+    } else if (parsedFormat === "PRE_ROLL_NON_SKIPPABLE") {
+      data.skippable = false;
+    } else if (parsedFormat === "PRE_ROLL_SKIPPABLE") {
+      data.skippable = body.skippable !== false;
+    } else {
+      data.skippable = base.skippable;
+    }
+  } else {
+    if (body.type === "PRE_ROLL" || body.type === "MID_ROLL") data.type = body.type;
+    if (typeof body.skippable === "boolean") data.skippable = body.skippable;
+    if (shouldSyncAdTypeOnLegacyPatch(existing, body)) {
+      const mergedType = (data.type as VideoAdSlot | undefined) ?? existing.type;
+      const mergedSkip =
+        typeof data.skippable === "boolean" ? data.skippable : existing.skippable;
+      data.adType = syncAdTypeFromSlotAndSkippable(mergedType, mergedSkip);
+    }
+  }
   if (typeof body.skipAfterSeconds === "number" && Number.isFinite(body.skipAfterSeconds)) {
     data.skipAfterSeconds = Math.max(0, body.skipAfterSeconds);
   }

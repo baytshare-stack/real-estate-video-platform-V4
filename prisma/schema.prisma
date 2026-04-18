@@ -470,6 +470,7 @@ model Ad {
   ctaLabel         String?
   ctaUrl           String?
   type             VideoAdSlot
+  adType           AdType       @default(PRE_ROLL_SKIPPABLE)
   skippable        Boolean      @default(true)
   skipAfterSeconds Int          @default(5)
   active           Boolean      @default(true)
@@ -706,6 +707,16 @@ enum CampaignStatus {
 enum VideoAdSlot {
   PRE_ROLL
   MID_ROLL
+}
+
+/// Creative / delivery format (YouTube-style). Linear formats participate in pre/mid-roll picks; overlay/companion/CTA are stored for future player support.
+enum AdType {
+  PRE_ROLL_SKIPPABLE
+  PRE_ROLL_NON_SKIPPABLE
+  MID_ROLL
+  OVERLAY
+  COMPANION
+  CTA
 }
 
 enum LeadSource {

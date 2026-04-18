@@ -3,6 +3,7 @@ import {
   type AdAdminReviewStatus,
   type AdMediaType,
   type AdPublisher,
+  type AdType,
   type CampaignBidMode,
   type VideoAdSlot,
 } from "@prisma/client";
@@ -13,6 +14,7 @@ import { intentProfileBoost, loadUserIntentProfileSlice, type UserIntentProfileS
 import { getViewerAdExclusions } from "@/lib/ads-platform/viewer-frequency";
 import type { TargetingSlice } from "@/lib/video-ads/targeting-match";
 import { utcSpendDayString } from "@/lib/ads-platform/monetization-engine";
+import { isLinearAdPickableForSlot, resolveAdType } from "@/lib/video-ads/resolve-ad-type";
 import { targetingMatches, targetingRelevanceScore } from "@/lib/video-ads/targeting-match";
 import { loadWatchVideoContext, type WatchVideoContext } from "@/lib/video-ads/watch-context";
 
@@ -57,6 +59,7 @@ type PickAdRow = {
   ctaLabel: string | null;
   ctaUrl: string | null;
   type: VideoAdSlot;
+  adType: AdType;
   skippable: boolean;
   skipAfterSeconds: number;
   publisher: AdPublisher;
@@ -235,21 +238,24 @@ function applyFrequencyFilter(rows: PickAdRow[], excluded: Set<string>): PickAdR
 function filterUserRows(
   rows: PickAdRow[],
   ctx: NonNullable<Awaited<ReturnType<typeof loadWatchVideoContext>>>,
-  now: Date
+  now: Date,
+  requestedSlot: VideoAdSlot
 ) {
   return rows.filter(
     (r) =>
       creativeIsComplete(r) &&
       reviewAndOwnerAllowServe(r) &&
       userCampaignServable(r, now) &&
-      targetingMatches(ctx, r.targeting)
+      targetingMatches(ctx, r.targeting) &&
+      isLinearAdPickableForSlot(resolveAdType(r), requestedSlot)
   );
 }
 
 function filterAdminRows(
   rows: PickAdRow[],
   ctx: NonNullable<Awaited<ReturnType<typeof loadWatchVideoContext>>>,
-  now: Date
+  now: Date,
+  requestedSlot: VideoAdSlot
 ) {
   return rows
     .map((r) => ({ ...r, campaign: null as CampaignSlice | null }))
@@ -258,14 +264,21 @@ function filterAdminRows(
         creativeIsComplete(r) &&
         reviewAndOwnerAllowServe(r) &&
         userCampaignServable(r, now) &&
-        targetingMatches(ctx, r.targeting)
+        targetingMatches(ctx, r.targeting) &&
+        isLinearAdPickableForSlot(resolveAdType(r), requestedSlot)
     );
 }
 
-function filterAdminRowsNoCtx(rows: PickAdRow[], now: Date) {
+function filterAdminRowsNoCtx(rows: PickAdRow[], now: Date, requestedSlot: VideoAdSlot) {
   return rows
     .map((r) => ({ ...r, campaign: null as CampaignSlice | null }))
-    .filter((r) => creativeIsComplete(r) && reviewAndOwnerAllowServe(r) && userCampaignServable(r, now));
+    .filter(
+      (r) =>
+        creativeIsComplete(r) &&
+        reviewAndOwnerAllowServe(r) &&
+        userCampaignServable(r, now) &&
+        isLinearAdPickableForSlot(resolveAdType(r), requestedSlot)
+    );
 }
 
 const targetingSelect = {
@@ -296,6 +309,7 @@ const adPickSelect = {
   ctaLabel: true,
   ctaUrl: true,
   type: true,
+  adType: true,
   skippable: true,
   skipAfterSeconds: true,
   publisher: true,
@@ -362,7 +376,7 @@ export async function pickVideoAdForWatchContext(
       take: 48,
       select: adPickSelect,
     });
-    let pool = filterAdminRowsNoCtx(adminRows as PickAdRow[], now);
+    let pool = filterAdminRowsNoCtx(adminRows as PickAdRow[], now, slot);
     pool = applyFrequencyFilter(pool, excluded);
     const pick = weightedPickTop(pool, fallbackCtx, intentProfile, ROTATION_TOP_N);
     if (pick) return toPayload(pick);
@@ -385,7 +399,7 @@ export async function pickVideoAdForWatchContext(
     take: 48,
     select: adPickSelect,
   });
-  let u1 = applyFrequencyFilter(filterUserRows(tierVideo as PickAdRow[], ctx, now), excluded);
+  let u1 = applyFrequencyFilter(filterUserRows(tierVideo as PickAdRow[], ctx, now, slot), excluded);
   const v = weightedPickTop(u1, ctx, intentProfile, ROTATION_TOP_N);
   if (v) return toPayload(v);
 
@@ -402,7 +416,7 @@ export async function pickVideoAdForWatchContext(
     take: 48,
     select: adPickSelect,
   });
-  let u2 = applyFrequencyFilter(filterUserRows(tierOwnerWide as PickAdRow[], ctx, now), excluded);
+  let u2 = applyFrequencyFilter(filterUserRows(tierOwnerWide as PickAdRow[], ctx, now, slot), excluded);
   const o = weightedPickTop(u2, ctx, intentProfile, ROTATION_TOP_N);
   if (o) return toPayload(o);
 
@@ -412,7 +426,7 @@ export async function pickVideoAdForWatchContext(
     take: 48,
     select: adPickSelect,
   });
-  let u3 = applyFrequencyFilter(filterAdminRows(adminRows as PickAdRow[], ctx, now), excluded);
+  let u3 = applyFrequencyFilter(filterAdminRows(adminRows as PickAdRow[], ctx, now, slot), excluded);
   const adminPick = weightedPickTop(u3, ctx, intentProfile, ROTATION_TOP_N);
   if (adminPick) return toPayload(adminPick);
 

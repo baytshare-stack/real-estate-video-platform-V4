@@ -1,9 +1,15 @@
 import type { Prisma } from "@prisma/client";
-import type { AdCtaType, AdMediaType, VideoAdSlot } from "@prisma/client";
+import type { AdCtaType, AdMediaType, AdType, VideoAdSlot } from "@prisma/client";
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { normalizeAdMediaUrl } from "@/lib/ads-platform/media-url";
 import { parseOptionalDecimal, parseStringList, parseUserIntent } from "@/lib/ads-platform/targeting-body";
+import {
+  applyAdTypeToSlotAndSkippable,
+  parseAdTypeInput,
+  shouldSyncAdTypeOnLegacyPatch,
+  syncAdTypeFromSlotAndSkippable,
+} from "@/lib/video-ads/resolve-ad-type";
 
 type PatchBody = {
   mediaType?: AdMediaType;
@@ -15,6 +21,7 @@ type PatchBody = {
   ctaLabel?: string | null;
   ctaUrl?: string | null;
   type?: VideoAdSlot;
+  adType?: AdType | string;
   skippable?: boolean;
   skipAfterSeconds?: number;
   active?: boolean;
@@ -52,8 +59,30 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const body = (await req.json()) as PatchBody;
 
     const adData: Prisma.AdUpdateInput = {};
-    if (body.type === "PRE_ROLL" || body.type === "MID_ROLL") adData.type = body.type;
-    if (typeof body.skippable === "boolean") adData.skippable = body.skippable;
+    const parsedFormat = parseAdTypeInput(body.adType);
+    if (parsedFormat) {
+      const base = applyAdTypeToSlotAndSkippable(parsedFormat);
+      adData.type = base.type;
+      adData.adType = parsedFormat;
+      if (parsedFormat === "MID_ROLL") {
+        adData.skippable = typeof body.skippable === "boolean" ? body.skippable : true;
+      } else if (parsedFormat === "PRE_ROLL_NON_SKIPPABLE") {
+        adData.skippable = false;
+      } else if (parsedFormat === "PRE_ROLL_SKIPPABLE") {
+        adData.skippable = body.skippable !== false;
+      } else {
+        adData.skippable = base.skippable;
+      }
+    } else {
+      if (body.type === "PRE_ROLL" || body.type === "MID_ROLL") adData.type = body.type;
+      if (typeof body.skippable === "boolean") adData.skippable = body.skippable;
+      if (shouldSyncAdTypeOnLegacyPatch(existing, body)) {
+        const mergedType = (adData.type as VideoAdSlot | undefined) ?? existing.type;
+        const mergedSkip =
+          typeof adData.skippable === "boolean" ? adData.skippable : existing.skippable;
+        adData.adType = syncAdTypeFromSlotAndSkippable(mergedType, mergedSkip);
+      }
+    }
     if (typeof body.skipAfterSeconds === "number" && Number.isFinite(body.skipAfterSeconds)) {
       adData.skipAfterSeconds = Math.max(0, body.skipAfterSeconds);
     }

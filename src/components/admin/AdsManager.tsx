@@ -6,6 +6,23 @@ import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 type VideoAdSlot = "PRE_ROLL" | "MID_ROLL";
 type MediaKind = "VIDEO" | "IMAGE";
 
+type AdFormatType =
+  | "PRE_ROLL_SKIPPABLE"
+  | "PRE_ROLL_NON_SKIPPABLE"
+  | "MID_ROLL"
+  | "OVERLAY"
+  | "COMPANION"
+  | "CTA";
+
+const ALL_AD_FORMATS: AdFormatType[] = [
+  "PRE_ROLL_SKIPPABLE",
+  "PRE_ROLL_NON_SKIPPABLE",
+  "MID_ROLL",
+  "OVERLAY",
+  "COMPANION",
+  "CTA",
+];
+
 type AdminAdRow = {
   id: string;
   publisher?: "ADMIN" | "USER";
@@ -14,6 +31,7 @@ type AdminAdRow = {
   imageUrl?: string | null;
   thumbnail?: string | null;
   type: VideoAdSlot;
+  adType?: string;
   skippable: boolean;
   skipAfterSeconds: number;
   active: boolean;
@@ -22,6 +40,14 @@ type AdminAdRow = {
   createdAt: string;
   updatedAt: string;
 };
+
+function rowAdFormat(a: AdminAdRow): AdFormatType {
+  if (a.adType && ALL_AD_FORMATS.includes(a.adType as AdFormatType)) {
+    return a.adType as AdFormatType;
+  }
+  if (a.type === "MID_ROLL") return "MID_ROLL";
+  return a.skippable ? "PRE_ROLL_SKIPPABLE" : "PRE_ROLL_NON_SKIPPABLE";
+}
 
 type AdminCampaignRow = {
   id: string;
@@ -48,7 +74,7 @@ export default function AdsManager() {
   const [mediaType, setMediaType] = React.useState<MediaKind>("VIDEO");
   const [videoUrl, setVideoUrl] = React.useState("");
   const [imageUrl, setImageUrl] = React.useState("");
-  const [slot, setSlot] = React.useState<VideoAdSlot>("PRE_ROLL");
+  const [adFormat, setAdFormat] = React.useState<AdFormatType>("PRE_ROLL_SKIPPABLE");
   const [skippable, setSkippable] = React.useState(true);
   const [skipAfterSeconds, setSkipAfterSeconds] = React.useState("5");
   const [active, setActive] = React.useState(true);
@@ -60,7 +86,7 @@ export default function AdsManager() {
   const [editKind, setEditKind] = React.useState<MediaKind>("VIDEO");
   const [editVideoUrl, setEditVideoUrl] = React.useState("");
   const [editImageUrl, setEditImageUrl] = React.useState("");
-  const [editSlot, setEditSlot] = React.useState<VideoAdSlot>("PRE_ROLL");
+  const [editAdFormat, setEditAdFormat] = React.useState<AdFormatType>("PRE_ROLL_SKIPPABLE");
   const [editSkippable, setEditSkippable] = React.useState(true);
   const [editSkipAfter, setEditSkipAfter] = React.useState("5");
   const [editActive, setEditActive] = React.useState(true);
@@ -85,6 +111,17 @@ export default function AdsManager() {
     void load();
   }, [load]);
 
+  React.useEffect(() => {
+    if (adFormat === "PRE_ROLL_NON_SKIPPABLE") setSkippable(false);
+    if (adFormat === "PRE_ROLL_SKIPPABLE") setSkippable(true);
+  }, [adFormat]);
+
+  React.useEffect(() => {
+    if (!editingId) return;
+    if (editAdFormat === "PRE_ROLL_NON_SKIPPABLE") setEditSkippable(false);
+    if (editAdFormat === "PRE_ROLL_SKIPPABLE") setEditSkippable(true);
+  }, [editingId, editAdFormat]);
+
   const submitCreate = async () => {
     setCreateBusy(true);
     setError("");
@@ -97,7 +134,7 @@ export default function AdsManager() {
           mediaType,
           videoUrl: mediaType === "VIDEO" ? videoUrl.trim() : undefined,
           imageUrl: mediaType === "IMAGE" ? imageUrl.trim() : undefined,
-          type: slot,
+          adType: adFormat,
           skippable,
           skipAfterSeconds: Number(skipAfterSeconds) || 5,
           active,
@@ -116,7 +153,7 @@ export default function AdsManager() {
       setCities("");
       setPropertyTypes("");
       setMediaType("VIDEO");
-      setSlot("PRE_ROLL");
+      setAdFormat("PRE_ROLL_SKIPPABLE");
       setSkippable(true);
       setSkipAfterSeconds("5");
       setActive(true);
@@ -133,7 +170,7 @@ export default function AdsManager() {
     setEditKind(a.mediaType === "IMAGE" ? "IMAGE" : "VIDEO");
     setEditVideoUrl(a.videoUrl ?? "");
     setEditImageUrl(a.imageUrl ?? "");
-    setEditSlot(a.type);
+    setEditAdFormat(rowAdFormat(a));
     setEditSkippable(a.skippable);
     setEditSkipAfter(String(a.skipAfterSeconds));
     setEditActive(a.active);
@@ -152,7 +189,7 @@ export default function AdsManager() {
           mediaType: editKind,
           videoUrl: editKind === "VIDEO" ? editVideoUrl.trim() : null,
           imageUrl: editKind === "IMAGE" ? editImageUrl.trim() : null,
-          type: editSlot,
+          adType: editAdFormat,
           skippable: editSkippable,
           skipAfterSeconds: Number(editSkipAfter) || 5,
           active: editActive,
@@ -263,19 +300,28 @@ export default function AdsManager() {
               className="mt-1 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-sm text-white"
             />
           </label>
-          <label className="block text-xs text-white/60">
-            Slot
+          <label className="block text-xs text-white/60 sm:col-span-2">
+            Ad type
             <select
-              value={slot}
-              onChange={(e) => setSlot(e.target.value as VideoAdSlot)}
+              value={adFormat}
+              onChange={(e) => setAdFormat(e.target.value as AdFormatType)}
               className="mt-1 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-sm text-white"
             >
-              <option value="PRE_ROLL">Pre-roll</option>
+              <option value="PRE_ROLL_SKIPPABLE">Skippable pre-roll</option>
+              <option value="PRE_ROLL_NON_SKIPPABLE">Non-skippable pre-roll</option>
               <option value="MID_ROLL">Mid-roll</option>
+              <option value="OVERLAY">Overlay (banner)</option>
+              <option value="COMPANION">Companion</option>
+              <option value="CTA">CTA ad</option>
             </select>
           </label>
           <label className="flex items-center gap-2 text-xs text-white/80">
-            <input type="checkbox" checked={skippable} onChange={(e) => setSkippable(e.target.checked)} />
+            <input
+              type="checkbox"
+              checked={skippable}
+              disabled={adFormat === "PRE_ROLL_NON_SKIPPABLE"}
+              onChange={(e) => setSkippable(e.target.checked)}
+            />
             Skippable
           </label>
           <label className="block text-xs text-white/60">
@@ -347,15 +393,19 @@ export default function AdsManager() {
                         />
                       </label>
                     )}
-                    <label className="block text-xs text-white/60">
-                      Slot
+                    <label className="block text-xs text-white/60 sm:col-span-2">
+                      Ad type
                       <select
-                        value={editSlot}
-                        onChange={(e) => setEditSlot(e.target.value as VideoAdSlot)}
+                        value={editAdFormat}
+                        onChange={(e) => setEditAdFormat(e.target.value as AdFormatType)}
                         className="mt-1 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-sm"
                       >
-                        <option value="PRE_ROLL">Pre-roll</option>
+                        <option value="PRE_ROLL_SKIPPABLE">Skippable pre-roll</option>
+                        <option value="PRE_ROLL_NON_SKIPPABLE">Non-skippable pre-roll</option>
                         <option value="MID_ROLL">Mid-roll</option>
+                        <option value="OVERLAY">Overlay (banner)</option>
+                        <option value="COMPANION">Companion</option>
+                        <option value="CTA">CTA ad</option>
                       </select>
                     </label>
                     <label className="block text-xs text-white/60">
@@ -368,7 +418,12 @@ export default function AdsManager() {
                       />
                     </label>
                     <label className="flex items-center gap-2 text-xs">
-                      <input type="checkbox" checked={editSkippable} onChange={(e) => setEditSkippable(e.target.checked)} />
+                      <input
+                        type="checkbox"
+                        checked={editSkippable}
+                        disabled={editAdFormat === "PRE_ROLL_NON_SKIPPABLE"}
+                        onChange={(e) => setEditSkippable(e.target.checked)}
+                      />
                       Skippable
                     </label>
                     <label className="flex items-center gap-2 text-xs">
@@ -398,7 +453,7 @@ export default function AdsManager() {
                     <div className="min-w-0 space-y-1">
                       <p className="font-mono text-xs text-white/45">{a.id}</p>
                       <p className="text-white/90">
-                        {a.mediaType === "IMAGE" ? "Image" : "Video"} · {a.type === "PRE_ROLL" ? "Pre-roll" : "Mid-roll"}
+                        {a.mediaType === "IMAGE" ? "Image" : "Video"} · {a.adType ?? (a.type === "PRE_ROLL" ? "Pre-roll" : "Mid-roll")}
                       </p>
                       <p className="truncate text-white/80">{a.mediaType === "IMAGE" ? a.imageUrl : a.videoUrl}</p>
                       <p className="text-xs text-white/55">

@@ -1,4 +1,4 @@
-import type { AdCtaType, AdMediaType, VideoAdSlot } from "@prisma/client";
+import type { AdCtaType, AdMediaType, AdType, VideoAdSlot } from "@prisma/client";
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireAdvertiserProfile } from "@/lib/ads-platform/auth";
@@ -6,6 +6,11 @@ import { readRequestJson } from "@/lib/ads-client/safe-json";
 import { normalizeAdMediaUrl } from "@/lib/ads-platform/media-url";
 import { parseOptionalDecimal, parseStringList, parseUserIntent } from "@/lib/ads-platform/targeting-body";
 import { userCanTargetVideoForAd } from "@/lib/video-ads/targeting";
+import {
+  applyAdTypeToSlotAndSkippable,
+  parseAdTypeInput,
+  syncAdTypeFromSlotAndSkippable,
+} from "@/lib/video-ads/resolve-ad-type";
 
 function canSelfServeVideoAds(role: string) {
   return role === "AGENT" || role === "AGENCY";
@@ -60,6 +65,7 @@ export async function GET() {
       ctaLabel: a.ctaLabel,
       ctaUrl: a.ctaUrl,
       type: a.type,
+      adType: a.adType,
       skippable: a.skippable,
       skipAfterSeconds: a.skipAfterSeconds,
       active: a.active,
@@ -94,6 +100,7 @@ export async function POST(req: Request) {
     ctaLabel?: string | null;
     ctaUrl?: string | null;
     type?: VideoAdSlot;
+    adType?: AdType | string;
     targetVideoId?: string | null;
     skippable?: boolean;
     skipAfterSeconds?: number;
@@ -131,7 +138,29 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "imageUrl is required for image ads." }, { status: 400 });
   }
 
-  const slot = body.type === "MID_ROLL" ? "MID_ROLL" : "PRE_ROLL";
+  const parsedFormat = parseAdTypeInput(body.adType);
+  let slot: VideoAdSlot;
+  let skippable: boolean;
+  let adType: AdType;
+
+  if (parsedFormat) {
+    const base = applyAdTypeToSlotAndSkippable(parsedFormat);
+    slot = base.type;
+    adType = parsedFormat;
+    if (parsedFormat === "MID_ROLL") {
+      skippable = typeof body.skippable === "boolean" ? body.skippable : base.skippable;
+    } else if (parsedFormat === "PRE_ROLL_NON_SKIPPABLE") {
+      skippable = false;
+    } else if (parsedFormat === "PRE_ROLL_SKIPPABLE") {
+      skippable = body.skippable !== false;
+    } else {
+      skippable = base.skippable;
+    }
+  } else {
+    slot = body.type === "MID_ROLL" ? "MID_ROLL" : "PRE_ROLL";
+    skippable = body.skippable !== false;
+    adType = syncAdTypeFromSlotAndSkippable(slot, skippable);
+  }
   const targetVideoId = (body.targetVideoId || "").trim() || null;
 
   if (targetVideoId) {
@@ -173,7 +202,8 @@ export async function POST(req: Request) {
       ctaLabel,
       ctaUrl,
       type: slot,
-      skippable: body.skippable !== false,
+      adType,
+      skippable,
       skipAfterSeconds: Math.max(0, Number(body.skipAfterSeconds ?? 5) || 5),
       active: body.active !== false,
       adminReviewStatus: "PENDING",

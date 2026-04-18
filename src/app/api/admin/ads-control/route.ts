@@ -89,6 +89,7 @@ export async function GET(req: Request) {
         videoUrl: a.videoUrl,
         imageUrl: a.imageUrl,
         type: a.type,
+        adType: a.adType,
         active: a.active,
         adminReviewStatus: a.adminReviewStatus,
         skippable: a.skippable,
