@@ -57,11 +57,23 @@ function isReservedNonLinearFormat(t: AdType): boolean {
 
 /**
  * Linear in-stream ads only. Overlay/companion/CTA are stored but not picked until the player supports them.
+ * Rows with legacy `type` (slot) still PRE_ROLL / MID_ROLL but `adType` mis-tagged as overlay/companion/CTA
+ * remain eligible so inventory is not accidentally filtered out.
  */
-export function isLinearAdPickableForSlot(resolved: AdType, requestedSlot: VideoAdSlot): boolean {
-  if (requestedSlot === "MID_ROLL") return resolved === "MID_ROLL";
+export function isLinearAdPickableForSlot(
+  resolved: AdType,
+  requestedSlot: VideoAdSlot,
+  legacySlot: VideoAdSlot
+): boolean {
+  if (requestedSlot === "MID_ROLL") {
+    if (resolved === "MID_ROLL") return true;
+    const misTagged = resolved === "OVERLAY" || resolved === "COMPANION" || resolved === "CTA";
+    return misTagged && legacySlot === "MID_ROLL";
+  }
   if (requestedSlot === "PRE_ROLL") {
-    return resolved === "PRE_ROLL_SKIPPABLE" || resolved === "PRE_ROLL_NON_SKIPPABLE";
+    if (resolved === "PRE_ROLL_SKIPPABLE" || resolved === "PRE_ROLL_NON_SKIPPABLE") return true;
+    const misTagged = resolved === "OVERLAY" || resolved === "COMPANION" || resolved === "CTA";
+    return misTagged && legacySlot === "PRE_ROLL";
   }
   return false;
 }

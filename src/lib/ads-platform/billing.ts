@@ -171,9 +171,14 @@ export async function applyWalletRechargeInTransaction(
   }
   const inc = new Prisma.Decimal(String(amount));
   await ensureWallet(tx, userId);
+  const before = await tx.wallet.findUniqueOrThrow({
+    where: { userId },
+    select: { balance: true },
+  });
+  // Explicit current + added (avoids any mis-read of top-up as absolute balance).
   const w = await tx.wallet.update({
     where: { userId },
-    data: { balance: { increment: inc } },
+    data: { balance: before.balance.add(inc) },
     select: { balance: true },
   });
   await syncAdvertiserProfileBalance(tx, userId, w.balance);

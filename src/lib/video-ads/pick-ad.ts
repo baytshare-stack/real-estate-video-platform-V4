@@ -247,7 +247,7 @@ function filterUserRows(
       reviewAndOwnerAllowServe(r) &&
       userCampaignServable(r, now) &&
       targetingMatches(ctx, r.targeting) &&
-      isLinearAdPickableForSlot(resolveAdType(r), requestedSlot)
+      isLinearAdPickableForSlot(resolveAdType(r), requestedSlot, r.type)
   );
 }
 
@@ -265,7 +265,7 @@ function filterAdminRows(
         reviewAndOwnerAllowServe(r) &&
         userCampaignServable(r, now) &&
         targetingMatches(ctx, r.targeting) &&
-        isLinearAdPickableForSlot(resolveAdType(r), requestedSlot)
+        isLinearAdPickableForSlot(resolveAdType(r), requestedSlot, r.type)
     );
 }
 
@@ -277,7 +277,7 @@ function filterAdminRowsNoCtx(rows: PickAdRow[], now: Date, requestedSlot: Video
         creativeIsComplete(r) &&
         reviewAndOwnerAllowServe(r) &&
         userCampaignServable(r, now) &&
-        isLinearAdPickableForSlot(resolveAdType(r), requestedSlot)
+        isLinearAdPickableForSlot(resolveAdType(r), requestedSlot, r.type)
     );
 }
 

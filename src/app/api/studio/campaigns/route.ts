@@ -148,12 +148,7 @@ export async function POST(req: Request) {
   if (bidAmtParsed != null && bidAmtParsed < 0) {
     return NextResponse.json({ success: false, error: "bidAmount must be >= 0" }, { status: 400 });
   }
-  if ((billingType === "CPC" || billingType === "CPL") && bidAmount.lte(ZERO)) {
-    return NextResponse.json(
-      { success: false, error: "CPC and CPL campaigns require a positive bidAmount." },
-      { status: 400 }
-    );
-  }
+  // Budget is already required > 0 above; CPC/CPL may use pool budget with zero explicit bid (legacy / weighted).
 
   try {
     const { campaign } = await createCampaignWithWalletAllocation({

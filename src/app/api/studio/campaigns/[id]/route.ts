@@ -155,12 +155,6 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       const n = parseMoneyField(body.bidAmount);
       if (n != null) bidDec = new Prisma.Decimal(String(Math.max(0, n)));
     }
-    if ((bt === "CPC" || bt === "CPL") && bidDec.lte(ZERO)) {
-      return NextResponse.json(
-        { error: "CPC and CPL campaigns require a positive bidAmount." },
-        { status: 400 }
-      );
-    }
     campaign = await prisma.campaign.update({
       where: { id },
       data: bidFieldSync(bt, bidDec),
