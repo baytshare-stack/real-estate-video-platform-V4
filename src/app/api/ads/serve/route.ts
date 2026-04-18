@@ -3,6 +3,7 @@ import type { VideoAdSlot } from "@prisma/client";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { pickVideoAdForWatchContext } from "@/lib/video-ads/pick-ad";
+import { servableVideoAdPayload } from "@/lib/video-ads/servable-payload";
 
 export const runtime = "nodejs";
 
@@ -22,7 +23,8 @@ export async function GET(req: Request) {
     const session = await getServerSession(authOptions);
     const viewerUserId = (session?.user?.id as string | undefined) ?? null;
 
-    const ad = await pickVideoAdForWatchContext(videoId, slot, { viewerKey, viewerUserId });
+    const raw = await pickVideoAdForWatchContext(videoId, slot, { viewerKey, viewerUserId });
+    const ad = servableVideoAdPayload(raw);
     return NextResponse.json({ ad }, { status: 200 });
   } catch {
     return NextResponse.json({ error: "Failed to serve ad." }, { status: 500 });

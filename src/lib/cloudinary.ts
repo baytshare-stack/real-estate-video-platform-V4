@@ -47,6 +47,33 @@ export function resolveCloudinaryCredentials():
   return { cloudName, apiKey, apiSecret };
 }
 
+/** Booleans only — safe for server logs when uploads fail. */
+export function cloudinaryEnvDiagnostics(): {
+  hasCloudName: boolean;
+  hasApiKey: boolean;
+  hasApiSecret: boolean;
+  hasParsableCloudinaryUrl: boolean;
+  fullyConfigured: boolean;
+} {
+  const fromUrl = tryParseCloudinaryUrl(cleanEnv("CLOUDINARY_URL"));
+  const cloudName =
+    cleanEnv("CLOUDINARY_CLOUD_NAME") ||
+    cleanEnv("NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME") ||
+    (fromUrl?.cloudName ?? "");
+  const apiKey = cleanEnv("CLOUDINARY_API_KEY") || (fromUrl?.apiKey ?? "");
+  const apiSecret =
+    cleanEnv("CLOUDINARY_API_SECRET") ||
+    cleanEnv("CLOUDINARY_SECRET") ||
+    (fromUrl?.apiSecret ?? "");
+  return {
+    hasCloudName: Boolean(cloudName),
+    hasApiKey: Boolean(apiKey),
+    hasApiSecret: Boolean(apiSecret),
+    hasParsableCloudinaryUrl: Boolean(fromUrl),
+    fullyConfigured: Boolean(cloudName && apiKey && apiSecret),
+  };
+}
+
 /**
  * Applies resolved env to the Cloudinary SDK. Call before upload or `cloudinary.url()`.
  * Returns false if configuration cannot be completed.

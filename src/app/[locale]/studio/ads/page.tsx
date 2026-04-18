@@ -111,7 +111,7 @@ export default function StudioAdsPage() {
       } else {
         fd.append("image", file);
       }
-      const res = await fetch("/api/studio/ads/upload", {
+      const res = await fetch("/api/upload", {
         method: "POST",
         body: fd,
         credentials: "include",
@@ -331,7 +331,7 @@ export default function StudioAdsPage() {
                   className="mt-1 block w-full text-sm text-white/90 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-600 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-white hover:file:bg-indigo-500 disabled:opacity-40"
                 />
                 <p className="mt-1 text-[11px] text-white/40">
-                  Uses Cloudinary when configured. On Vercel, uploads are limited to ~4.5 MB — use URL for larger files.
+                  Files go to POST /api/upload (server). Set Cloudinary env vars on the server. On Vercel, body limit ~4.5 MB — use URL for larger files.
                 </p>
                 {uploadBusy ? (
                   <p className="mt-1 flex items-center gap-2 text-xs text-white/55">
