@@ -138,6 +138,7 @@ export default function StudioCampaignsPage() {
   const [billingType, setBillingType] = React.useState<"CPM" | "CPC" | "CPL">("CPM");
   const [bidAmount, setBidAmount] = React.useState("");
   const [campaignError, setCampaignError] = React.useState("");
+  const [creatingCampaign, setCreatingCampaign] = React.useState(false);
   const [confirm, setConfirm] = React.useState<null | { kind: "end" | "delete"; id: string }>(null);
   const [edit, setEdit] = React.useState<null | {
     id: string;
@@ -195,37 +196,74 @@ export default function StudioCampaignsPage() {
     if (res.ok) await load();
   };
 
-  const createCampaign = async () => {
+  const createCampaign = React.useCallback(async () => {
     setCampaignError("");
     const budgetNum = Number(String(budget).replace(/,/g, "").trim());
     const dailyNum = Number(String(dailyBudget).replace(/,/g, "").trim());
     const bidNum = Number(String(bidAmount).replace(/,/g, "").trim());
-    const res = await fetch("/api/studio/campaigns", {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: name.trim(),
-        budget: budgetNum,
-        dailyBudget: Number.isFinite(dailyNum) ? dailyNum : 0,
-        billingType,
-        ...(Number.isFinite(bidNum) && bidNum > 0 ? { bidAmount: bidNum } : {}),
-      }),
-    });
-    const j = await parseResponseJson(
-      res,
-      {} as { success?: boolean; error?: string; detail?: string; code?: string }
-    );
-    if (res.ok && j.success !== false) {
-      setName("");
-      setBidAmount("");
-      setBillingType("CPM");
-      await load();
-    } else {
-      const parts = [j.error, j.detail].filter((x): x is string => typeof x === "string" && x.length > 0);
-      setCampaignError(parts.length ? parts.join(" — ") : "Could not create campaign.");
+
+    if (!name.trim()) {
+      const msg = "Campaign name is required.";
+      console.warn("[studio/campaigns UI] validation", msg);
+      setCampaignError(msg);
+      return;
     }
-  };
+    if (!Number.isFinite(budgetNum) || budgetNum <= 0) {
+      const msg = "Enter a valid total budget greater than zero.";
+      console.warn("[studio/campaigns UI] validation", msg, { budget });
+      setCampaignError(msg);
+      return;
+    }
+
+    const payload = {
+      name: name.trim(),
+      budget: budgetNum,
+      dailyBudget: Number.isFinite(dailyNum) ? dailyNum : 0,
+      billingType,
+      ...(Number.isFinite(bidNum) && bidNum > 0 ? { bidAmount: bidNum } : {}),
+    };
+
+    console.log("API CALL STARTING", "/api/studio/campaigns", payload);
+    setCreatingCampaign(true);
+    try {
+      const res = await fetch("/api/studio/campaigns", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const j = await parseResponseJson(
+        res,
+        {} as { success?: boolean; error?: string; detail?: string; code?: string }
+      );
+      console.log("API CALL FINISHED", res.status, res.ok, j);
+      if (res.ok && j.success !== false) {
+        setName("");
+        setBidAmount("");
+        setBillingType("CPM");
+        await load();
+      } else {
+        const parts = [j.error, j.detail].filter((x): x is string => typeof x === "string" && x.length > 0);
+        const msg = parts.length ? parts.join(" — ") : `Could not create campaign (${res.status}).`;
+        setCampaignError(msg);
+        console.warn("[studio/campaigns UI] API error response", res.status, j);
+      }
+    } catch (err) {
+      console.error("[studio/campaigns UI] create campaign fetch failed", err);
+      setCampaignError(err instanceof Error ? err.message : "Network error. Check your connection and try again.");
+    } finally {
+      setCreatingCampaign(false);
+    }
+  }, [name, budget, dailyBudget, billingType, bidAmount, load]);
+
+  const onNewCampaignSubmit = React.useCallback(
+    async (e: React.FormEvent<HTMLFormElement>) => {
+      e.preventDefault();
+      console.log("FORM SUBMIT TRIGGERED");
+      await createCampaign();
+    },
+    [createCampaign]
+  );
 
   const patchCampaign = async (id: string, body: Record<string, unknown>) => {
     const res = await fetch(`/api/studio/campaigns/${id}`, {
@@ -331,74 +369,90 @@ export default function StudioCampaignsPage() {
         <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 sm:p-6">
           <h2 className="text-lg font-semibold text-white">New campaign</h2>
           <p className="mt-1 text-sm text-white/55">Total and daily caps — same rules as before, clearer labels.</p>
-          <div className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            <label className="text-xs text-white/65">
-              Campaign name
-              <input
-                className="mt-1.5 w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white"
-                placeholder="Spring listings"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-            </label>
-            <label className="text-xs text-white/65">
-              Total budget
-              <span className="mb-1 block text-[10px] font-normal text-white/40">Lifetime spend cap for this campaign</span>
-              <input
-                className="mt-1.5 w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white"
-                inputMode="decimal"
-                value={budget}
-                onChange={(e) => setBudget(e.target.value)}
-              />
-            </label>
-            <label className="text-xs text-white/65">
-              Daily budget
-              <span className="mb-1 block text-[10px] font-normal text-white/40">Maximum spend per day</span>
-              <input
-                className="mt-1.5 w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white"
-                inputMode="decimal"
-                value={dailyBudget}
-                onChange={(e) => setDailyBudget(e.target.value)}
-              />
-            </label>
-            <label className="text-xs text-white/65 md:col-span-1">
-              Billing model
-              <select
-                className="mt-1.5 w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white"
-                value={billingType}
-                onChange={(e) => setBillingType(e.target.value as typeof billingType)}
-              >
-                <option value="CPM">CPM (per 1k impressions)</option>
-                <option value="CPC">CPC (per click)</option>
-                <option value="CPL">CPL (per lead)</option>
-              </select>
-            </label>
-            <label className="text-xs text-white/65 md:col-span-2">
-              Bid amount
-              <span className="mb-1 block text-[10px] font-normal text-white/40">
-                CPM = price per 1,000 impressions; CPC/CPL = price per event. Leave empty for legacy flat CPM.
-              </span>
-              <input
-                className="mt-1.5 w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white"
-                inputMode="decimal"
-                placeholder={billingType === "CPM" ? "e.g. 12 (means $12 / 1k impr.)" : "e.g. 0.45"}
-                value={bidAmount}
-                onChange={(e) => setBidAmount(e.target.value)}
-              />
-            </label>
-          </div>
-          {campaignError ? (
-            <p className="mt-3 text-sm text-rose-300" role="alert">
-              {campaignError}
-            </p>
-          ) : null}
-          <button
-            type="button"
-            className="mt-4 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white hover:bg-indigo-500"
-            onClick={() => void createCampaign()}
-          >
-            Create campaign
-          </button>
+          <form className="mt-4 space-y-4" onSubmit={onNewCampaignSubmit} noValidate>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              <label className="text-xs text-white/65">
+                Campaign name
+                <input
+                  className="mt-1.5 w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white"
+                  placeholder="Spring listings"
+                  name="campaignName"
+                  autoComplete="off"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
+              </label>
+              <label className="text-xs text-white/65">
+                Total budget
+                <span className="mb-1 block text-[10px] font-normal text-white/40">Lifetime spend cap for this campaign</span>
+                <input
+                  className="mt-1.5 w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white"
+                  inputMode="decimal"
+                  name="totalBudget"
+                  value={budget}
+                  onChange={(e) => setBudget(e.target.value)}
+                />
+              </label>
+              <label className="text-xs text-white/65">
+                Daily budget
+                <span className="mb-1 block text-[10px] font-normal text-white/40">Maximum spend per day</span>
+                <input
+                  className="mt-1.5 w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white"
+                  inputMode="decimal"
+                  name="dailyBudget"
+                  value={dailyBudget}
+                  onChange={(e) => setDailyBudget(e.target.value)}
+                />
+              </label>
+              <label className="text-xs text-white/65 md:col-span-1">
+                Billing model
+                <select
+                  className="mt-1.5 w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white"
+                  name="billingType"
+                  value={billingType}
+                  onChange={(e) => setBillingType(e.target.value as typeof billingType)}
+                >
+                  <option value="CPM">CPM (per 1k impressions)</option>
+                  <option value="CPC">CPC (per click)</option>
+                  <option value="CPL">CPL (per lead)</option>
+                </select>
+              </label>
+              <label className="text-xs text-white/65 md:col-span-2">
+                Bid amount
+                <span className="mb-1 block text-[10px] font-normal text-white/40">
+                  CPM = price per 1,000 impressions; CPC/CPL = price per event. Leave empty for legacy flat CPM.
+                </span>
+                <input
+                  className="mt-1.5 w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white"
+                  inputMode="decimal"
+                  name="bidAmount"
+                  placeholder={billingType === "CPM" ? "e.g. 12 (means $12 / 1k impr.)" : "e.g. 0.45"}
+                  value={bidAmount}
+                  onChange={(e) => setBidAmount(e.target.value)}
+                />
+              </label>
+            </div>
+            {campaignError ? (
+              <p className="text-sm text-rose-300" role="alert">
+                {campaignError}
+              </p>
+            ) : null}
+            <button
+              type="submit"
+              disabled={creatingCampaign}
+              className="rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-50"
+              onClick={() => console.log("CREATE CAMPAIGN CLICKED")}
+            >
+              {creatingCampaign ? (
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                  Creating…
+                </span>
+              ) : (
+                "Create campaign"
+              )}
+            </button>
+          </form>
         </section>
       ) : null}
 
