@@ -161,6 +161,7 @@ export default function WatchVideoAdsShell({
   const sidePopupShownRef = React.useRef(false);
   const chosenMidRollCuesRef = React.useRef<number[]>([]);
   const chosenPreAdIdRef = React.useRef<string | null>(null);
+  const resumedForAdRef = React.useRef<string | null>(null);
 
   React.useLayoutEffect(() => {
     viewerKeyRef.current = getOrCreateAdViewerKey();
@@ -197,6 +198,9 @@ export default function WatchVideoAdsShell({
 
   React.useEffect(() => {
     linearActiveRef.current = linearActiveAd;
+    if (linearActiveAd?.id) {
+      resumedForAdRef.current = null;
+    }
   }, [linearActiveAd]);
 
   React.useEffect(() => {
@@ -297,11 +301,29 @@ export default function WatchVideoAdsShell({
     const el = videoRef?.current;
     if (!el || !linearActiveAd) return;
     try {
+      console.log("Ad started → video paused");
       el.pause();
     } catch {
       // ignore
     }
   }, [linearActiveAd, videoRef]);
+
+  const resumeMainVideoOnce = React.useCallback(
+    (reason: "ended" | "skipped" | "failed") => {
+      const adId = linearActiveAd?.id ?? null;
+      if (adId && resumedForAdRef.current === adId) return;
+      if (adId) resumedForAdRef.current = adId;
+      const el = videoRef?.current;
+      if (!el) return;
+      if (reason === "skipped") {
+        console.log("Ad skipped → video resumed");
+      } else {
+        console.log("Ad ended → video resumed");
+      }
+      void el.play().catch(() => {});
+    },
+    [linearActiveAd?.id, videoRef]
+  );
 
   React.useEffect(() => {
     if (!linearActiveAd) {
@@ -334,7 +356,8 @@ export default function WatchVideoAdsShell({
     return () => window.clearInterval(id);
   }, [linearActiveAd?.id, linearActiveAd?.skippable, linearActiveAd?.skipAfterSeconds]);
 
-  const endAd = React.useCallback(() => {
+  const endAd = React.useCallback(
+    (reason: "ended" | "skipped" | "failed" = "ended") => {
     const cur = linearActiveAd;
     const v = adVideoRef.current;
     const watchedSec =
@@ -351,14 +374,15 @@ export default function WatchVideoAdsShell({
     setAdProgress(0);
     setLeadOpen(false);
     setLeadTargetAd(null);
-    const el = videoRef?.current;
-    if (el) void el.play().catch(() => {});
-  }, [linearActiveAd, videoRef]);
+      resumeMainVideoOnce(reason);
+    },
+    [linearActiveAd, resumeMainVideoOnce]
+  );
 
   React.useEffect(() => {
     if (!linearActiveAd) return;
     if (!adCanDisplay(linearActiveAd)) {
-      endAd();
+      endAd("failed");
     }
   }, [linearActiveAd, endAd]);
 
@@ -371,7 +395,7 @@ export default function WatchVideoAdsShell({
       setAdProgress(Math.min(100, (elapsed / sec) * 100));
       if (elapsed >= sec) {
         window.clearInterval(id);
-        endAd();
+        endAd("ended");
       }
     }, 80);
     return () => window.clearInterval(id);
@@ -413,11 +437,6 @@ export default function WatchVideoAdsShell({
         adStartTimeRef.current = typeof performance !== "undefined" ? performance.now() : 0;
         setLinearActiveAd(midRollAd);
         setAdProgress(0);
-        try {
-          el.pause();
-        } catch {
-          // ignore
-        }
         return;
       }
     };
@@ -674,8 +693,8 @@ export default function WatchVideoAdsShell({
               muted={muted}
               playsInline
               preload="auto"
-              onEnded={endAd}
-              onError={endAd}
+              onEnded={() => endAd("ended")}
+              onError={() => endAd("failed")}
               onTimeUpdate={() => {
                 const v = adVideoRef.current;
                 if (!v || !Number.isFinite(v.duration) || v.duration <= 0) return;
@@ -741,7 +760,7 @@ export default function WatchVideoAdsShell({
                 <button
                   type="button"
                   disabled={!canSkip}
-                  onClick={endAd}
+                  onClick={() => endAd("skipped")}
                   className="relative rounded-lg border border-white/25 bg-white/5 px-3 py-2 text-xs font-medium text-white backdrop-blur-sm transition hover:bg-white/10 disabled:opacity-40"
                 >
                   {skipLabel}
