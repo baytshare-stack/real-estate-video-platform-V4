@@ -1,4 +1,4 @@
-import type { VideoAdSlot } from "@prisma/client";
+import type { AdType, VideoAdSlot } from "@prisma/client";
 import type { ServedVideoAdPayload } from "@/lib/video-ads/served-ad-payload";
 
 export type { ServedVideoAdPayload };
@@ -16,6 +16,7 @@ export function getMockVideoAdForSlot(slot: VideoAdSlot): ServedVideoAdPayload |
   if (!url) return null;
   const skipAfter = Math.max(0, Number(process.env.VIDEO_ADS_DEMO_SKIP_AFTER_SECONDS || 5) || 5);
   const skippable = process.env.VIDEO_ADS_DEMO_NON_SKIPPABLE !== "1";
+  const adType: AdType = slot === "MID_ROLL" ? "MID_ROLL" : "PRE_ROLL_SKIPPABLE";
   return {
     id: `mock-${slot.toLowerCase()}`,
     mediaType: "VIDEO",
@@ -27,6 +28,7 @@ export function getMockVideoAdForSlot(slot: VideoAdSlot): ServedVideoAdPayload |
     ctaLabel: "WhatsApp",
     ctaUrl: null,
     type: slot,
+    adType,
     skippable,
     skipAfterSeconds: skipAfter,
   };

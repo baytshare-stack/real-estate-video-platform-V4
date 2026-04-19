@@ -14,7 +14,12 @@ import { intentProfileBoost, loadUserIntentProfileSlice, type UserIntentProfileS
 import { getViewerAdExclusions } from "@/lib/ads-platform/viewer-frequency";
 import type { TargetingSlice } from "@/lib/video-ads/targeting-match";
 import { utcSpendDayString } from "@/lib/ads-platform/monetization-engine";
-import { isLinearAdPickableForSlot, resolveAdType } from "@/lib/video-ads/resolve-ad-type";
+import {
+  isLinearAdPickableForSlot,
+  isNonLinearCta,
+  isNonLinearOverlayFamily,
+  resolveAdType,
+} from "@/lib/video-ads/resolve-ad-type";
 import { targetingMatches, targetingRelevanceScore } from "@/lib/video-ads/targeting-match";
 import { loadWatchVideoContext, type WatchVideoContext } from "@/lib/video-ads/watch-context";
 
@@ -82,6 +87,7 @@ function toPayload(row: PickAdRow): ServedVideoAdPayload {
     ctaLabel: row.ctaLabel,
     ctaUrl: row.ctaUrl,
     type: row.type,
+    adType: row.adType,
     skippable: row.skippable,
     skipAfterSeconds: row.skipAfterSeconds,
   };
@@ -431,6 +437,135 @@ export async function pickVideoAdForWatchContext(
   if (adminPick) return toPayload(adminPick);
 
   return mock;
+}
+
+function filterNonLinearRows(
+  rows: PickAdRow[],
+  ctx: NonNullable<Awaited<ReturnType<typeof loadWatchVideoContext>>>,
+  now: Date,
+  kind: "OVERLAY" | "CTA"
+) {
+  const match = (r: PickAdRow) => {
+    if (r.type !== "PRE_ROLL") return false;
+    const t = resolveAdType(r);
+    if (kind === "CTA") return isNonLinearCta(t);
+    return isNonLinearOverlayFamily(t);
+  };
+  return rows.filter(
+    (r) =>
+      match(r) &&
+      creativeIsComplete(r) &&
+      reviewAndOwnerAllowServe(r) &&
+      userCampaignServable(r, now) &&
+      targetingMatches(ctx, r.targeting)
+  );
+}
+
+function filterNonLinearRowsNoCtx(rows: PickAdRow[], now: Date, kind: "OVERLAY" | "CTA") {
+  const match = (r: PickAdRow) => {
+    if (r.type !== "PRE_ROLL") return false;
+    const t = resolveAdType(r);
+    if (kind === "CTA") return isNonLinearCta(t);
+    return isNonLinearOverlayFamily(t);
+  };
+  return rows
+    .map((r) => ({ ...r, campaign: null as CampaignSlice | null }))
+    .filter((r) => match(r) && creativeIsComplete(r) && reviewAndOwnerAllowServe(r) && userCampaignServable(r, now));
+}
+
+/**
+ * OVERLAY/COMPANION/CTA creatives share DB `type: PRE_ROLL`; pick here for floating player UI (not linear takeover).
+ */
+export async function pickNonLinearVideoAdForWatchContext(
+  videoId: string,
+  kind: "OVERLAY" | "CTA",
+  opts?: PickVideoAdOptions
+): Promise<ServedVideoAdPayload | null> {
+  const viewerKey = opts?.viewerKey ?? null;
+  const viewerUserId = opts?.viewerUserId ?? null;
+  const [ctx, excluded, intentProfile] = await Promise.all([
+    loadWatchVideoContext(videoId),
+    getViewerAdExclusions(viewerKey),
+    loadUserIntentProfileSlice(viewerUserId),
+  ]);
+  const now = new Date();
+
+  const adTypeWhere =
+    kind === "CTA"
+      ? ({ adType: "CTA" } as const)
+      : ({ adType: { in: ["OVERLAY", "COMPANION"] as AdType[] } });
+
+  if (!ctx) {
+    const fallbackCtx: WatchVideoContext = {
+      videoId,
+      channelOwnerId: "",
+      country: null,
+      city: null,
+      propertyTypeKey: null,
+      price: null,
+      intent: null,
+    };
+    const adminRows = await prisma.ad.findMany({
+      where: { active: true, type: "PRE_ROLL", publisher: "ADMIN", ...adTypeWhere },
+      orderBy: { updatedAt: "desc" },
+      take: 48,
+      select: adPickSelect,
+    });
+    let pool = filterNonLinearRowsNoCtx(adminRows as PickAdRow[], now, kind);
+    pool = applyFrequencyFilter(pool, excluded);
+    const pick = weightedPickTop(pool, fallbackCtx, intentProfile, ROTATION_TOP_N);
+    if (pick) return toPayload(pick);
+    const row = pool.length ? pool[Math.floor(Math.random() * pool.length)]! : null;
+    return row ? toPayload(row) : null;
+  }
+
+  const ownerId = ctx.channelOwnerId;
+
+  const tierVideo = await prisma.ad.findMany({
+    where: {
+      active: true,
+      type: "PRE_ROLL",
+      publisher: "USER",
+      targetVideoId: videoId,
+      campaignId: { not: null },
+      AND: [ownerTargeting(ownerId), { campaign: campaignActiveWhere(now) }, adTypeWhere],
+    },
+    orderBy: { updatedAt: "desc" },
+    take: 48,
+    select: adPickSelect,
+  });
+  let u1 = applyFrequencyFilter(filterNonLinearRows(tierVideo as PickAdRow[], ctx, now, kind), excluded);
+  const v = weightedPickTop(u1, ctx, intentProfile, ROTATION_TOP_N);
+  if (v) return toPayload(v);
+
+  const tierOwnerWide = await prisma.ad.findMany({
+    where: {
+      active: true,
+      type: "PRE_ROLL",
+      publisher: "USER",
+      targetVideoId: null,
+      campaignId: { not: null },
+      AND: [ownerTargeting(ownerId), { campaign: campaignActiveWhere(now) }, adTypeWhere],
+    },
+    orderBy: { updatedAt: "desc" },
+    take: 48,
+    select: adPickSelect,
+  });
+  let u2 = applyFrequencyFilter(filterNonLinearRows(tierOwnerWide as PickAdRow[], ctx, now, kind), excluded);
+  const o = weightedPickTop(u2, ctx, intentProfile, ROTATION_TOP_N);
+  if (o) return toPayload(o);
+
+  const adminRows = await prisma.ad.findMany({
+    where: { active: true, type: "PRE_ROLL", publisher: "ADMIN", ...adTypeWhere },
+    orderBy: { updatedAt: "desc" },
+    take: 48,
+    select: adPickSelect,
+  });
+  let u3 = applyFrequencyFilter(filterNonLinearRows(adminRows as PickAdRow[], ctx, now, kind), excluded);
+  const adminPick = weightedPickTop(u3, ctx, intentProfile, ROTATION_TOP_N);
+  if (adminPick) return toPayload(adminPick);
+
+  return null;
 }
 
 /** @deprecated Use pickVideoAdForWatchContext when videoId is known. */
