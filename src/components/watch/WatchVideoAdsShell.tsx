@@ -7,7 +7,11 @@ import type { ServedVideoAdPayload } from "@/lib/video-ads/served-ad-payload";
 
 type ServedVideoAd = ServedVideoAdPayload;
 
-const MID_ROLL_MARKS_PCT = [25, 50, 75] as const;
+const MIN_AD_GAP_SECONDS = 30;
+const OVERLAY_INTERVAL_MIN = 45;
+const OVERLAY_INTERVAL_MAX = 60;
+const OVERLAY_AUTO_HIDE_SECONDS = 8;
+const SEEN_ADS_KEY = "seen_ads";
 
 function normalizeFetchedAd(ad: ServedVideoAd | null): ServedVideoAd | null {
   if (!ad) return null;
@@ -20,6 +24,35 @@ function normalizeFetchedAd(ad: ServedVideoAd | null): ServedVideoAd | null {
 function isLinearCreative(ad: ServedVideoAd): boolean {
   const t = ad.adType;
   return t === "PRE_ROLL_SKIPPABLE" || t === "PRE_ROLL_NON_SKIPPABLE" || t === "MID_ROLL";
+}
+
+function shuffle<T>(arr: readonly T[]): T[] {
+  const out = [...arr];
+  for (let i = out.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j]!, out[i]!];
+  }
+  return out;
+}
+
+function getSeenAds(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(SEEN_ADS_KEY);
+    const parsed = raw ? (JSON.parse(raw) as unknown) : [];
+    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function setSeenAds(ids: string[]) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(SEEN_ADS_KEY, JSON.stringify(ids.slice(-120)));
+  } catch {
+    // ignore
+  }
 }
 
 function isLikelyPlayableVideoUrl(src: string | null | undefined) {
@@ -102,6 +135,7 @@ export default function WatchVideoAdsShell({
   const [skipUnlocked, setSkipUnlocked] = React.useState(false);
   const [muted, setMuted] = React.useState(false);
   const [mainDuration, setMainDuration] = React.useState(0);
+  const [isShortVideo, setIsShortVideo] = React.useState(false);
   const [leadOpen, setLeadOpen] = React.useState(false);
   const [leadTargetAd, setLeadTargetAd] = React.useState<ServedVideoAd | null>(null);
   const [leadName, setLeadName] = React.useState("");
@@ -120,16 +154,45 @@ export default function WatchVideoAdsShell({
   const linearActiveRef = React.useRef<ServedVideoAd | null>(null);
   const overlayImpressionSentRef = React.useRef(false);
   const ctaImpressionSentRef = React.useRef(false);
-  const overlayTimersRef = React.useRef<number[]>([]);
   const lastMainTimeupdateLogRef = React.useRef(0);
+  const nextOverlayAtSecRef = React.useRef<number | null>(null);
+  const lastAdShownAtSecRef = React.useRef(-999);
+  const overlayShownRef = React.useRef(false);
+  const sidePopupShownRef = React.useRef(false);
+  const chosenMidRollCuesRef = React.useRef<number[]>([]);
+  const chosenPreAdIdRef = React.useRef<string | null>(null);
 
   React.useLayoutEffect(() => {
     viewerKeyRef.current = getOrCreateAdViewerKey();
   }, []);
 
+  const currentMainTimeSec = React.useCallback(() => {
+    const t = videoRef?.current?.currentTime;
+    return Number.isFinite(t) ? Number(t) : 0;
+  }, [videoRef]);
+
+  const canShowAnotherAdNow = React.useCallback(
+    (atSec: number) => atSec - lastAdShownAtSecRef.current >= MIN_AD_GAP_SECONDS,
+    []
+  );
+
+  const markAdShownNow = React.useCallback(
+    (atSec?: number) => {
+      const t = Number.isFinite(atSec) ? Number(atSec) : currentMainTimeSec();
+      lastAdShownAtSecRef.current = t;
+    },
+    [currentMainTimeSec]
+  );
+
   React.useEffect(() => {
     midFiredRef.current = {};
     lastMainTimeupdateLogRef.current = 0;
+    nextOverlayAtSecRef.current = null;
+    lastAdShownAtSecRef.current = -999;
+    overlayShownRef.current = false;
+    sidePopupShownRef.current = false;
+    chosenMidRollCuesRef.current = [];
+    chosenPreAdIdRef.current = null;
   }, [watchVideoId]);
 
   React.useEffect(() => {
@@ -139,7 +202,12 @@ export default function WatchVideoAdsShell({
   React.useEffect(() => {
     const el = videoRef?.current;
     if (!el) return;
-    const onMeta = () => setMainDuration(Number(el.duration) || 0);
+    const onMeta = () => {
+      const d = Number(el.duration) || 0;
+      setMainDuration(d);
+      const vertical = (el.videoHeight || 0) > 0 && (el.videoWidth || 0) > 0 && el.videoHeight > el.videoWidth;
+      setIsShortVideo(vertical || (Number.isFinite(d) && d > 0 && d < 60));
+    };
     el.addEventListener("loadedmetadata", onMeta);
     onMeta();
     return () => el.removeEventListener("loadedmetadata", onMeta);
@@ -155,24 +223,75 @@ export default function WatchVideoAdsShell({
       fetchAd(watchVideoId, "CTA", vk),
     ]).then(([pre, mid, ov, cta]) => {
       console.log("Ads fetched:", { preRoll: pre, midRoll: mid, overlay: ov, cta });
-      setPreRollAd(pre);
-      setMidRollAd(mid);
-      setOverlayAd(ov);
-      setCtaAd(cta);
+      const seen = getSeenAds();
+      const seenSet = new Set(seen);
+      const candidates = [pre, mid, ov, cta].filter((x): x is ServedVideoAd => Boolean(x));
+      const unseen = candidates.filter((x) => !seen.includes(x.id));
+      if (!unseen.length && candidates.length) {
+        // Rotate again once the known local pool is exhausted.
+        setSeenAds([]);
+        seenSet.clear();
+      }
+
+      const duration = mainDuration;
+      const shortLike = isShortVideo || (Number.isFinite(duration) && duration > 0 && duration < 60);
+      const veryShort = Number.isFinite(duration) && duration > 0 && duration < 30;
+      const medium = Number.isFinite(duration) && duration >= 30 && duration <= 90;
+      const long = Number.isFinite(duration) && duration > 90;
+
+      const preCandidate = pre && adCanDisplay(pre) && isLinearCreative(pre) && !seenSet.has(pre.id) ? pre : null;
+      const midCandidate = mid && adCanDisplay(mid) && isLinearCreative(mid) && !seenSet.has(mid.id) ? mid : null;
+      const overlayCandidate = ov && adCanDisplay(ov) && !seenSet.has(ov.id) ? ov : null;
+      const popupCandidate = cta && !seenSet.has(cta.id) ? cta : null;
+
+      let nextPre: ServedVideoAd | null = preCandidate;
+      let nextOverlay: ServedVideoAd | null = overlayCandidate;
+      let nextMid: ServedVideoAd | null = midCandidate;
+      let nextPopup: ServedVideoAd | null = popupCandidate;
+
+      if (shortLike) {
+        nextMid = null;
+      }
+      if (veryShort || shortLike) {
+        // For short videos: only pre-roll OR one small overlay.
+        const pick = shuffle([preCandidate, overlayCandidate].filter((x): x is ServedVideoAd => Boolean(x)))[0] ?? null;
+        if (pick?.id === preCandidate?.id) {
+          nextPre = preCandidate;
+          nextOverlay = null;
+        } else {
+          nextPre = null;
+          nextOverlay = overlayCandidate;
+        }
+        nextPopup = null;
+      } else if (medium) {
+        nextOverlay = null;
+        nextPopup = null;
+      } else if (!long) {
+        nextOverlay = null;
+        nextPopup = null;
+      }
+
+      setPreRollAd(nextPre);
+      setMidRollAd(nextMid);
+      setOverlayAd(nextOverlay);
+      setCtaAd(nextPopup);
       overlayImpressionSentRef.current = false;
       ctaImpressionSentRef.current = false;
       setOverlayOpen(false);
       setCtaDockVisible(false);
-      if (pre && adCanDisplay(pre) && isLinearCreative(pre)) {
-        console.log("Ad type:", pre.adType);
-        trackImpression(pre.id, vk);
+      if (nextPre && adCanDisplay(nextPre) && isLinearCreative(nextPre)) {
+        console.log("Ad type:", nextPre.adType);
+        trackImpression(nextPre.id, vk);
+        markAdShownNow(0);
+        setSeenAds([...getSeenAds(), nextPre.id]);
         viewSentRef.current = false;
         adStartTimeRef.current = typeof performance !== "undefined" ? performance.now() : 0;
-        setLinearActiveAd(pre);
+        chosenPreAdIdRef.current = nextPre.id;
+        setLinearActiveAd(nextPre);
         setAdProgress(0);
       }
     });
-  }, [watchVideoId]);
+  }, [watchVideoId, mainDuration, isShortVideo, markAdShownNow]);
 
   React.useEffect(() => {
     const el = videoRef?.current;
@@ -262,20 +381,34 @@ export default function WatchVideoAdsShell({
     const el = videoRef?.current;
     if (!el || !midRollAd || linearActiveAd) return;
     if (!isLinearCreative(midRollAd) || !adCanDisplay(midRollAd)) return;
+    if (isShortVideo) return;
 
     const d = mainDuration;
     if (!Number.isFinite(d) || d <= 0) return;
+    let cues: number[] = [];
+    if (d < 30) {
+      cues = [];
+    } else if (d <= 90) {
+      cues = [d * 0.5];
+    } else {
+      cues = [60, 120].filter((sec) => sec < d);
+    }
+    chosenMidRollCuesRef.current = cues;
+    if (!cues.length) return;
 
     const onTime = () => {
       const currentTime = Number(el.currentTime || 0);
-      for (const pct of MID_ROLL_MARKS_PCT) {
-        if (midFiredRef.current[pct]) continue;
-        const threshold = d * (pct / 100);
+      for (const threshold of cues) {
+        const key = Math.round(threshold);
+        if (midFiredRef.current[key]) continue;
         if (currentTime < threshold) continue;
-        midFiredRef.current[pct] = true;
+        if (!canShowAnotherAdNow(currentTime)) continue;
+        midFiredRef.current[key] = true;
         console.log("Ad triggered at:", currentTime);
         console.log("Ad type:", midRollAd.adType);
         trackImpression(midRollAd.id, viewerKeyRef.current || getOrCreateAdViewerKey());
+        markAdShownNow(currentTime);
+        setSeenAds([...getSeenAds(), midRollAd.id]);
         viewSentRef.current = false;
         adStartTimeRef.current = typeof performance !== "undefined" ? performance.now() : 0;
         setLinearActiveAd(midRollAd);
@@ -291,42 +424,22 @@ export default function WatchVideoAdsShell({
 
     el.addEventListener("timeupdate", onTime);
     return () => el.removeEventListener("timeupdate", onTime);
-  }, [videoRef, midRollAd, linearActiveAd, mainDuration]);
-
-  const floatingScheduleSessionRef = React.useRef(0);
+  }, [videoRef, midRollAd, linearActiveAd, mainDuration, isShortVideo, canShowAnotherAdNow, markAdShownNow]);
 
   React.useEffect(() => {
     const el = videoRef?.current;
     if (!el) return;
-
-    const clearOverlayTimers = () => {
-      overlayTimersRef.current.forEach((tid) => window.clearTimeout(tid));
-      overlayTimersRef.current = [];
+    const nextOverlayGap = () =>
+      OVERLAY_INTERVAL_MIN + Math.floor(Math.random() * (OVERLAY_INTERVAL_MAX - OVERLAY_INTERVAL_MIN + 1));
+    const scheduleNextOverlay = (base: number) => {
+      nextOverlayAtSecRef.current = base + nextOverlayGap();
     };
-
-    const scheduleFloating = () => {
-      if (!overlayAd && !ctaAd) return;
-      clearOverlayTimers();
-      floatingScheduleSessionRef.current += 1;
-      const sid = floatingScheduleSessionRef.current;
-      const tOverlay = window.setTimeout(() => {
-        if (floatingScheduleSessionRef.current !== sid) return;
-        if (!linearActiveRef.current && overlayAd && adCanDisplay(overlayAd)) {
-          setOverlayOpen(true);
-        }
-      }, 2000);
-      const tCta = window.setTimeout(() => {
-        if (floatingScheduleSessionRef.current !== sid) return;
-        if (!linearActiveRef.current && ctaAd) {
-          setCtaDockVisible(true);
-        }
-      }, 3800);
-      overlayTimersRef.current.push(tOverlay, tCta);
-    };
+    if (nextOverlayAtSecRef.current == null) {
+      scheduleNextOverlay(0);
+    }
 
     const onPlay = () => {
       console.log("watch: main video onPlay");
-      scheduleFloating();
     };
 
     const onPause = () => {
@@ -334,52 +447,51 @@ export default function WatchVideoAdsShell({
     };
 
     const onTimeUpdate = () => {
-      const currentTime = el.currentTime;
+      const currentTime = Number(el.currentTime || 0);
       const now = typeof performance !== "undefined" ? performance.now() : Date.now();
-      if (now - lastMainTimeupdateLogRef.current < 8000) return;
-      lastMainTimeupdateLogRef.current = now;
-      console.log("watch: main video onTimeUpdate", currentTime);
+      if (now - lastMainTimeupdateLogRef.current >= 8000) {
+        lastMainTimeupdateLogRef.current = now;
+        console.log("watch: main video onTimeUpdate", currentTime);
+      }
+      if (linearActiveRef.current) return;
+
+      if (
+        overlayAd &&
+        !overlayShownRef.current &&
+        adCanDisplay(overlayAd) &&
+        ((isShortVideo && !chosenPreAdIdRef.current && currentTime >= 3) ||
+          (!isShortVideo && nextOverlayAtSecRef.current != null && currentTime >= nextOverlayAtSecRef.current)) &&
+        canShowAnotherAdNow(currentTime)
+      ) {
+        setOverlayOpen(true);
+        overlayShownRef.current = true;
+        markAdShownNow(currentTime);
+        setSeenAds([...getSeenAds(), overlayAd.id]);
+        scheduleNextOverlay(currentTime);
+      }
+
+      if (
+        ctaAd &&
+        !sidePopupShownRef.current &&
+        !isShortVideo &&
+        !overlayOpen &&
+        currentTime >= 10 &&
+        canShowAnotherAdNow(currentTime)
+      ) {
+        setCtaDockVisible(true);
+        sidePopupShownRef.current = true;
+      }
     };
 
     el.addEventListener("play", onPlay);
     el.addEventListener("pause", onPause);
     el.addEventListener("timeupdate", onTimeUpdate);
-
-    if (!el.paused) {
-      scheduleFloating();
-    }
-
     return () => {
       el.removeEventListener("play", onPlay);
       el.removeEventListener("pause", onPause);
       el.removeEventListener("timeupdate", onTimeUpdate);
-      clearOverlayTimers();
     };
-  }, [videoRef, watchVideoId, overlayAd, ctaAd]);
-
-  React.useEffect(() => {
-    floatingScheduleSessionRef.current += 1;
-  }, [watchVideoId]);
-
-  React.useEffect(() => {
-    if (videoRef?.current) return;
-    if (!watchVideoId) return;
-    const sid = floatingScheduleSessionRef.current;
-    const id = window.setTimeout(() => {
-      if (floatingScheduleSessionRef.current !== sid) return;
-      if (linearActiveRef.current) return;
-      if (overlayAd && adCanDisplay(overlayAd)) setOverlayOpen(true);
-    }, 4500);
-    const id2 = window.setTimeout(() => {
-      if (floatingScheduleSessionRef.current !== sid) return;
-      if (linearActiveRef.current) return;
-      if (ctaAd) setCtaDockVisible(true);
-    }, 6000);
-    return () => {
-      window.clearTimeout(id);
-      window.clearTimeout(id2);
-    };
-  }, [videoRef, watchVideoId, overlayAd, ctaAd]);
+  }, [videoRef, overlayAd, ctaAd, overlayOpen, canShowAnotherAdNow, isShortVideo, markAdShownNow]);
 
   React.useEffect(() => {
     if (!overlayOpen || !overlayAd || overlayImpressionSentRef.current) return;
@@ -390,11 +502,18 @@ export default function WatchVideoAdsShell({
   }, [overlayOpen, overlayAd]);
 
   React.useEffect(() => {
+    if (!overlayOpen) return;
+    const id = window.setTimeout(() => setOverlayOpen(false), OVERLAY_AUTO_HIDE_SECONDS * 1000);
+    return () => window.clearTimeout(id);
+  }, [overlayOpen]);
+
+  React.useEffect(() => {
     if (!ctaDockVisible || !ctaAd || ctaImpressionSentRef.current) return;
     ctaImpressionSentRef.current = true;
     const vk = viewerKeyRef.current || getOrCreateAdViewerKey();
     console.log("Ad type:", ctaAd.adType, "(CTA dock visible)");
     trackImpression(ctaAd.id, vk);
+    setSeenAds([...getSeenAds(), ctaAd.id]);
   }, [ctaDockVisible, ctaAd]);
 
   React.useEffect(() => {
@@ -457,6 +576,12 @@ export default function WatchVideoAdsShell({
       setCtaDockVisible(false);
     }
   }, [linearActiveAd]);
+
+  React.useEffect(() => {
+    if (overlayOpen) {
+      setCtaDockVisible(false);
+    }
+  }, [overlayOpen]);
 
   const canSkip = Boolean(linearActiveAd?.skippable && skipUnlocked);
   const skipLabel = linearActiveAd?.skippable
@@ -648,7 +773,7 @@ export default function WatchVideoAdsShell({
         {!linearActiveAd && overlayOpen && overlayAd ? (
           <div
             key={overlayAd.id}
-            className="pointer-events-auto absolute bottom-3 right-3 z-[35] flex max-w-[min(100%,320px)] animate-[revp-ad-overlay-in_0.28s_ease-out_both] flex-col overflow-hidden rounded-xl border border-white/20 bg-black/80 shadow-2xl shadow-black/60 backdrop-blur-md"
+            className="pointer-events-auto absolute inset-x-2 bottom-2 z-[35] mx-auto flex w-[calc(100%-16px)] max-w-4xl animate-[revp-ad-overlay-in_0.28s_ease-out_both] flex-col overflow-hidden rounded-xl border border-white/20 bg-black/80 shadow-2xl shadow-black/60 backdrop-blur-md sm:inset-x-4 sm:w-[calc(100%-32px)]"
           >
             <div className="flex items-center justify-between gap-2 border-b border-white/10 px-2 py-1.5">
               <span className="truncate pl-1 text-[10px] font-medium uppercase tracking-wide text-white/50">Sponsored</span>
@@ -661,13 +786,13 @@ export default function WatchVideoAdsShell({
                 ✕
               </button>
             </div>
-            <div className="relative max-h-[200px] min-h-[100px] w-full bg-black/40">
+            <div className="relative w-full bg-black/40" style={{ maxHeight: "20vh", minHeight: "64px" }}>
               {overlayAd.mediaType === "IMAGE" && overlayAd.imageUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={overlayAd.imageUrl} alt="" className="max-h-[200px] w-full object-contain" />
+                <img src={overlayAd.imageUrl} alt="" className="h-full max-h-[20vh] w-full object-contain" />
               ) : overlayAd.videoUrl ? (
                 <video
-                  className="max-h-[200px] w-full object-contain"
+                  className="h-full max-h-[20vh] w-full object-contain"
                   src={overlayAd.videoUrl}
                   muted
                   playsInline
@@ -689,14 +814,27 @@ export default function WatchVideoAdsShell({
           </div>
         ) : null}
         {!linearActiveAd && ctaDockVisible && ctaAd ? (
-          <div className="pointer-events-auto absolute bottom-3 left-3 z-[36] animate-[revp-ad-overlay-in_0.28s_ease-out_both]">
-            <button
-              type="button"
-              onClick={() => handleCtaForAd(ctaAd)}
-              className="rounded-full border border-emerald-400/50 bg-emerald-600/95 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-emerald-950/40 backdrop-blur-sm transition hover:bg-emerald-500"
-            >
-              {dockCtaLabel}
-            </button>
+          <div className="pointer-events-auto absolute bottom-3 right-3 z-[36] w-full max-w-[300px] animate-[revp-ad-overlay-in_0.28s_ease-out_both]">
+            <div className="overflow-hidden rounded-xl border border-white/20 bg-black/70 shadow-lg shadow-black/50 backdrop-blur-sm">
+              <div className="flex items-center justify-between border-b border-white/10 px-2 py-1">
+                <span className="text-[10px] uppercase tracking-wide text-white/60">Sponsored</span>
+                <button
+                  type="button"
+                  className="rounded px-1.5 py-0.5 text-xs text-white/70 hover:bg-white/10"
+                  onClick={() => setCtaDockVisible(false)}
+                  aria-label="Close popup ad"
+                >
+                  ✕
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleCtaForAd(ctaAd)}
+                className="w-full bg-emerald-600/95 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-emerald-500"
+              >
+                {dockCtaLabel}
+              </button>
+            </div>
           </div>
         ) : null}
         {renderLinearTakeover()}
