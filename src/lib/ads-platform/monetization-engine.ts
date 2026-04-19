@@ -33,6 +33,66 @@ export function parseBillingTypeInput(v: unknown): CampaignBillingType {
   return "CPM";
 }
 
+function clampDecimal(v: Prisma.Decimal, low: Prisma.Decimal, high: Prisma.Decimal): Prisma.Decimal {
+  if (v.lt(low)) return low;
+  if (v.gt(high)) return high;
+  return v;
+}
+
+function roundMoney(x: number, decimals: number): number {
+  const p = 10 ** decimals;
+  return Math.round(x * p) / p;
+}
+
+/**
+ * System-managed bid (stored in `bidAmount` + `cpmBid`/`cpcBid`/`cplBid` via `bidFieldSync`).
+ * Heuristic from total budget, daily budget, and schedule length — replaces advertiser-entered bids.
+ * Existing DB columns stay; legacy rows with user-set bids remain until refreshed by PATCH.
+ */
+export function computeAutoBidForCampaign(params: {
+  billingType: CampaignBillingType;
+  budget: Prisma.Decimal;
+  dailyBudget: Prisma.Decimal;
+  startDate: Date;
+  endDate: Date;
+}): Prisma.Decimal {
+  const { billingType, budget, dailyBudget, startDate, endDate } = params;
+  const ms = Math.max(endDate.getTime() - startDate.getTime(), 0);
+  const days = Math.max(1, Math.ceil(ms / 86_400_000));
+  const paced = dailyBudget.gt(ZERO) ? dailyBudget : budget.div(new Prisma.Decimal(days));
+
+  const budgetN = Math.max(Number(budget.toString()) || 0, 0.01);
+  const pacedN = Math.max(Number(paced.toString()) || 0, 0.01);
+  const cap = new Prisma.Decimal(String(Math.min(budgetN, 1e9)));
+  const sqrtP = Math.sqrt(pacedN);
+
+  if (billingType === "CPM") {
+    const raw = sqrtP * 2.5;
+    const num = Math.max(0.5, Math.min(raw, Math.min(budgetN / 10, pacedN * 25)));
+    return clampDecimal(
+      new Prisma.Decimal(String(roundMoney(num, 2))),
+      new Prisma.Decimal("0.5"),
+      cap
+    );
+  }
+  if (billingType === "CPC") {
+    const raw = sqrtP * 0.35;
+    const num = Math.max(0.05, Math.min(raw, Math.min(budgetN / 50, pacedN * 5)));
+    return clampDecimal(
+      new Prisma.Decimal(String(roundMoney(num, 3))),
+      new Prisma.Decimal("0.05"),
+      cap
+    );
+  }
+  const raw = sqrtP * 1.2;
+  const num = Math.max(0.25, Math.min(raw, Math.min(budgetN / 20, pacedN * 15)));
+  return clampDecimal(
+    new Prisma.Decimal(String(roundMoney(num, 2))),
+    new Prisma.Decimal("0.25"),
+    cap
+  );
+}
+
 /** UTC `YYYY-MM-DD` for daily budget rollover (same as Postgres date-at-midnight comparisons in app logic). */
 export function utcSpendDayString(d: Date = new Date()): string {
   return d.toISOString().slice(0, 10);

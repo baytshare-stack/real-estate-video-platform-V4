@@ -4,21 +4,15 @@ import prisma from "@/lib/prisma";
 import { requireAdvertiserProfile } from "@/lib/ads-platform/auth";
 import { readRequestJson } from "@/lib/ads-client/safe-json";
 import { adjustCampaignBudgetAllocation, bidFieldSync } from "@/lib/ads-platform/billing";
-import { parseStrictStudioBillingModel, utcSpendDayString } from "@/lib/ads-platform/monetization-engine";
+import {
+  computeAutoBidForCampaign,
+  parseStrictStudioBillingModel,
+  utcSpendDayString,
+} from "@/lib/ads-platform/monetization-engine";
 
 type CampaignStatus = "DRAFT" | "ACTIVE" | "PAUSED" | "ENDED" | "DELETED";
 
 const ZERO = new Prisma.Decimal(0);
-
-function parseMoneyField(v: unknown): number | null {
-  if (v === undefined || v === null || v === "") return null;
-  if (typeof v === "number" && Number.isFinite(v)) return v;
-  if (typeof v === "string") {
-    const n = Number(v.replace(/,/g, "").trim());
-    return Number.isFinite(n) ? n : null;
-  }
-  return null;
-}
 
 function validateCampaignActivation(c: {
   budget: Prisma.Decimal;
@@ -60,7 +54,6 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     startDate?: string;
     endDate?: string;
     billingType?: string;
-    bidAmount?: number | string;
   }>(req);
   if (!body) return NextResponse.json({ error: "Valid JSON body is required." }, { status: 400 });
 
@@ -135,18 +128,20 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     campaign = await prisma.campaign.update({ where: { id }, data: extra });
   }
 
-  const wantsMonetizationFields =
+  const wantsAutoBidRefresh =
     typeof body.billingType === "string" ||
-    typeof body.bidAmount === "number" ||
-    (typeof body.bidAmount === "string" && body.bidAmount.trim() !== "");
+    typeof body.budget === "number" ||
+    (typeof body.dailyBudget === "number" && Number.isFinite(body.dailyBudget) && body.dailyBudget >= 0) ||
+    (typeof body.startDate === "string" && body.startDate.trim() !== "") ||
+    (typeof body.endDate === "string" && body.endDate.trim() !== "");
 
-  if (wantsMonetizationFields) {
-    const cur = await prisma.campaign.findFirst({
+  if (wantsAutoBidRefresh) {
+    const row = await prisma.campaign.findFirst({
       where: { id, advertiserId: auth.profile.id },
-      select: { billingType: true, bidAmount: true },
+      select: { billingType: true, budget: true, dailyBudget: true, startDate: true, endDate: true },
     });
-    if (!cur) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    let bt = cur.billingType;
+    if (!row) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    let bt = row.billingType;
     if (typeof body.billingType === "string") {
       const p = parseStrictStudioBillingModel(body.billingType);
       if (!p.ok) {
@@ -154,16 +149,16 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       }
       bt = p.prisma;
     }
-    let bidDec = cur.bidAmount;
-    if (typeof body.bidAmount === "number" && Number.isFinite(body.bidAmount)) {
-      bidDec = new Prisma.Decimal(String(Math.max(0, body.bidAmount)));
-    } else if (typeof body.bidAmount === "string") {
-      const n = parseMoneyField(body.bidAmount);
-      if (n != null) bidDec = new Prisma.Decimal(String(Math.max(0, n)));
-    }
+    const autoBid = computeAutoBidForCampaign({
+      billingType: bt,
+      budget: row.budget,
+      dailyBudget: row.dailyBudget,
+      startDate: row.startDate,
+      endDate: row.endDate,
+    });
     campaign = await prisma.campaign.update({
       where: { id },
-      data: bidFieldSync(bt, bidDec),
+      data: bidFieldSync(bt, autoBid),
     });
   }
 

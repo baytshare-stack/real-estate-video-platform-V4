@@ -6,6 +6,7 @@ import { readRequestJson } from "@/lib/ads-client/safe-json";
 import { createCampaignWithWalletAllocation } from "@/lib/ads-platform/billing";
 import {
   buildCampaignMonetizationAnalytics,
+  computeAutoBidForCampaign,
   parseStrictStudioBillingModel,
 } from "@/lib/ads-platform/monetization-engine";
 
@@ -96,9 +97,6 @@ export async function POST(req: Request) {
     startDate?: string;
     endDate?: string;
     billingType?: string;
-    /** Per-event or CPM bid; alias of `bidAmount` for some clients */
-    paidAmount?: number | string;
-    bidAmount?: number | string;
   }>(req);
   if (!body) {
     console.warn(LOG, "validation: missing or invalid JSON body");
@@ -175,33 +173,20 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: false, error: billingParsed.error }, { status: 400 });
   }
   const billingType = billingParsed.prisma;
-  const paidSource =
-    body.paidAmount !== undefined && body.paidAmount !== null && body.paidAmount !== ""
-      ? body.paidAmount
-      : body.bidAmount;
-  const bidAmtParsed = asMoneyNumber(parseMoneyField(paidSource));
-  // paidAmount / bidAmount: allow 0 and positive fractions (e.g. 0.5); reject only negatives or non-numeric when provided.
-  if (paidSource !== undefined && paidSource !== null && paidSource !== "" && bidAmtParsed == null) {
-    console.warn(LOG, "validation: paidAmount/bidAmount not numeric", { paidAmount: body.paidAmount, bidAmount: body.bidAmount });
-    return NextResponse.json(
-      { success: false, error: "paidAmount (or bidAmount) must be a valid number when provided." },
-      { status: 400 }
-    );
-  }
-  const paidNum = bidAmtParsed ?? 0;
-  if (paidNum < 0) {
-    console.warn(LOG, "validation: paidAmount negative", { paidNum });
-    return NextResponse.json({ success: false, error: "paidAmount must be >= 0" }, { status: 400 });
-  }
-  const bidAmount =
-    paidNum > 0 ? new Prisma.Decimal(String(Number(paidNum))) : ZERO;
+  const bidAmount = computeAutoBidForCampaign({
+    billingType,
+    budget,
+    dailyBudget,
+    startDate,
+    endDate,
+  });
 
   console.info(LOG, "resolved create", {
     name,
     budgetNum,
     dailyNum,
     billingType,
-    paidNum,
+    autoBid: bidAmount.toString(),
   });
 
   try {

@@ -146,7 +146,6 @@ export default function StudioCampaignsPage() {
   const [budget, setBudget] = React.useState("1000");
   const [dailyBudget, setDailyBudget] = React.useState("50");
   const [billingType, setBillingType] = React.useState<StudioBillingWire>("CPM");
-  const [bidAmount, setBidAmount] = React.useState("");
   const [campaignError, setCampaignError] = React.useState("");
   const [creatingCampaign, setCreatingCampaign] = React.useState(false);
   const [confirm, setConfirm] = React.useState<null | { kind: "end" | "delete"; id: string }>(null);
@@ -156,7 +155,6 @@ export default function StudioCampaignsPage() {
     budget: string;
     dailyBudget: string;
     billingType: StudioBillingWire;
-    bidAmount: string;
     startDate: string;
     endDate: string;
   }>(null);
@@ -210,7 +208,6 @@ export default function StudioCampaignsPage() {
     setCampaignError("");
     const budgetNum = Number(String(budget).replace(/,/g, "").trim());
     const dailyNum = Number(String(dailyBudget).replace(/,/g, "").trim());
-    const bidNum = Number(String(bidAmount).replace(/,/g, "").trim());
 
     if (!name.trim()) {
       const msg = "Campaign name is required.";
@@ -230,7 +227,6 @@ export default function StudioCampaignsPage() {
       budget: budgetNum,
       dailyBudget: Number.isFinite(dailyNum) ? dailyNum : 0,
       billingType,
-      ...(Number.isFinite(bidNum) && bidNum > 0 ? { bidAmount: bidNum } : {}),
     };
 
     console.log("API CALL STARTING", "/api/studio/campaigns", payload);
@@ -249,7 +245,6 @@ export default function StudioCampaignsPage() {
       console.log("API CALL FINISHED", res.status, res.ok, j);
       if (res.ok && j.success !== false) {
         setName("");
-        setBidAmount("");
         setBillingType("CPM");
         await load();
       } else {
@@ -264,7 +259,7 @@ export default function StudioCampaignsPage() {
     } finally {
       setCreatingCampaign(false);
     }
-  }, [name, budget, dailyBudget, billingType, bidAmount, load]);
+  }, [name, budget, dailyBudget, billingType, load]);
 
   const onNewCampaignSubmit = React.useCallback(
     async (e: React.FormEvent<HTMLFormElement>) => {
@@ -290,7 +285,6 @@ export default function StudioCampaignsPage() {
     budget?: unknown;
     dailyBudget?: unknown;
     billingType?: string;
-    bidAmount?: unknown;
     startDate?: string;
     endDate?: string;
   }) => {
@@ -303,7 +297,6 @@ export default function StudioCampaignsPage() {
       budget: String(n(c.budget)),
       dailyBudget: String(n(c.dailyBudget)),
       billingType: billing,
-      bidAmount: c.bidAmount != null && String(c.bidAmount).trim() !== "" ? String(n(c.bidAmount)) : "",
       startDate: sd,
       endDate: ed,
     });
@@ -311,13 +304,11 @@ export default function StudioCampaignsPage() {
 
   const saveEdit = async () => {
     if (!edit) return;
-    const bidNum = Number(String(edit.bidAmount).replace(/,/g, "").trim());
     await patchCampaign(edit.id, {
       name: edit.name.trim(),
       budget: Number(edit.budget),
       dailyBudget: Number(edit.dailyBudget),
       billingType: edit.billingType,
-      ...(Number.isFinite(bidNum) && bidNum >= 0 ? { bidAmount: bidNum } : {}),
       startDate: edit.startDate,
       endDate: edit.endDate,
     });
@@ -425,20 +416,10 @@ export default function StudioCampaignsPage() {
                   <option value="CPL">Cost Per Lead (CPL)</option>
                 </select>
               </label>
-              <label className="text-xs text-white/65 md:col-span-2">
-                Bid amount
-                <span className="mb-1 block text-[10px] font-normal text-white/40">
-                  CPM = price per 1,000 impressions; CBC/CPL = price per click or lead. Leave empty for legacy flat CPM.
-                </span>
-                <input
-                  className="mt-1.5 w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white"
-                  inputMode="decimal"
-                  name="bidAmount"
-                  placeholder={billingType === "CPM" ? "e.g. 12 (means $12 / 1k impr.)" : "e.g. 0.45"}
-                  value={bidAmount}
-                  onChange={(e) => setBidAmount(e.target.value)}
-                />
-              </label>
+              <p className="text-xs text-white/50 md:col-span-2 md:self-end">
+                Per-impression, click, and lead prices are set automatically from your total and daily budgets (no manual
+                bid entry).
+              </p>
             </div>
             {campaignError ? (
               <p className="text-sm text-rose-300" role="alert">
@@ -501,10 +482,7 @@ export default function StudioCampaignsPage() {
                         <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-white/45">
                           <span>
                             {billingTypeToWireLabel((c as CampaignRow).billingType)}
-                            {(c as CampaignRow).bidAmount != null && n((c as CampaignRow).bidAmount) > 0
-                              ? ` · bid ${n((c as CampaignRow).bidAmount)}`
-                              : ""}{" "}
-                            ·{" "}
+                            {" · Auto bid · "}
                           </span>
                           <span>Studio Ads use campaign budgets · </span>
                           <AdsLifecycleBadge status={String(c.status || "DRAFT")} />
@@ -658,7 +636,10 @@ export default function StudioCampaignsPage() {
             <h3 id="campaign-edit-title" className="text-lg font-semibold text-white">
               Edit campaign
             </h3>
-            <p className="mt-1 text-sm text-white/55">Name, budget, schedule. Budget changes use your wallet (same as create).</p>
+            <p className="mt-1 text-sm text-white/55">
+              Name, budget, schedule, and billing model. Bids stay system-managed from budgets. Budget changes use your
+              wallet (same as create).
+            </p>
             <div className="mt-4 space-y-3">
               <label className="block text-xs text-white/65">
                 Name
@@ -702,16 +683,9 @@ export default function StudioCampaignsPage() {
                   <option value="CPL">Cost Per Lead (CPL)</option>
                 </select>
               </label>
-              <label className="block text-xs text-white/65">
-                Bid amount
-                <input
-                  className="mt-1 w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm text-white"
-                  inputMode="decimal"
-                  placeholder="0 = legacy pricing"
-                  value={edit.bidAmount}
-                  onChange={(e) => setEdit((s) => (s ? { ...s, bidAmount: e.target.value } : s))}
-                />
-              </label>
+              <p className="text-xs text-white/45">
+                Saving recalculates internal bids from your budgets and dates (no manual bid field).
+              </p>
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="block text-xs text-white/65">
                   Start date
