@@ -2,9 +2,32 @@ import { Prisma, type CampaignBillingType } from "@prisma/client";
 
 const ZERO = new Prisma.Decimal(0);
 
+/** Wire labels for Studio (API + UI). DB enum remains CPC for cost-per-click. */
+export type StudioBillingWire = "CBC" | "CPL" | "CPM";
+
+/**
+ * Studio campaign create/update: only CBC | CPL | CPM (case-insensitive).
+ * Maps CBC → Prisma CPC. Rejects any other string (including legacy "CPC" free text).
+ */
+export function parseStrictStudioBillingModel(v: unknown): { ok: true; prisma: CampaignBillingType } | { ok: false; error: string } {
+  const s = String(v ?? "").trim().toUpperCase();
+  if (s === "CBC") return { ok: true, prisma: "CPC" };
+  if (s === "CPL") return { ok: true, prisma: "CPL" };
+  if (s === "CPM") return { ok: true, prisma: "CPM" };
+  if (!s) return { ok: false, error: "billingType is required. Use CBC, CPL, or CPM." };
+  return { ok: false, error: "billingType must be exactly CBC, CPL, or CPM." };
+}
+
+/** Map DB value to Studio wire for dropdowns (CPC in DB → CBC in UI). */
+export function prismaBillingTypeToStudioWire(t: CampaignBillingType): StudioBillingWire {
+  if (t === "CPC") return "CBC";
+  if (t === "CPL") return "CPL";
+  return "CPM";
+}
+
+/** Legacy / internal: loose parse (defaults unknown → CPM). Prefer parseStrictStudioBillingModel for Studio writes. */
 export function parseBillingTypeInput(v: unknown): CampaignBillingType {
   const s = String(v ?? "CPM").toUpperCase().trim();
-  // Prisma enum is CPC (cost per click); some clients send CBC.
   if (s === "CBC" || s === "CPC") return "CPC";
   if (s === "CPL" || s === "CPM") return s;
   return "CPM";

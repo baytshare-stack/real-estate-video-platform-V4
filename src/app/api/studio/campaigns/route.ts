@@ -4,7 +4,10 @@ import prisma from "@/lib/prisma";
 import { requireAdvertiserProfile } from "@/lib/ads-platform/auth";
 import { readRequestJson } from "@/lib/ads-client/safe-json";
 import { createCampaignWithWalletAllocation } from "@/lib/ads-platform/billing";
-import { buildCampaignMonetizationAnalytics, parseBillingTypeInput } from "@/lib/ads-platform/monetization-engine";
+import {
+  buildCampaignMonetizationAnalytics,
+  parseStrictStudioBillingModel,
+} from "@/lib/ads-platform/monetization-engine";
 
 const ZERO = new Prisma.Decimal(0);
 const LOG = "[api/studio/campaigns POST]";
@@ -162,7 +165,16 @@ export async function POST(req: Request) {
     );
   }
 
-  const billingType = parseBillingTypeInput(body.billingType);
+  const billingRaw =
+    body.billingType === undefined || body.billingType === null || String(body.billingType).trim() === ""
+      ? "CPM"
+      : body.billingType;
+  const billingParsed = parseStrictStudioBillingModel(billingRaw);
+  if (!billingParsed.ok) {
+    console.warn(LOG, "validation: billingType", billingParsed.error, { billingType: body.billingType });
+    return NextResponse.json({ success: false, error: billingParsed.error }, { status: 400 });
+  }
+  const billingType = billingParsed.prisma;
   const paidSource =
     body.paidAmount !== undefined && body.paidAmount !== null && body.paidAmount !== ""
       ? body.paidAmount

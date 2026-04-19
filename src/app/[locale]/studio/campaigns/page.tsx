@@ -7,6 +7,7 @@ import { StudioAdsPageHeader } from "@/components/studio/ads/StudioAdsBreadcrumb
 import { AdsLifecycleBadge } from "@/components/studio/ads/AdsLifecycleBadge";
 import { StudioConfirmDialog } from "@/components/studio/ads/StudioConfirmDialog";
 import { parseResponseJson } from "@/lib/ads-client/safe-json";
+import { type StudioBillingWire } from "@/lib/ads-platform/monetization-engine";
 
 type AdRow = {
   campaignId: string;
@@ -25,6 +26,15 @@ function ctrPct(impressions: number, clicks: number): number {
 
 function formatInt(x: number) {
   return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(x);
+}
+
+/** Map API/DB billing value to Studio wire label (unknown → CBC per product default). */
+function billingTypeToWireLabel(raw: unknown): StudioBillingWire {
+  const u = String(raw ?? "").trim().toUpperCase();
+  if (u === "CPM") return "CPM";
+  if (u === "CPL") return "CPL";
+  if (u === "CPC" || u === "CBC") return "CBC";
+  return "CBC";
 }
 
 type MonetizationSummary = {
@@ -135,7 +145,7 @@ export default function StudioCampaignsPage() {
   const [name, setName] = React.useState("");
   const [budget, setBudget] = React.useState("1000");
   const [dailyBudget, setDailyBudget] = React.useState("50");
-  const [billingType, setBillingType] = React.useState<"CPM" | "CPC" | "CPL">("CPM");
+  const [billingType, setBillingType] = React.useState<StudioBillingWire>("CPM");
   const [bidAmount, setBidAmount] = React.useState("");
   const [campaignError, setCampaignError] = React.useState("");
   const [creatingCampaign, setCreatingCampaign] = React.useState(false);
@@ -145,7 +155,7 @@ export default function StudioCampaignsPage() {
     name: string;
     budget: string;
     dailyBudget: string;
-    billingType: "CPM" | "CPC" | "CPL";
+    billingType: StudioBillingWire;
     bidAmount: string;
     startDate: string;
     endDate: string;
@@ -286,9 +296,7 @@ export default function StudioCampaignsPage() {
   }) => {
     const sd = typeof c.startDate === "string" ? c.startDate.slice(0, 10) : "";
     const ed = typeof c.endDate === "string" ? c.endDate.slice(0, 10) : "";
-    const bt = (c.billingType || "CPM").toUpperCase();
-    const billing: "CPM" | "CPC" | "CPL" =
-      bt === "CPC" ? "CPC" : bt === "CPL" ? "CPL" : "CPM";
+    const billing = billingTypeToWireLabel(c.billingType);
     setEdit({
       id: c.id,
       name: c.name,
@@ -410,17 +418,17 @@ export default function StudioCampaignsPage() {
                   className="mt-1.5 w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white"
                   name="billingType"
                   value={billingType}
-                  onChange={(e) => setBillingType(e.target.value as typeof billingType)}
+                  onChange={(e) => setBillingType(e.target.value as StudioBillingWire)}
                 >
-                  <option value="CPM">CPM (per 1k impressions)</option>
-                  <option value="CPC">CPC (per click)</option>
-                  <option value="CPL">CPL (per lead)</option>
+                  <option value="CPM">Cost Per 1000 Impressions (CPM)</option>
+                  <option value="CBC">Cost Per Click (CBC)</option>
+                  <option value="CPL">Cost Per Lead (CPL)</option>
                 </select>
               </label>
               <label className="text-xs text-white/65 md:col-span-2">
                 Bid amount
                 <span className="mb-1 block text-[10px] font-normal text-white/40">
-                  CPM = price per 1,000 impressions; CPC/CPL = price per event. Leave empty for legacy flat CPM.
+                  CPM = price per 1,000 impressions; CBC/CPL = price per click or lead. Leave empty for legacy flat CPM.
                 </span>
                 <input
                   className="mt-1.5 w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white"
@@ -492,7 +500,7 @@ export default function StudioCampaignsPage() {
                         <h3 className="text-base font-semibold text-white">{c.name}</h3>
                         <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-white/45">
                           <span>
-                            {(c as CampaignRow).billingType || "CPM"}
+                            {billingTypeToWireLabel((c as CampaignRow).billingType)}
                             {(c as CampaignRow).bidAmount != null && n((c as CampaignRow).bidAmount) > 0
                               ? ` · bid ${n((c as CampaignRow).bidAmount)}`
                               : ""}{" "}
@@ -573,7 +581,7 @@ export default function StudioCampaignsPage() {
                       </span>
                     </div>
                     <p className="mt-1 text-[11px] text-white/50">
-                      {(c as CampaignRow).billingType || "CPM"}
+                      {billingTypeToWireLabel((c as CampaignRow).billingType)}
                       {monM?.cpcActual != null ? ` · CPC $${monM.cpcActual.toFixed(3)}` : ""}
                       {monM?.cplActual != null ? ` · CPL $${monM.cplActual.toFixed(2)}` : ""}
                     </p>
@@ -685,13 +693,13 @@ export default function StudioCampaignsPage() {
                   value={edit.billingType}
                   onChange={(e) =>
                     setEdit((s) =>
-                      s ? { ...s, billingType: e.target.value as "CPM" | "CPC" | "CPL" } : s
+                      s ? { ...s, billingType: e.target.value as StudioBillingWire } : s
                     )
                   }
                 >
-                  <option value="CPM">CPM</option>
-                  <option value="CPC">CPC</option>
-                  <option value="CPL">CPL</option>
+                  <option value="CPM">Cost Per 1000 Impressions (CPM)</option>
+                  <option value="CBC">Cost Per Click (CBC)</option>
+                  <option value="CPL">Cost Per Lead (CPL)</option>
                 </select>
               </label>
               <label className="block text-xs text-white/65">

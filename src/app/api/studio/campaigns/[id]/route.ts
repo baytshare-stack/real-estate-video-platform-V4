@@ -4,7 +4,7 @@ import prisma from "@/lib/prisma";
 import { requireAdvertiserProfile } from "@/lib/ads-platform/auth";
 import { readRequestJson } from "@/lib/ads-client/safe-json";
 import { adjustCampaignBudgetAllocation, bidFieldSync } from "@/lib/ads-platform/billing";
-import { parseBillingTypeInput, utcSpendDayString } from "@/lib/ads-platform/monetization-engine";
+import { parseStrictStudioBillingModel, utcSpendDayString } from "@/lib/ads-platform/monetization-engine";
 
 type CampaignStatus = "DRAFT" | "ACTIVE" | "PAUSED" | "ENDED" | "DELETED";
 
@@ -146,8 +146,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       select: { billingType: true, bidAmount: true },
     });
     if (!cur) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    const bt =
-      typeof body.billingType === "string" ? parseBillingTypeInput(body.billingType) : cur.billingType;
+    let bt = cur.billingType;
+    if (typeof body.billingType === "string") {
+      const p = parseStrictStudioBillingModel(body.billingType);
+      if (!p.ok) {
+        return NextResponse.json({ error: p.error }, { status: 400 });
+      }
+      bt = p.prisma;
+    }
     let bidDec = cur.bidAmount;
     if (typeof body.bidAmount === "number" && Number.isFinite(body.bidAmount)) {
       bidDec = new Prisma.Decimal(String(Math.max(0, body.bidAmount)));
