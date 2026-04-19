@@ -150,7 +150,17 @@ export default function AdminCampaignsControl() {
                       <span className="text-white/40">—</span>
                     ) : (
                       <div className="flex flex-wrap gap-1">
-                        {c.status !== "ACTIVE" ? (
+                        {c.status === "PAUSED" ? (
+                          <button
+                            type="button"
+                            disabled={busy === c.id}
+                            className="rounded-lg border border-emerald-500/40 px-2 py-1 text-xs text-emerald-200 disabled:opacity-40"
+                            onClick={() => void setCampaignStatus(c.id, "ACTIVE")}
+                          >
+                            Resume
+                          </button>
+                        ) : null}
+                        {c.status === "DRAFT" ? (
                           <button
                             type="button"
                             disabled={busy === c.id}

@@ -91,7 +91,7 @@ function CampaignToolbar({
           {!compact ? "Edit" : null}
         </span>
       </button>
-      {(c.status === "DRAFT" || c.status === "PAUSED") && !terminal ? (
+      {c.status === "PAUSED" && !terminal ? (
         <button
           type="button"
           className={btn}
@@ -99,7 +99,19 @@ function CampaignToolbar({
         >
           <span className="inline-flex items-center gap-1">
             <Play className="h-3.5 w-3.5 shrink-0" aria-hidden />
-            {!compact ? (c.status === "DRAFT" ? "Activate" : "Resume") : null}
+            {!compact ? "Resume" : null}
+          </span>
+        </button>
+      ) : null}
+      {c.status === "DRAFT" && !terminal ? (
+        <button
+          type="button"
+          className={btn}
+          onClick={() => void patchCampaign(c.id, { status: "ACTIVE" })}
+        >
+          <span className="inline-flex items-center gap-1">
+            <Play className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            {!compact ? "Activate" : null}
           </span>
         </button>
       ) : null}

@@ -120,6 +120,7 @@ function creativeIsComplete(row: PickAdRow): boolean {
 
 /** USER ads must be APPROVED; blocked users’ ads never serve. REJECTED never serves. */
 function reviewAndOwnerAllowServe(row: PickAdRow): boolean {
+  console.log("Ad status:", row.adminReviewStatus);
   if (row.adminReviewStatus === "REJECTED") return false;
   if (row.publisher === "USER") {
     if (row.adminReviewStatus !== "APPROVED") return false;
@@ -131,9 +132,15 @@ function reviewAndOwnerAllowServe(row: PickAdRow): boolean {
 function userCampaignServable(row: PickAdRow, now: Date): boolean {
   if (row.publisher !== "USER") return true;
   if (!row.campaign) return false;
+  console.log("Campaign status:", row.campaign.status);
   if (!campaignWindowOk(row.campaign, now)) return false;
   if (!hasRemainingBudget(row.campaign)) return false;
   return hasDailyBudgetRemaining(row.campaign, now);
+}
+
+function deliveryStatusAllowsServe(row: PickAdRow): boolean {
+  if (row.publisher !== "USER") return true;
+  return row.adminReviewStatus === "APPROVED" && row.campaign?.status === "ACTIVE";
 }
 
 /** Listing owner (channel owner) matches ad owner, or ad is owned by an agency that employs that owner. */
@@ -250,6 +257,7 @@ function filterUserRows(
   return rows.filter(
     (r) =>
       creativeIsComplete(r) &&
+      deliveryStatusAllowsServe(r) &&
       reviewAndOwnerAllowServe(r) &&
       userCampaignServable(r, now) &&
       targetingMatches(ctx, r.targeting) &&
@@ -268,6 +276,7 @@ function filterAdminRows(
     .filter(
       (r) =>
         creativeIsComplete(r) &&
+        deliveryStatusAllowsServe(r) &&
         reviewAndOwnerAllowServe(r) &&
         userCampaignServable(r, now) &&
         targetingMatches(ctx, r.targeting) &&
@@ -281,6 +290,7 @@ function filterAdminRowsNoCtx(rows: PickAdRow[], now: Date, requestedSlot: Video
     .filter(
       (r) =>
         creativeIsComplete(r) &&
+        deliveryStatusAllowsServe(r) &&
         reviewAndOwnerAllowServe(r) &&
         userCampaignServable(r, now) &&
         isLinearAdPickableForSlot(resolveAdType(r), requestedSlot, r.type)
@@ -455,6 +465,7 @@ function filterNonLinearRows(
     (r) =>
       match(r) &&
       creativeIsComplete(r) &&
+      deliveryStatusAllowsServe(r) &&
       reviewAndOwnerAllowServe(r) &&
       userCampaignServable(r, now) &&
       targetingMatches(ctx, r.targeting)
@@ -470,7 +481,14 @@ function filterNonLinearRowsNoCtx(rows: PickAdRow[], now: Date, kind: "OVERLAY" 
   };
   return rows
     .map((r) => ({ ...r, campaign: null as CampaignSlice | null }))
-    .filter((r) => match(r) && creativeIsComplete(r) && reviewAndOwnerAllowServe(r) && userCampaignServable(r, now));
+    .filter(
+      (r) =>
+        match(r) &&
+        creativeIsComplete(r) &&
+        deliveryStatusAllowsServe(r) &&
+        reviewAndOwnerAllowServe(r) &&
+        userCampaignServable(r, now)
+    );
 }
 
 /**

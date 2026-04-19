@@ -264,7 +264,7 @@ export async function createCampaignWithWalletAllocation(params: {
           spent: ZERO,
           startDate,
           endDate,
-          status: "DRAFT",
+          status: "ACTIVE",
           spentToday: ZERO,
           spendDayUtc: "",
           ...bidSync,

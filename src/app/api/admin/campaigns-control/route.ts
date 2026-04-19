@@ -11,7 +11,7 @@ export async function GET(req: Request) {
 
   try {
     const { searchParams } = new URL(req.url);
-    const status = (searchParams.get("status") || "").trim();
+    const status = (searchParams.get("status") || "").trim().toUpperCase();
     const q = (searchParams.get("q") || "").trim();
     const minSpent = Math.max(0, Number(searchParams.get("minSpent") || "") || 0);
 
